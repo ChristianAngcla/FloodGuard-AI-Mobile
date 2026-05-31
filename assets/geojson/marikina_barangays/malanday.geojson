@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "features": [{
+    "type": "Feature",
+    "properties": { "name": "Malanday" },
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [[
+        [121.0861,14.6712],
+        [121.0978,14.6721],
+        [121.1026,14.6805],
+        [121.0924,14.6838],
+        [121.0839,14.6784],
+        [121.0861,14.6712]
+      ]]
+    }
+  }]
+}

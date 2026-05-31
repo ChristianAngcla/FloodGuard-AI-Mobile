@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "837721359628",
+    "project_id": "floodguard-web",
+    "storage_bucket": "floodguard-web.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837721359628:android:538a53d4f254a5ea033529",
+        "android_client_info": {
+          "package_name": "com.example.floodguard_ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvrAPkv3W1LXfpDURB_cTScBRuHEBkBT0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

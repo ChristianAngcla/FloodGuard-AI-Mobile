@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "features": [{
+    "type": "Feature",
+    "properties": { "name": "Barangka" },
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [[
+        [121.0870,14.6405],
+        [121.0955,14.6400],
+        [121.0992,14.6468],
+        [121.0908,14.6504],
+        [121.0859,14.6461],
+        [121.0870,14.6405]
+      ]]
+    }
+  }]
+}
