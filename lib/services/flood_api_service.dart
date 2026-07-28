@@ -270,9 +270,9 @@ class FloodApiService {
 
               // EXACT alignment with legend thresholds
               int riskLevel = 10;
-              if (peakLevel >= 18.0)
+              if (peakLevel >= 18.0) {
                 riskLevel = 90; // Red (Force Evacuation)
-              else if (peakLevel >= 16.0)
+              } else if (peakLevel >= 16.0)
                 riskLevel = 65; // Orange (Prepare)
               else if (peakLevel >= 15.0) riskLevel = 35; // Yellow (Alert)
 
@@ -491,6 +491,9 @@ class FloodApiService {
     String? floodLevel,
     String? reporterName,
     String? reporterPhone,
+    double? latitude,
+    double? longitude,
+    String? status,
   }) async {
     try {
       debugPrint('🔗 Submitting flood report to database...');
@@ -514,6 +517,9 @@ class FloodApiService {
               'floodLevel': floodLevel ?? 'Unknown',
               'reporterName': reporterName ?? 'Unknown Reporter',
               'reporterPhone': reporterPhone ?? '',
+              'latitude': latitude,
+              'longitude': longitude,
+              'status': status ?? 'pending',
             }),
           )
           .timeout(_timeout);

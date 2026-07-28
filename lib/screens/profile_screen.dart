@@ -290,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: CircleAvatar(
                         backgroundColor: isSelected
                             ? const Color(0xFF3784DF)
-                            : const Color(0xFF3784DF).withOpacity(0.1),
+                            : const Color(0xFF3784DF).withValues(alpha: 0.1),
                         backgroundImage: NetworkImage(
                             'https://api.dicebear.com/7.x/adventurer/png?seed=$seed'),
                       ),
@@ -493,7 +493,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: CircleAvatar(
                                     radius: 50,
                                     backgroundColor: const Color(0xFF3784DF)
-                                        .withOpacity(0.1),
+                                        .withValues(alpha: 0.1),
                                     backgroundImage: NetworkImage(
                                         'https://api.dicebear.com/7.x/adventurer/png?seed=$_avatarSeed'),
                                   ),
@@ -674,7 +674,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(0xFF3784DF)
-                                        .withOpacity(0.4),
+                                        .withValues(alpha: 0.4),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
@@ -719,7 +719,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   : [
                                       BoxShadow(
                                         color:
-                                            Colors.redAccent.withOpacity(0.4),
+                                            Colors.redAccent.withValues(alpha: 0.4),
                                         blurRadius: 12,
                                         offset: const Offset(0, 4),
                                       )
@@ -788,7 +788,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final activeFillColor =
         readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withOpacity(0.7);
+        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
     final defaultBorderColor = isDark ? Colors.white10 : Colors.transparent;
 
     return TextFormField(
@@ -829,11 +829,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final activeFillColor =
         readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withOpacity(0.7);
+        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
     final defaultBorderColor = isDark ? Colors.white10 : Colors.transparent;
 
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       icon: readOnly
           ? const SizedBox()
           : null, // Hide dropdown arrow if read-only

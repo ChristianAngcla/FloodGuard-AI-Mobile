@@ -30,14 +30,14 @@ class FloodLegendCard extends StatelessWidget {
               BoxShadow(
                 color: isDarkMode
                     ? Colors.black54
-                    : const Color(0xFF3784DF).withOpacity(0.2),
+                    : const Color(0xFF3784DF).withValues(alpha: 0.2),
                 blurRadius: 24,
                 spreadRadius: 2,
                 offset: const Offset(0, 8),
               ),
               // Inner top highlight glow
               BoxShadow(
-                color: Colors.white.withOpacity(isDarkMode ? 0.05 : 0.6),
+                color: Colors.white.withValues(alpha: isDarkMode ? 0.05 : 0.6),
                 blurRadius: 0,
                 spreadRadius: 1,
                 offset: const Offset(0, 1),
@@ -55,13 +55,13 @@ class FloodLegendCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: isDarkMode
-                      ? const Color(0xFF1A2B3C).withOpacity(0.75)
-                      : Colors.white.withOpacity(0.85),
+                      ? const Color(0xFF1A2B3C).withValues(alpha: 0.75)
+                      : Colors.white.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: isDarkMode
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.white.withOpacity(0.8),
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.white.withValues(alpha: 0.8),
                     width: 1.5,
                   ),
                 ),
@@ -142,9 +142,9 @@ class FloodLegendCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDarkMode ? color.withOpacity(0.1) : color.withOpacity(0.05),
+        color: isDarkMode ? color.withValues(alpha: 0.1) : color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.2),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -157,7 +157,7 @@ class FloodLegendCard extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.6),
+                  color: color.withValues(alpha: 0.6),
                   blurRadius: 6,
                 ),
               ],

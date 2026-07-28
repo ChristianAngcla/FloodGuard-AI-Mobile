@@ -4,6 +4,9 @@ import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/flood_api_service.dart';
 import '../services/auth_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class MultistepReportSheet extends StatefulWidget {
   final bool isTaglish;
@@ -28,7 +31,7 @@ class MultistepReportSheet extends StatefulWidget {
 class _MultistepReportSheetState extends State<MultistepReportSheet> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
-  final int _totalSteps = 4;
+  final int _totalSteps = 5;
 
   // Form Data
   String? _selectedBarangay;
@@ -36,6 +39,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   bool? _isRaining;
   String? _floodLevel;
   bool? _isSafe;
+  XFile? _photo;
+  bool _agreedToLegal = false;
   bool _isSubmitting = false;
 
   // Theme Colors
@@ -95,6 +100,12 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           : "Please indicate if you are safe");
       return;
     }
+    if (_currentStep == 3) {
+      if (!_agreedToLegal) {
+        _showError(widget.isTaglish ? "Kailangan mong sumang-ayon sa legal na babala" : "You must agree to the legal warning");
+        return;
+      }
+    }
 
     if (_currentStep < _totalSteps - 1) {
       FocusScope.of(context).unfocus();
@@ -136,6 +147,18 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     String reporterPhone = '';
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // RATE LIMITING CHECK
+      final lastReportStr = prefs.getString('last_report_time');
+      if (lastReportStr != null) {
+        final lastReport = DateTime.parse(lastReportStr);
+        if (DateTime.now().difference(lastReport).inMinutes < 30) {
+          setState(() => _isSubmitting = false);
+          _showError(widget.isTaglish ? "Maaari ka lamang mag-submit ng isang ulat bawat 30 minuto." : "You can only submit one report every 30 minutes to prevent spam.");
+          return;
+        }
+      }
+
       final userDataString = prefs.getString('user_data');
       if (userDataString != null) {
         final userData = jsonDecode(userDataString);
@@ -145,8 +168,44 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         if (reporterName.isEmpty) reporterName = 'Unknown Reporter';
         reporterPhone = userData['phone'] ?? '';
       }
+      
+      // PHONE VERIFICATION CHECK
+      if (reporterPhone.isEmpty) {
+        setState(() => _isSubmitting = false);
+        _showError(widget.isTaglish ? "Kailangan ng verified na numero ng telepono sa profile para makapag-ulat." : "A verified phone number in your profile is required to ask for help.");
+        return;
+      }
+
     } catch (e) {
       debugPrint('Could not load user profile for report: $e');
+    }
+
+    // SENSOR CROSS-CHECKING (LOCALIZED)
+    String reportStatus = 'pending';
+    if (_selectedBarangay != null) {
+      final floodData = await FloodApiService.getBarangayFloodData(_selectedBarangay!);
+      if (floodData != null && floodData.riskLevel >= 40) {
+        reportStatus = 'verified'; // Auto-verify if AI risk >= 40%
+      }
+    }
+
+    double? lat;
+    double? lng;
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission != LocationPermission.denied && permission != LocationPermission.deniedForever) {
+          final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+          lat = position.latitude;
+          lng = position.longitude;
+        }
+      }
+    } catch (e) {
+      debugPrint("Could not fetch location for report: $e");
     }
 
     final success = await FloodApiService.submitFloodReport(
@@ -158,12 +217,16 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       floodLevel: _floodLevel ?? 'Unknown',
       reporterName: reporterName,
       reporterPhone: reporterPhone,
+      latitude: lat,
+      longitude: lng,
+      status: reportStatus,
     );
 
     if (mounted) {
       setState(() => _isSubmitting = false);
       Navigator.pop(context); // Close the sheet
       if (success) {
+        SharedPreferences.getInstance().then((p) => p.setString('last_report_time', DateTime.now().toIso8601String()));
         widget.onSuccess();
         if (_isSafe == false) {
           widget.onUnsafe();
@@ -187,12 +250,12 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         child: Container(
           height: MediaQuery.of(context).size.height * 0.88,
           decoration: BoxDecoration(
-            color: bgColor.withOpacity(0.85),
+            color: bgColor.withValues(alpha: 0.85),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             border: Border.all(
               color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.white.withOpacity(0.5),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.white.withValues(alpha: 0.5),
               width: 1.5,
             ),
           ),
@@ -247,7 +310,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       _buildStep0Location(),
                       _buildStep1Situation(),
                       _buildStep2Safety(),
-                      _buildStep3Summary(),
+                      _buildStep3Evidence(),
+                      _buildStep4Summary(),
                     ],
                   ),
                 ),
@@ -256,7 +320,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: bgColor.withOpacity(0.0), // Transparent here
+                    color: bgColor.withValues(alpha: 0.0), // Transparent here
                   ),
                   child: Row(
                     children: [
@@ -318,14 +382,14 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       height: 56,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [buttonColor.withOpacity(0.8), buttonColor],
+          colors: [buttonColor.withValues(alpha: 0.8), buttonColor],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: buttonColor.withOpacity(0.4),
+            color: buttonColor.withValues(alpha: 0.4),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -365,7 +429,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.isTaglish ? "Lokasyon ng Baha" : "Report Location",
+          Text(widget.isTaglish ? "Lokasyon ng Insidente" : "Incident Location",
               style: TextStyle(
                   fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
@@ -376,7 +440,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               style: TextStyle(fontSize: 14, color: subTextColor)),
           const SizedBox(height: 32),
           DropdownButtonFormField<String>(
-            value: _selectedBarangay,
+            initialValue: _selectedBarangay,
             dropdownColor: bgColor,
             style: TextStyle(color: textColor, fontSize: 16),
             decoration: _inputDecoration(
@@ -540,13 +604,81 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     );
   }
 
-  Widget _buildStep3Summary() {
+  Widget _buildStep3Evidence() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.isTaglish ? "Buod ng Ulat" : "Report Summary",
+          Text(widget.isTaglish ? "Katibayan (Opsyonal)" : "Photo Evidence (Optional)",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 8),
+          Text(widget.isTaglish ? "Kumuha ng litrato (kung kaya ng internet mo)" : "Take a photo of the flood (if data signal allows)",
+              style: TextStyle(fontSize: 14, color: subTextColor)),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () async {
+                final ImagePicker picker = ImagePicker();
+                // Heavily compress the image for slow data networks
+                final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 10);
+                if (image != null) {
+                    setState(() => _photo = image);
+                }
+            },
+            child: Container(
+                height: 150,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: accentColor, width: 2)
+                ),
+                child: _photo != null
+                    ? ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.file(File(_photo!.path), fit: BoxFit.cover))
+                    : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.camera_alt, size: 40, color: accentColor), 
+                        const SizedBox(height: 8), 
+                        Text(widget.isTaglish ? "Kumuha ng Larawan" : "Take Photo", style: TextStyle(color: accentColor, fontWeight: FontWeight.bold))
+                      ]),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Legal Warning
+          Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.5))
+              ),
+              child: Row(
+                  children: [
+                      Checkbox(
+                          value: _agreedToLegal,
+                          activeColor: Colors.red,
+                          onChanged: (val) => setState(() => _agreedToLegal = val ?? false)
+                      ),
+                      Expanded(
+                          child: Text(
+                              widget.isTaglish ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas (hal. RA 10951)." : "I confirm this is a real emergency. False reports delay rescue operations and are punishable under Philippine Law (e.g., RA 10951).",
+                              style: TextStyle(color: widget.isDarkMode ? Colors.red.shade300 : Colors.red.shade900, fontSize: 12, fontWeight: FontWeight.w600)
+                          )
+                      )
+                  ]
+              )
+          )
+        ],
+      )
+    );
+  }
+
+  Widget _buildStep4Summary() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.isTaglish ? "Buod ng Request" : "Request Summary",
               style: TextStyle(
                   fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
@@ -566,7 +698,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       widget.isDarkMode ? Colors.white10 : Colors.grey[200]!),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 )
@@ -692,7 +824,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.12) : cardColor,
+          color: isSelected ? color.withValues(alpha: 0.12) : cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
               color: isSelected
@@ -702,7 +834,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.25),
+                    color: color.withValues(alpha: 0.25),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   )

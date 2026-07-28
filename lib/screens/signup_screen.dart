@@ -454,7 +454,7 @@ class _SignupScreenState extends State<SignupScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF3784DF).withOpacity(0.1),
+              color: const Color(0xFF3784DF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(stepIcon, size: 36, color: const Color(0xFF3784DF)),
@@ -574,8 +574,9 @@ class _SignupScreenState extends State<SignupScreen> {
               setState(() => _obscurePassword = !_obscurePassword),
           validator: (val) {
             if (val == null || val.isEmpty) return "Required";
-            if (!_isStrongPassword(val))
+            if (!_isStrongPassword(val)) {
               return "Use 8+ chars with upper, lower, number & symbol";
+            }
             return null;
           },
         ),
@@ -723,8 +724,9 @@ class _SignupScreenState extends State<SignupScreen> {
           maxLength: 6,
           textAlign: TextAlign.center,
           validator: (val) {
-            if (val == null || val.length < 6)
+            if (val == null || val.length < 6) {
               return "Enter complete 6-digit OTP";
+            }
             return null;
           },
         ),
@@ -790,7 +792,7 @@ class _SignupScreenState extends State<SignupScreen> {
           color: isDark ? const Color(0xFF1A2B3C) : Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               offset: const Offset(0, -4),
               blurRadius: 16,
             )
@@ -811,7 +813,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF3784DF).withOpacity(0.4),
+                        color: const Color(0xFF3784DF).withValues(alpha: 0.4),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -911,15 +913,15 @@ class _SignupScreenState extends State<SignupScreen> {
     String? Function(String?)? validator,
   }) {
     final fillColor = isDark
-        ? Colors.white.withOpacity(0.05)
-        : Colors.black.withOpacity(0.03);
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
     final activeFillColor =
         readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
 
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withOpacity(0.7);
+        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
     final defaultBorderColor =
-        isDark ? Colors.white.withOpacity(0.2) : Colors.grey.withOpacity(0.2);
+        isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
     return TextFormField(
       controller: controller,
@@ -983,15 +985,15 @@ class _SignupScreenState extends State<SignupScreen> {
     required Function(String?) onChanged,
   }) {
     final fillColor = isDark
-        ? Colors.white.withOpacity(0.05)
-        : Colors.black.withOpacity(0.03);
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withOpacity(0.7);
+        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
     final defaultBorderColor =
-        isDark ? Colors.white.withOpacity(0.2) : Colors.grey.withOpacity(0.2);
+        isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       dropdownColor: isDark ? const Color(0xFF1A2B3C) : Colors.white,
       style: TextStyle(
           color: isDark ? Colors.white : Colors.black87, fontSize: 15),
@@ -1137,19 +1139,19 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: bgColor.withOpacity(0.9),
+                      color: bgColor.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(32),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.white.withOpacity(0.5),
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.white.withValues(alpha: 0.5),
                         width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: isDark
                               ? Colors.black54
-                              : Colors.black.withOpacity(0.15),
+                              : Colors.black.withValues(alpha: 0.15),
                           blurRadius: 30,
                           offset: const Offset(0, 15),
                         ),
@@ -1163,12 +1165,12 @@ class _SignupScreenState extends State<SignupScreen> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: isDark
-                                ? const Color(0xFF3784DF).withOpacity(0.15)
+                                ? const Color(0xFF3784DF).withValues(alpha: 0.15)
                                 : Colors.blue.shade50,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF3784DF).withOpacity(0.3),
+                                color: const Color(0xFF3784DF).withValues(alpha: 0.3),
                                 blurRadius: 24,
                                 spreadRadius: 4,
                               ),
@@ -1197,12 +1199,12 @@ class _SignupScreenState extends State<SignupScreen> {
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
                               color: isDark
-                                  ? Colors.orange.withOpacity(0.15)
+                                  ? Colors.orange.withValues(alpha: 0.15)
                                   : const Color(0xFFFFF3E0),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                   color: isDark
-                                      ? Colors.orange.withOpacity(0.5)
+                                      ? Colors.orange.withValues(alpha: 0.5)
                                       : const Color(0xFFFFCC80),
                                   width: 1.5)),
                           child: Row(
@@ -1233,22 +1235,20 @@ class _SignupScreenState extends State<SignupScreen> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: isDark
-                                  ? Colors.white.withOpacity(0.05)
-                                  : Colors.black.withOpacity(0.03),
+                                  ? Colors.white.withValues(alpha: 0.05)
+                                  : Colors.black.withValues(alpha: 0.03),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: isDark
-                                    ? Colors.white.withOpacity(0.1)
-                                    : Colors.black.withOpacity(0.05),
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : Colors.black.withValues(alpha: 0.05),
                               ),
                             ),
                             child: SingleChildScrollView(
                               controller: scrollController,
                               physics: const BouncingScrollPhysics(),
                               child: Text(
-                                _getTermsOfServiceContent() +
-                                    "\n\n" +
-                                    _getPrivacyPolicyContent(),
+                                "${_getTermsOfServiceContent()}\n\n${_getPrivacyPolicyContent()}",
                                 style: TextStyle(
                                     color: isDark
                                         ? Colors.white70
@@ -1308,7 +1308,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                       ? [
                                           BoxShadow(
                                             color: const Color(0xFF3784DF)
-                                                .withOpacity(0.4),
+                                                .withValues(alpha: 0.4),
                                             blurRadius: 12,
                                             offset: const Offset(0, 4),
                                           ),

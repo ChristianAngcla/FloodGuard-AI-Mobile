@@ -60,6 +60,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   int _currentBarangayIndex = 0;
   bool _hasShownEarlyWarning = false;
   bool _isInitialLoading = true;
+  DateTime? _lastFetchTime;
+  Timer? _autoRefreshTimer;
 
   int _currentTabIndex = 1; // Default to Map View
   UserProfile? _userProfile;
@@ -108,8 +110,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     // 🌊 Setup Ripple Animation for Loading Screen
     _loadingRippleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1500),
     )..repeat();
+
+    // 🔄 Auto-refresh timer every 3 minutes
+    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 3), (timer) {
+      if (mounted && _currentTabIndex == 1 && !_isLoading) {
+        _refreshData(silent: true);
+      }
+    });
 
     _performInitialLoad();
   }
@@ -291,8 +300,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   Color _getRiskColor(int risk) {
     if (risk < 20) return const Color(0xFF4CAF50); // Green (Safe)
     if (risk < 50) return const Color(0xFFFFC107); // Yellow (Alert)
-    if (risk < 80)
+    if (risk < 80) {
       return const Color(0xFFFF9800); // Orange (Prepare to Evacuate)
+    }
     return const Color(0xFFE53935); // Red (Force Evacuation)
   }
 
@@ -422,8 +432,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             name: name,
             polygon: Polygon(
               points: points,
-              color: baseColor.withOpacity(0.5),
-              borderColor: baseColor.withOpacity(0.9),
+              color: baseColor.withValues(alpha: 0.5),
+              borderColor: baseColor.withValues(alpha: 0.9),
               borderStrokeWidth: 2,
             ),
           ),
@@ -467,7 +477,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       // Show dialog after a short delay to ensure context is valid
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
-          _showEarlyWarningDialog(data!.riskLevel, userBarangay);
+          _showEarlyWarningDialog(data.riskLevel, userBarangay);
         }
       });
     }
@@ -628,9 +638,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.05),
+                        color: Colors.red.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.red.withOpacity(0.2)),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,7 +714,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -716,7 +726,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF3784DF).withOpacity(0.1),
+              color: const Color(0xFF3784DF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: const Color(0xFF3784DF), size: 20),
@@ -756,10 +766,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.05),
+            color: Colors.red.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -796,7 +806,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.red.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: Colors.red, size: 24),
@@ -841,22 +851,27 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-  Future<void> _refreshData() async {
+  Future<void> _refreshData({bool silent = false}) async {
     if (_isLoading) return;
-    setState(() => _isLoading = true);
+    if (!silent) setState(() => _isLoading = true);
 
     await loadMarikinaBarangays(forceRefresh: true);
     await _fetchUserProfile();
 
     if (mounted) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(t("refreshSuccess")),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      setState(() {
+        if (!silent) _isLoading = false;
+        _lastFetchTime = DateTime.now();
+      });
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t("refreshSuccess")),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -912,6 +927,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _pulseController.dispose();
     _loadingRippleController.dispose();
     _positionStream?.cancel();
@@ -967,8 +983,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
     return Polygon(
       points: points,
-      color: color.withOpacity(0.15),
-      borderColor: color.withOpacity(0.9),
+      color: color.withValues(alpha: 0.15),
+      borderColor: color.withValues(alpha: 0.9),
       borderStrokeWidth: 2,
     );
   }
@@ -1027,8 +1043,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         marikinaPolygon.points,
       ],
       color: _isDarkMode
-          ? Colors.black.withOpacity(0.65)
-          : Colors.black.withOpacity(0.45),
+          ? Colors.black.withValues(alpha: 0.65)
+          : Colors.black.withValues(alpha: 0.45),
       borderStrokeWidth: 0,
     );
   }
@@ -1149,8 +1165,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   void _handleMapHover(Offset localPosition) {
-    if (!cities.isNotEmpty || cities[currentCityIndex].name != "Marikina")
+    if (!cities.isNotEmpty || cities[currentCityIndex].name != "Marikina") {
       return;
+    }
 
     // Convert screen point to LatLng
     final point = _mapController.camera.pointToLatLng(
@@ -1183,22 +1200,31 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildRefreshButton() {
-    return IconButton(
-      onPressed: _isLoading ? null : _refreshData,
-      icon: _isLoading
-          ? SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                    _isDarkMode ? Colors.white : const Color(0xFF3784DF)),
-              ),
-            )
-          : Icon(
-              Icons.refresh_rounded,
-              color: _isDarkMode ? Colors.white : const Color(0xFF3784DF),
+    final timeStr = _lastFetchTime != null 
+        ? "${_lastFetchTime!.hour > 12 ? _lastFetchTime!.hour - 12 : (_lastFetchTime!.hour == 0 ? 12 : _lastFetchTime!.hour)}:${_lastFetchTime!.minute.toString().padLeft(2, '0')} ${_lastFetchTime!.hour >= 12 ? 'PM' : 'AM'}"
+        : "";
+        
+    if (timeStr.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.access_time_rounded, 
+            size: 14, 
+            color: _isDarkMode ? Colors.white70 : Colors.black54),
+          const SizedBox(width: 4),
+          Text(
+            _isTaglish ? "Huling update: $timeStr" : "Last updated: $timeStr",
+            style: TextStyle(
+              fontSize: 11, 
+              color: _isDarkMode ? Colors.white70 : Colors.black54,
+              fontWeight: FontWeight.w600,
             ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1266,8 +1292,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         final index =
                                             marikinaBarangays.indexWhere((b) =>
                                                 b.name == tappedBarangay);
-                                        if (index != -1)
+                                        if (index != -1) {
                                           _currentBarangayIndex = index;
+                                        }
                                       }
                                     });
                                     if (tappedBarangay != null) {
@@ -1305,7 +1332,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         radius: 18,
                                         useRadiusInMeter: false,
                                         color: const Color(0xFF2BA7A0)
-                                            .withOpacity(0.25),
+                                            .withValues(alpha: 0.25),
                                         borderStrokeWidth: 3,
                                         borderColor: const Color(0xFF2BA7A0),
                                       ),
@@ -1383,11 +1410,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
                                       double strokeWidth = baseStroke;
                                       Color borderColor = themeBorderColor
-                                          .withOpacity(_isDarkMode
+                                          .withValues(alpha: _isDarkMode
                                               ? 0.6
                                               : 0.4); // More visible default
                                       Color fillColor =
-                                          b.polygon.color.withOpacity(0.35);
+                                          b.polygon.color.withValues(alpha: 0.35);
 
                                       if (isSelected || isHovered) {
                                         // ✨ Active State: Strong Pulse & Thicker Line
@@ -1395,11 +1422,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                             (pulse *
                                                 2.0); // Breaths 2px-4px extra
                                         borderColor =
-                                            themeBorderColor.withOpacity(
-                                                (_isDarkMode ? 0.8 : 0.7) +
+                                            themeBorderColor.withValues(
+                                                alpha: (_isDarkMode ? 0.8 : 0.7) +
                                                     (pulse * 0.2));
                                         fillColor =
-                                            b.polygon.color.withOpacity(0.6);
+                                            b.polygon.color.withValues(alpha: 0.6);
                                       } else {
                                         // 💤 Idle State: Breathing Animation
                                         strokeWidth += (pulse * 1.5);
@@ -1542,8 +1569,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                       color: _isDarkMode
                                                           ? Colors.black87
                                                           : Colors.white
-                                                              .withOpacity(
-                                                                  0.95),
+                                                              .withValues(
+                                                                  alpha: 0.95),
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                               8),
@@ -1651,7 +1678,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -1740,7 +1767,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   borderRadius: BorderRadius.circular(34),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
+                      color: Colors.black.withValues(alpha: 0.15),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -1755,11 +1782,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         color: (_isDarkMode
                                 ? const Color(0xFF253B50)
                                 : Colors.white)
-                            .withOpacity(0.85),
+                            .withValues(alpha: 0.85),
                         border: Border.all(
                           color: _isDarkMode
                               ? Colors.white10
-                              : Colors.white.withOpacity(0.5),
+                              : Colors.white.withValues(alpha: 0.5),
                           width: 1,
                         ),
                       ),
@@ -1840,20 +1867,20 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   height: 48,
                   decoration: BoxDecoration(
                     color: _isDarkMode
-                        ? const Color(0xFF253B50).withOpacity(0.9)
-                        : Colors.white.withOpacity(0.95),
+                        ? const Color(0xFF253B50).withValues(alpha: 0.9)
+                        : Colors.white.withValues(alpha: 0.95),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                     border: Border.all(
                       color: _isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.grey.withOpacity(0.2),
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.grey.withValues(alpha: 0.2),
                       width: 1,
                     ),
                   ),
@@ -1906,8 +1933,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF3784DF).withOpacity(
-                                      0.2 + (_pulseController.value * 0.3)),
+                                  color: const Color(0xFF3784DF).withValues(
+                                      alpha: 0.2 + (_pulseController.value * 0.3)),
                                   blurRadius:
                                       30 + (_pulseController.value * 20),
                                   spreadRadius: 1,
@@ -2017,8 +2044,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             }
           },
           borderRadius: BorderRadius.circular(34),
-          highlightColor: activeColor.withOpacity(0.1),
-          splashColor: activeColor.withOpacity(0.2),
+          highlightColor: activeColor.withValues(alpha: 0.1),
+          splashColor: activeColor.withValues(alpha: 0.2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -2029,7 +2056,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? activeColor.withOpacity(0.15)
+                      ? activeColor.withValues(alpha: 0.15)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -2075,7 +2102,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final dateString = "${months[now.month - 1]} ${now.day}, ${now.year}";
 
     if (!_isLoggedIn) {
-      return Container(
+      return SizedBox(
         key: const ValueKey('home_no_auth'),
         width: double.infinity,
         height: double.infinity,
@@ -2099,7 +2126,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     }
 
     if (_userProfile == null) {
-      return Container(
+      return SizedBox(
         key: const ValueKey('home_loading'),
         width: double.infinity,
         height: double.infinity,
@@ -2123,7 +2150,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final center = HomeMapScreen.barangayCenters[selectedBarangayName] ??
         LatLng(14.6503, 121.1020);
 
-    return Container(
+    return SizedBox(
       key: const ValueKey('home_dashboard'),
       width: double.infinity,
       height: double.infinity,
@@ -2236,8 +2263,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                 DropdownMenuItem(value: b, child: Text(b)))
                             .toList(),
                         onChanged: (val) {
-                          if (val != null)
+                          if (val != null) {
                             setState(() => _dashboardSelectedBarangay = val);
+                          }
                         },
                       ),
                     ),
@@ -2314,7 +2342,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                   color:
-                                      const Color(0xFF3784DF).withOpacity(0.3),
+                                      const Color(0xFF3784DF).withValues(alpha: 0.3),
                                   width: 1)),
                           child: Row(
                             children: [
@@ -2322,7 +2350,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                     color: const Color(0xFF3784DF)
-                                        .withOpacity(0.1),
+                                        .withValues(alpha: 0.1),
                                     shape: BoxShape.circle),
                                 child: const Icon(
                                     Icons.health_and_safety_rounded,
@@ -2454,7 +2482,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -2497,7 +2525,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
-                              color: color.withOpacity(0.7),
+                              color: color.withValues(alpha: 0.7),
                             ),
                           ),
                         ],
@@ -2513,9 +2541,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: color.withOpacity(0.4)),
+                      border: Border.all(color: color.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       label,
@@ -2770,9 +2798,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             width: 90,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
-              color: _isDarkMode ? color.withOpacity(0.08) : Colors.white,
+              color: _isDarkMode ? color.withValues(alpha: 0.08) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+              border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -2802,7 +2830,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: color.withOpacity(0.7),
+                          color: color.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -2832,7 +2860,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   /// background with a white text and a warning icon.
   /// When tapped, it shows a [ReportFloodSheet].
   ///
-/*******  2c13d96e-27e7-42ae-b43d-754886f52360  *******/ Widget
+/// *****  2c13d96e-27e7-42ae-b43d-754886f52360  ****** Widget
       _buildReportButton() {
     return Expanded(
       flex: 2,
@@ -2848,7 +2876,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFD32F2F).withOpacity(0.4),
+              color: const Color(0xFFD32F2F).withValues(alpha: 0.4),
               blurRadius: 8,
               offset: const Offset(0, 4),
             )
@@ -2859,8 +2887,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           child: InkWell(
             onTap: _showReportFloodSheet,
             borderRadius: BorderRadius.circular(24),
-            splashColor: Colors.white.withOpacity(0.3),
-            highlightColor: Colors.white.withOpacity(0.1),
+            splashColor: Colors.white.withValues(alpha: 0.3),
+            highlightColor: Colors.white.withValues(alpha: 0.1),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -2869,7 +2897,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    _isTaglish ? "I-report" : "Report",
+                    t("askForHelp"),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,

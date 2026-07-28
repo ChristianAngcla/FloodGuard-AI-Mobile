@@ -75,12 +75,12 @@ class _WavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint1 = Paint()
-      ..color = (isDarkMode ? const Color(0xFF253B50) : const Color(0xFFE3F2FD)).withOpacity(0.7)
+      ..color = (isDarkMode ? const Color(0xFF253B50) : const Color(0xFFE3F2FD)).withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
     _drawWave(canvas, size, paint1, 0.88, 2, 20, 0);
 
     final paint2 = Paint()
-      ..color = (isDarkMode ? const Color(0xFF3784DF) : const Color(0xFFCAE1FC)).withOpacity(0.5)
+      ..color = (isDarkMode ? const Color(0xFF3784DF) : const Color(0xFFCAE1FC)).withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
     _drawWave(canvas, size, paint2, 0.92, 1.5, 25, math.pi);
   }

@@ -94,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen>
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF3784DF).withOpacity(0.2),
+                            color: const Color(0xFF3784DF).withValues(alpha: 0.2),
                             blurRadius: 40,
                             offset: const Offset(0, 15),
                           ),
@@ -170,7 +170,7 @@ class _RippleLoaderPainter extends CustomPainter {
       // Opacity fades out as it expands (1.0 -> 0.0)
       final opacity = 1.0 - progress;
 
-      paint.color = const Color(0xFF3784DF).withOpacity(opacity);
+      paint.color = const Color(0xFF3784DF).withValues(alpha: opacity);
 
       canvas.drawCircle(center, radius, paint);
     }

@@ -265,14 +265,14 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: widget.isDarkMode
-                      ? const Color(0xFF3784DF).withOpacity(0.2)
+                      ? const Color(0xFF3784DF).withValues(alpha: 0.2)
                       : const Color(0xFFF4F9FF),
                   foregroundColor: const Color(0xFF3784DF),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(
-                        color: const Color(0xFF3784DF).withOpacity(0.3)),
+                        color: const Color(0xFF3784DF).withValues(alpha: 0.3)),
                   ),
                   elevation: 0,
                 ),
@@ -309,7 +309,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -354,7 +354,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
-                              color: color.withOpacity(0.7),
+                              color: color.withValues(alpha: 0.7),
                             ),
                           ),
                         ],
@@ -371,9 +371,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: color.withOpacity(0.4)),
+                      border: Border.all(color: color.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       label,
@@ -642,9 +642,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             width: 90,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+              border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -674,7 +674,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: color.withOpacity(0.7),
+                          color: color.withValues(alpha: 0.7),
                         ),
                       ),
                     ],

@@ -91,7 +91,7 @@
 //                       ),
 //                       const SizedBox(width: 10),
 //                       const Text(
-//                         "FloodGuard AI",
+//                         "FloodGuard Analytics",
 //                         style: TextStyle(
 //                           fontSize: 22,
 //                           fontWeight: FontWeight.bold,

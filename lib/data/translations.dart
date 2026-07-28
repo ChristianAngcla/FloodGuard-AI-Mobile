@@ -9,8 +9,8 @@ class Translations {
       "tl": "Ang early warning alerts ay available lamang sa Pasig City.",
     },
     "appTitle": {
-      "en": "FloodGuard AI",
-      "tl": "FloodGuard AI",
+      "en": "FloodGuard Analytics",
+      "tl": "FloodGuard Analytics",
     },
     "searchHint": {
       "en": "Search location (Pasig only)",
@@ -245,8 +245,8 @@ class Translations {
       "tl": "Pumili ng Barangay",
     },
     "didItFlood": {
-      "en": "Did it flood in your location?",
-      "tl": "Bumaha ba sa iyong lokasyon?",
+      "en": "Do you need flood rescue?",
+      "tl": "Kailangan mo ba ng tulong rescue?",
     },
     "yes": {
       "en": "Yes",
@@ -257,8 +257,8 @@ class Translations {
       "tl": "Hindi",
     },
     "reportSubmitted": {
-      "en": "Report submitted",
-      "tl": "Naipadala na ang ulat",
+      "en": "Help request sent",
+      "tl": "Naipadala na ang request for help",
     },
     "gladSafe": {
       "en": "We're glad you're safe, thank you for your report.",
@@ -387,8 +387,12 @@ class Translations {
       "tl": "Kailangan Mag-login",
     },
     "loginToReport": {
-      "en": "You need to sign in to report a flood.",
-      "tl": "Kailangan mong mag-sign in para makapag-report.",
+      "en": "You need to sign in to ask for help.",
+      "tl": "Kailangan mong mag-sign in para humingi ng tulong.",
+    },
+    "askForHelp": {
+      "en": "Ask for Help",
+      "tl": "Humingi ng Tulong",
     },
   };
 }

@@ -141,7 +141,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                 : Icons.light_mode_rounded,
                             color: accentColor,
                           ),
-                          activeColor: accentColor,
+                          activeThumbColor: accentColor,
                           value: widget.isDarkMode,
                           onChanged: widget.onToggleDarkMode,
                           shape: RoundedRectangleBorder(
@@ -215,7 +215,7 @@ class _AppDrawerState extends State<AppDrawer> {
                       Text(
                         "FloodGuard AI v1.0.0",
                         style: TextStyle(
-                          color: textColor.withOpacity(0.5),
+                          color: textColor.withValues(alpha: 0.5),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -281,7 +281,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     key: ValueKey<String>(_t("staySafe")),
                     style: TextStyle(
                       fontSize: 12,
-                      color: textColor.withOpacity(0.7),
+                      color: textColor.withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -303,14 +303,14 @@ class _AppDrawerState extends State<AppDrawer> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF3784DF).withOpacity(0.15),
-            const Color(0xFF3784DF).withOpacity(0.05)
+            const Color(0xFF3784DF).withValues(alpha: 0.15),
+            const Color(0xFF3784DF).withValues(alpha: 0.05)
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF3784DF).withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFF3784DF).withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -351,7 +351,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     // Safely handle nullable email
                     profile?.email ?? '',
                     style: TextStyle(
-                      color: textColor.withOpacity(0.6),
+                      color: textColor.withValues(alpha: 0.6),
                       fontSize: 11,
                     ),
                     maxLines: 1,
@@ -362,7 +362,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3784DF).withOpacity(0.1),
+                      color: const Color(0xFF3784DF).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -401,7 +401,7 @@ class _AppDrawerState extends State<AppDrawer> {
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: textColor.withOpacity(0.5),
+          color: textColor.withValues(alpha: 0.5),
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -449,7 +449,7 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
         ),
         trailing: Icon(Icons.chevron_right_rounded,
-            color: textColor.withOpacity(0.3)),
+            color: textColor.withValues(alpha: 0.3)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         onTap: onTap,
       ),
@@ -472,14 +472,14 @@ class _AppDrawerState extends State<AppDrawer> {
           color: isSelected ? activeColor : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? activeColor : textColor.withOpacity(0.1),
+            color: isSelected ? activeColor : textColor.withValues(alpha: 0.1),
           ),
         ),
         alignment: Alignment.center,
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : textColor.withOpacity(0.7),
+            color: isSelected ? Colors.white : textColor.withValues(alpha: 0.7),
             fontWeight: FontWeight.bold,
             fontSize: 13,
           ),

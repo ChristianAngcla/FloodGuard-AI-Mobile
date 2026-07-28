@@ -8,7 +8,8 @@ class CurrentWeather {
   final int relativeHumidity;
   final double precipitation;
   final int weatherCode;
-  final double windGust;
+  final double windSpeed;
+  final double heatIndex;
   final int rainChance;
 
   CurrentWeather({
@@ -16,7 +17,8 @@ class CurrentWeather {
     required this.relativeHumidity,
     required this.precipitation,
     required this.weatherCode,
-    required this.windGust,
+    required this.windSpeed,
+    required this.heatIndex,
     required this.rainChance,
   });
 
@@ -178,7 +180,7 @@ class WeatherService {
       debugPrint('🔗 Querying Open-Meteo directly for ($lat, $lng)...');
       final url = 'https://api.open-meteo.com/v1/forecast?'
           'latitude=$lat&longitude=$lng'
-          '&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_gusts_10m'
+          '&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,apparent_temperature'
           '&hourly=precipitation_probability'
           '&daily=temperature_2m_max,temperature_2m_min,weather_code'
           '&timezone=Asia/Singapore';
@@ -207,7 +209,8 @@ class WeatherService {
     final humidity = (currentMap['relative_humidity_2m'] as num).toInt();
     final precipitation = (currentMap['precipitation'] as num).toDouble();
     final code = (currentMap['weather_code'] as num).toInt();
-    final windGust = (currentMap['wind_gusts_10m'] as num).toDouble();
+    final windSpeed = (currentMap['wind_speed_10m'] as num).toDouble();
+    final heatIndex = (currentMap['apparent_temperature'] as num).toDouble();
 
     // Rain chance parsing (estimate from current hour probability in hourly array)
     int rainChance = 0;
@@ -264,7 +267,8 @@ class WeatherService {
         relativeHumidity: humidity,
         precipitation: precipitation,
         weatherCode: code,
-        windGust: windGust,
+        windSpeed: windSpeed,
+        heatIndex: heatIndex,
         rainChance: rainChance,
       ),
       daily: dailyList,

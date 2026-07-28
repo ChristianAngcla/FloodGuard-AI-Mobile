@@ -33,13 +33,13 @@ class WelcomePopup extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color:
-                  isDarkMode ? Colors.black54 : Colors.black.withOpacity(0.15),
+                  isDarkMode ? Colors.black54 : Colors.black.withValues(alpha: 0.15),
               blurRadius: 30,
               offset: const Offset(0, 15),
             ),
             // Inner highlight glow
             BoxShadow(
-              color: Colors.white.withOpacity(isDarkMode ? 0.05 : 0.6),
+              color: Colors.white.withValues(alpha: isDarkMode ? 0.05 : 0.6),
               blurRadius: 0,
               spreadRadius: 1,
               offset: const Offset(0, 1),
@@ -54,12 +54,12 @@ class WelcomePopup extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDarkMode
-                    ? const Color(0xFF3784DF).withOpacity(0.15)
+                    ? const Color(0xFF3784DF).withValues(alpha: 0.15)
                     : Colors.blue.shade50,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3784DF).withOpacity(0.3),
+                    color: const Color(0xFF3784DF).withValues(alpha: 0.3),
                     blurRadius: 24,
                     spreadRadius: 4,
                   ),
@@ -118,12 +118,12 @@ class WelcomePopup extends StatelessWidget {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: isDarkMode
-                              ? Colors.orange.withOpacity(0.15)
+                              ? Colors.orange.withValues(alpha: 0.15)
                               : const Color(0xFFFFF3E0),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                               color: isDarkMode
-                                  ? Colors.orange.withOpacity(0.5)
+                                  ? Colors.orange.withValues(alpha: 0.5)
                                   : const Color(0xFFFFCC80),
                               width: 1.5),
                         ),
@@ -226,7 +226,7 @@ class WelcomePopup extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // 🗺️ FLOOD MAP BUTTON (Glowing)
+            // FLOOD MAP BUTTON (Glowing)
             Container(
               width: double.infinity,
               height: 56,
@@ -239,7 +239,7 @@ class WelcomePopup extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3784DF).withOpacity(0.4),
+                    color: const Color(0xFF3784DF).withValues(alpha: 0.4),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -278,9 +278,9 @@ class WelcomePopup extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? color.withOpacity(0.1) : color.withOpacity(0.05),
+        color: isDark ? color.withValues(alpha: 0.1) : color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -293,7 +293,7 @@ class WelcomePopup extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.6),
+                  color: color.withValues(alpha: 0.6),
                   blurRadius: 6,
                 ),
               ],

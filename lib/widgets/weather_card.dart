@@ -85,7 +85,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
         border: Border.all(color: cardBorderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -164,7 +164,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Top Row: Location, Status Badge & Temp ──
+        // --- Top Row: Location, Status Badge & Temp ---
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,9 +187,9 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3784DF).withOpacity(0.12),
+                      color: const Color(0xFF3784DF).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF3784DF).withOpacity(0.3)),
+                      border: Border.all(color: const Color(0xFF3784DF).withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       cur.weatherStatusText.toUpperCase(),
@@ -208,7 +208,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${cur.temperature.toStringAsFixed(0)}',
+                  cur.temperature.toStringAsFixed(0),
                   style: TextStyle(
                     fontSize: 44,
                     fontWeight: FontWeight.w900,
@@ -221,7 +221,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: textColor.withOpacity(0.7),
+                    color: textColor.withValues(alpha: 0.7),
                     height: 1.6,
                   ),
                 ),
@@ -231,14 +231,14 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
         ),
         const SizedBox(height: 20),
 
-        // ── Inside Grid Parameters Card ──
+        // --- Inside Grid Parameters Card ---
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: detailBg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: widget.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+              color: widget.isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
             ),
           ),
           child: Column(
@@ -271,11 +271,24 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
                     textColor,
                   ),
                   _buildDetailItem(
-                    widget.isTaglish ? "Hagupit ng Hangin:" : "Wind Gust:",
-                    '${cur.windGust.toStringAsFixed(0)} km/h',
+                    widget.isTaglish ? "Hangin:" : "Wind Speed:",
+                    '${cur.windSpeed.toStringAsFixed(0)} km/h',
                     subColor,
                     textColor,
                   ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildDetailItem(
+                    widget.isTaglish ? "Heat Index:" : "Heat Index:",
+                    '${cur.heatIndex.toStringAsFixed(1)}°C',
+                    subColor,
+                    textColor,
+                  ),
+                  const Expanded(child: SizedBox()), // Empty space to align left
                 ],
               ),
             ],
@@ -283,7 +296,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
         ),
         const SizedBox(height: 16),
 
-        // ── Expand/Collapse Button ──
+        // --- Expand/Collapse Button ---
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -294,9 +307,9 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
               });
             },
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: const Color(0xFF3784DF).withOpacity(0.3)),
+              side: BorderSide(color: const Color(0xFF3784DF).withValues(alpha: 0.3)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              backgroundColor: const Color(0xFF3784DF).withOpacity(0.05),
+              backgroundColor: const Color(0xFF3784DF).withValues(alpha: 0.05),
               foregroundColor: const Color(0xFF3784DF),
             ),
             child: Row(
@@ -318,7 +331,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
           ),
         ),
 
-        // ── Expandable 5-Day Forecast ──
+        // --- Expandable 5-Day Forecast ---
         if (_show5DayForecast) ...[
           const SizedBox(height: 16),
           const Divider(height: 1, thickness: 1),
