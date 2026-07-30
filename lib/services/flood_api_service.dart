@@ -68,7 +68,7 @@ class FloodData {
 ///    - For Physical Device: Use your PC's IP (e.g., 'http://192.168.1.57:5000/api')
 class FloodApiService {
   // 🌐 Base URL for the live AI Engine.
-  static const String baseUrl = 'https://floodguard-engine.onrender.com/api';
+  static const String baseUrl = 'https://floodguard-database.onrender.com/api';
 
   // 🗄️ Base URL for the MongoDB Database (Users, Reports).
   static const String dbBaseUrl =
