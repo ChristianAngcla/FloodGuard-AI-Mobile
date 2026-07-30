@@ -39,7 +39,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   bool? _isRaining;
   String? _floodLevel;
   bool? _isSafe;
-  XFile? _photo;
+  String? _helpNeeded;
   bool _agreedToLegal = false;
   bool _isSubmitting = false;
 
@@ -610,37 +610,26 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.isTaglish ? "Katibayan (Opsyonal)" : "Photo Evidence (Optional)",
+          Text(widget.isTaglish ? "Uri ng Tulong (Opsyonal)" : "Kind of Help Needed",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
-          Text(widget.isTaglish ? "Kumuha ng litrato (kung kaya ng internet mo)" : "Take a photo of the flood (if data signal allows)",
+          Text(widget.isTaglish ? "Anong klaseng tulong ang kailangan ninyo?" : "What kind of assistance do you require?",
               style: TextStyle(fontSize: 14, color: subTextColor)),
           const SizedBox(height: 24),
-          GestureDetector(
-            onTap: () async {
-                final ImagePicker picker = ImagePicker();
-                // Heavily compress the image for slow data networks
-                final XFile? image = await picker.pickImage(source: ImageSource.camera, imageQuality: 10);
-                if (image != null) {
-                    setState(() => _photo = image);
-                }
-            },
-            child: Container(
-                height: 150,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: accentColor, width: 2)
-                ),
-                child: _photo != null
-                    ? ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.file(File(_photo!.path), fit: BoxFit.cover))
-                    : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.camera_alt, size: 40, color: accentColor), 
-                        const SizedBox(height: 8), 
-                        Text(widget.isTaglish ? "Kumuha ng Larawan" : "Take Photo", style: TextStyle(color: accentColor, fontWeight: FontWeight.bold))
-                      ]),
-            ),
+          DropdownButtonFormField<String>(
+            value: _helpNeeded,
+            dropdownColor: bgColor,
+            style: TextStyle(color: textColor, fontSize: 16),
+            decoration: _inputDecoration(
+                widget.isTaglish ? "Pumili ng tulong" : "Select help needed",
+                Icons.medical_services_outlined),
+            items: [
+              "Immediate Rescue / Evacuation",
+              "Medical Assistance",
+              "Food and Water",
+              "Relief Goods"
+            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: (val) => setState(() => _helpNeeded = val),
           ),
           const SizedBox(height: 32),
           // Legal Warning
@@ -660,7 +649,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       ),
                       Expanded(
                           child: Text(
-                              widget.isTaglish ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas (hal. RA 10951)." : "I confirm this is a real emergency. False reports delay rescue operations and are punishable under Philippine Law (e.g., RA 10951).",
+                              widget.isTaglish ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas." : "I confirm this is a real emergency. False reports delay rescue operations and are punishable under Philippine Law.",
                               style: TextStyle(color: widget.isDarkMode ? Colors.red.shade300 : Colors.red.shade900, fontSize: 12, fontWeight: FontWeight.w600)
                           )
                       )

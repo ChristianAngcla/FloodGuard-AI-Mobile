@@ -2272,17 +2272,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 20),
 
-                  // ── Weather Card ──
-                  WeatherCard(
-                    latitude: center.latitude,
-                    longitude: center.longitude,
-                    locationName: selectedBarangayName,
-                    isDarkMode: _isDarkMode,
-                    isTaglish: _isTaglish,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Forecast header row ──
+                  // ── Forecast header row (MOVED UP FOR PRIORITY) ──
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -2310,6 +2300,16 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
                   // ── Forecast card ──
                   _buildDashboardForecastCard(textColor, subColor),
+                  const SizedBox(height: 20),
+
+                  // ── Weather Card ──
+                  WeatherCard(
+                    latitude: center.latitude,
+                    longitude: center.longitude,
+                    locationName: selectedBarangayName,
+                    isDarkMode: _isDarkMode,
+                    isTaglish: _isTaglish,
+                  ),
                   const SizedBox(height: 28),
 
                   // ── 24-Hour Timeline ──
