@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification_service.dart';
@@ -571,6 +572,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   icon: Icons.phone_outlined,
                                   isDark: isDark,
                                   readOnly: !_isEditing,
+                                  keyboardType: TextInputType.phone,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 ),
                                 const SizedBox(height: 32),
                                 const Divider(),
@@ -782,6 +785,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required bool isDark,
     bool readOnly = false,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     final fillColor =
         isDark ? const Color(0xFF253B50) : const Color(0xFFF4F9FF);
@@ -794,6 +799,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return TextFormField(
       controller: controller,
       readOnly: readOnly,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: TextStyle(
           color: isDark ? Colors.white : Colors.black87, fontSize: 15),
       validator: (val) => (val == null || val.isEmpty) ? "Required" : null,

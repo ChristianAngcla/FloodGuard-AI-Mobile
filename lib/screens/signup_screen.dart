@@ -766,7 +766,7 @@ class _SignupScreenState extends State<SignupScreen> {
         ),
         const SizedBox(height: 16),
         TextButton(
-          onPressed: _isSendingOtp ? null : _sendOtp,
+          onPressed: (_isSendingOtp || _isOtpVerified) ? null : _sendOtp,
           child: _isSendingOtp
               ? const SizedBox(
                   height: 16,
@@ -1318,6 +1318,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                 child: ElevatedButton(
                                   onPressed: hasScrolledToBottom
                                       ? () {
+                                          FocusScope.of(context).unfocus();
                                           setState(() {
                                             _agreedToTerms = true;
                                           });
@@ -1364,15 +1365,35 @@ class _SignupScreenState extends State<SignupScreen> {
 
   /// ---------- CONTENT STRINGS ----------
   String _getTermsOfServiceContent() {
+    if (widget.isTaglish) {
+      return """FloodGuard AI Mga Tuntunin ng Serbisyo
+
+1. Pagtanggap sa mga Tuntunin
+Sa pag-access at paggamit ng FloodGuard AI, tinatanggap at sumasang-ayon ka na matali sa mga tuntunin at probisyon ng kasunduang ito.
+
+2. Lisensya sa Paggamit
+Pinahihintulutan ang pansamantalang pag-download ng isang kopya ng mga materyales para sa personal at hindi komersyal na pagtingin lamang.
+
+3. Disclaimer ng Pagtataya ng Baha
+Ang mga forecast ng baha ay batay sa Ordinary Least Squares (OLS) Multiple Linear Regression. Ang impormasyon ay ibinibigay para sa paghahanda sa sakuna at dapat sabayan ng opisyal na babala mula sa PAGASA at MDRRMO.
+
+4. Privacy at Proteksyon ng Data
+Ang iyong data sa lokasyon at ulat ay ginagamit lamang para sa emergency flood alert services at hindi ibinebenta sa kanino man.""";
+    }
     return """FloodGuard AI Terms of Service
 
 1. Acceptance of Terms
 By accessing and using FloodGuard AI, you accept and agree to be bound by the terms and provision of this agreement.
 
 2. Use License
-Permission is granted to temporarily download one copy of the materials (information or software) on FloodGuard AI for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
-- Modifying or copying the materials
-- Using the materials for commercial purposes
+Permission is granted to temporarily download one copy of the materials (information or software) on FloodGuard AI for personal, non-commercial transitory viewing only.
+
+3. Flood Forecasting Disclaimer
+Flood predictions are generated using Ordinary Least Squares (OLS) Multiple Linear Regression. Information is provided for disaster preparedness and should be complemented by official advisories from PAGASA and MDRRMO.
+
+4. Data Privacy
+Your location and report data are strictly used for emergency flood warning services and will never be shared for commercial purposes.""";
+  }
 - Attempting to decompile or reverse engineer any software contained on FloodGuard AI
 - Removing any copyright or other proprietary notations from the materials
 - Transferring the materials to another person or "mirroring" the materials on any other server

@@ -218,16 +218,20 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  widget.isTaglish
-                      ? 'Pagtataya para sa $_selectedBarangay'
-                      : 'Forecast for $_selectedBarangay',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: textColor,
+                Expanded(
+                  child: Text(
+                    widget.isTaglish
+                        ? 'Pagtataya para sa $_selectedBarangay'
+                        : 'Forecast for $_selectedBarangay',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   'Sensor: $_sensorDisplayName',
                   style: TextStyle(
@@ -616,7 +620,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     }
 
     return SizedBox(
-      height: 120,
+      height: 135,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: timeline.length,
@@ -628,14 +632,14 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           final color = alarmColor(level);
           final statusText = alarmShortLabel(level);
 
-          // Parse time: "May 05, 02:06 PM" → "02 PM" or "May 06, 12 AM" → "12 AM"
+          // Parse time: "May 05, 02:06 PM" → "2 PM" or "May 06, 12 AM" → "12 AM"
           String shortTime = time;
           final parts = time.split(', ');
           if (parts.length >= 2) shortTime = parts.last;
-          // Simplify "02:06 PM" → "02 PM"
           if (shortTime.contains(':')) {
             final tParts = shortTime.split(':');
-            shortTime = '${tParts[0]} ${shortTime.split(' ').last}';
+            final cleanHour = tParts[0].trim().replaceFirst(RegExp(r'^0'), '');
+            shortTime = '$cleanHour ${shortTime.split(' ').last}';
           }
 
           return Container(
