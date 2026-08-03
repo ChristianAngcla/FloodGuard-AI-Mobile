@@ -1254,31 +1254,45 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildRefreshButton() {
-    final timeStr = _lastFetchTime != null 
+    final timeStr = _lastFetchTime != null
         ? "${_lastFetchTime!.hour > 12 ? _lastFetchTime!.hour - 12 : (_lastFetchTime!.hour == 0 ? 12 : _lastFetchTime!.hour)}:${_lastFetchTime!.minute.toString().padLeft(2, '0')} ${_lastFetchTime!.hour >= 12 ? 'PM' : 'AM'}"
         : "";
-        
-    if (timeStr.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.access_time_rounded, 
-            size: 14, 
-            color: _isDarkMode ? Colors.white70 : Colors.black54),
-          const SizedBox(width: 4),
-          Text(
-            _isTaglish ? "Huling update: $timeStr" : "Last updated: $timeStr",
+    if (timeStr.isEmpty) {
+      return Text(
+        _isTaglish ? "Walang update" : "No update yet",
+        style: TextStyle(
+          fontSize: 11,
+          color: _isDarkMode ? Colors.white54 : Colors.black45,
+          fontWeight: FontWeight.w600,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.access_time_rounded,
+          size: 14,
+          color: _isDarkMode ? Colors.white70 : Colors.black54,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            timeStr,
             style: TextStyle(
-              fontSize: 11, 
+              fontSize: 11,
               color: _isDarkMode ? Colors.white70 : Colors.black54,
               fontWeight: FontWeight.w600,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1766,69 +1780,35 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           ),
                         ],
                       ),
-                      child: Stack(
-                        alignment: Alignment.center,
+                      child: Row(
                         children: [
-                          // Center: Logo + Title
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Animated Logo
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0.0, end: 1.0),
-                                duration: const Duration(milliseconds: 1000),
-                                curve: Curves.elasticOut,
-                                builder: (context, value, child) {
-                                  return Transform.scale(
-                                    scale: value,
-                                    child: child,
-                                  );
-                                },
-                                child: Image.asset(
-                                  'assets/new_logo_nobg.png',
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Animated Text
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0.0, end: 1.0),
-                                duration: const Duration(milliseconds: 800),
-                                curve: Curves.easeOutQuad,
-                                builder: (context, value, child) {
-                                  return Opacity(
-                                    opacity: value,
-                                    child: Transform.translate(
-                                      offset: Offset(20 * (1 - value), 0),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  "FloodGuard",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: _isDarkMode
-                                        ? Colors.white
-                                        : const Color(0xFF3784DF),
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          // Left: Brand
+                          Image.asset(
+                            'assets/new_logo_nobg.png',
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.contain,
                           ),
-
-                          // Left & Right Buttons
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildRefreshButton(),
-                              _buildMenuButton(),
-                            ],
+                          const SizedBox(width: 6),
+                          Text(
+                            "FloodGuard",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _isDarkMode
+                                  ? Colors.white
+                                  : const Color(0xFF3784DF),
+                              letterSpacing: -0.5,
+                            ),
                           ),
+                          // Middle: last updated
+                          Expanded(
+                            child: Center(
+                              child: _buildRefreshButton(),
+                            ),
+                          ),
+                          // Right: settings
+                          _buildMenuButton(),
                         ],
                       ),
                     ),
