@@ -67,7 +67,7 @@ class AuthService {
 
     try {
       final response = await http.post(
-        Uri.parse('https://floodguard-database.onrender.com/api/auth/signup'),
+        Uri.parse('https://floodguard-api-xyjx.onrender.com/api/auth/signup'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'firstName': formattedFirstName,
@@ -110,7 +110,7 @@ class AuthService {
   Future<bool> login(String email, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('https://floodguard-database.onrender.com/api/auth/login'),
+        Uri.parse('https://floodguard-api-xyjx.onrender.com/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -185,7 +185,7 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse(
-            'https://floodguard-database.onrender.com/api/auth/forgot-password'),
+            'https://floodguard-api-xyjx.onrender.com/api/auth/forgot-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email.trim().toLowerCase()}),
       );
@@ -205,7 +205,7 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse(
-            'https://floodguard-database.onrender.com/api/auth/reset-password'),
+            'https://floodguard-api-xyjx.onrender.com/api/auth/reset-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email.trim().toLowerCase(),

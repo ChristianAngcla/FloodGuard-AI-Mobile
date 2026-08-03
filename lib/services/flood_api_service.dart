@@ -67,12 +67,12 @@ class FloodData {
 ///    - For Emulator: Use 'http://10.0.2.2:5000/api'
 ///    - For Physical Device: Use your PC's IP (e.g., 'http://192.168.1.57:5000/api')
 class FloodApiService {
-  // 🌐 Base URL for the live predictive analytics engine.
-  static const String baseUrl = 'https://floodguard-database.onrender.com/api';
+  // 🌐 Live predictive analytics + Mongo (same Render service the admin uses)
+  static const String baseUrl = 'https://floodguard-api-xyjx.onrender.com/api';
 
-  // 🗄️ Base URL for the MongoDB Database (Users, Reports).
+  // 🗄️ Users / reports — must match admin Reports feed
   static const String dbBaseUrl =
-      'https://floodguard-database.onrender.com/api';
+      'https://floodguard-api-xyjx.onrender.com/api';
 
   // Timeout duration for API calls (don't wait forever)
   static const Duration _timeout =

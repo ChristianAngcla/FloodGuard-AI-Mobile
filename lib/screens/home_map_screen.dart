@@ -415,17 +415,48 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
         centers[name] = center;
 
-        // Step 3: Map API data to this barangay
+        // Color by THIS barangay's river WL vs THAT river's Alert/Alarm/Critical
         final matchedData = FloodApiService.findDataForBarangay(apiData, name);
+        final sensorKey = FloodApiService.barangayToSensor[name] ?? 'sto_nino';
+        final thr = StationThresholds.forSensor(sensorKey);
+        double levelForColor = matchedData?.waterLevel ?? 0.0;
+        // Prefer peak when available from full API cache
+        final full = FloodApiService.getFullPredictionData();
+        final river = full?['prediction']?['rivers']?[sensorKey];
+        if (river is Map) {
+          final peak = river['time_series_insights']?['peak_predicted_level'];
+          final pred = river['predicted_water_level'];
+          if (peak is num) {
+            levelForColor = peak.toDouble();
+          } else if (pred is num) {
+            levelForColor = pred.toDouble();
+          }
+          final apiThr = river['thresholds'];
+          if (apiThr is Map) {
+            // keep StationThresholds.forSensor unless API has all three
+          }
+        }
 
-        // Default to Safe (Green) if no data
-        int risk = matchedData?.riskLevel ?? 0;
-        Color baseColor = _getRiskColor(risk);
+        Color baseColor;
+        switch (thr.statusFor(levelForColor)) {
+          case ColorStatus.critical:
+            baseColor = const Color(0xFFD32F2F);
+            break;
+          case ColorStatus.warning:
+            baseColor = const Color(0xFFFF9800);
+            break;
+          case ColorStatus.alert:
+            baseColor = const Color(0xFFFBC02D);
+            break;
+          case ColorStatus.safe:
+            baseColor = const Color(0xFF4CAF50);
+            break;
+        }
 
         if (matchedData != null) {
           loadedData[name] = matchedData;
           debugPrint(
-              "🌊 $name: ${loadedData[name]!.riskLevel}% Risk (Live Data)");
+              "🌊 $name: ${levelForColor.toStringAsFixed(2)}m → ${thr.statusFor(levelForColor).label} ($sensorKey)");
         }
 
         loaded.add(
@@ -1448,33 +1479,61 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         _barangayCenters.entries.map((entry) {
                                       final name = entry.key;
                                       final center = entry.value;
-                                      final risk =
-                                          _barangayData[name]?.riskLevel ?? 0;
-                                      Color riskColor = _getRiskColor(risk);
-
-                                      String statusText;
-                                      Color textColor = Colors.white;
-                                      IconData statusIcon;
-
-                                      if (risk < 20) {
-                                        statusText =
-                                            _isTaglish ? "Ligtas" : "Safe";
-                                        statusIcon = Icons.check_circle_rounded;
-                                      } else if (risk < 50) {
-                                        statusText =
-                                            _isTaglish ? "Alerto" : "Alert";
-                                        textColor = Colors.black87;
-                                        statusIcon =
-                                            Icons.warning_amber_rounded;
-                                      } else if (risk < 80) {
-                                        statusText =
-                                            _isTaglish ? "Maghanda" : "Prepare";
-                                        textColor = Colors.black87;
-                                        statusIcon = Icons.warning_rounded;
-                                      } else {
-                                        statusText =
-                                            _isTaglish ? "Lumikas" : "Evacuate";
-                                        statusIcon = Icons.dangerous_rounded;
+                                      final sensorKey =
+                                          FloodApiService.barangayToSensor[name] ??
+                                              'sto_nino';
+                                      final thr =
+                                          StationThresholds.forSensor(sensorKey);
+                                      double level =
+                                          _barangayData[name]?.waterLevel ?? 0.0;
+                                      final river = FloodApiService
+                                              .getFullPredictionData()?[
+                                          'prediction']?['rivers']?[sensorKey];
+                                      if (river is Map) {
+                                        final peak = river['time_series_insights']
+                                            ?['peak_predicted_level'];
+                                        final pred = river['predicted_water_level'];
+                                        if (peak is num) {
+                                          level = peak.toDouble();
+                                        } else if (pred is num) {
+                                          level = pred.toDouble();
+                                        }
+                                      }
+                                      final status = thr.statusFor(level);
+                                      late Color riskColor;
+                                      late String statusText;
+                                      late Color textColor;
+                                      late IconData statusIcon;
+                                      switch (status) {
+                                        case ColorStatus.safe:
+                                          riskColor = const Color(0xFF4CAF50);
+                                          statusText =
+                                              _isTaglish ? "Ligtas" : "Safe";
+                                          textColor = Colors.white;
+                                          statusIcon = Icons.check_circle_rounded;
+                                          break;
+                                        case ColorStatus.alert:
+                                          riskColor = const Color(0xFFFBC02D);
+                                          statusText =
+                                              _isTaglish ? "Alerto" : "Alert";
+                                          textColor = Colors.black87;
+                                          statusIcon =
+                                              Icons.warning_amber_rounded;
+                                          break;
+                                        case ColorStatus.warning:
+                                          riskColor = const Color(0xFFFF9800);
+                                          statusText =
+                                              _isTaglish ? "Maghanda" : "Alarm";
+                                          textColor = Colors.black87;
+                                          statusIcon = Icons.warning_rounded;
+                                          break;
+                                        case ColorStatus.critical:
+                                          riskColor = const Color(0xFFD32F2F);
+                                          statusText =
+                                              _isTaglish ? "Lumikas" : "Critical";
+                                          textColor = Colors.white;
+                                          statusIcon = Icons.dangerous_rounded;
+                                          break;
                                       }
 
                                       // Dynamic Layout: Switch to compact single-pill mode when zoomed out
@@ -2448,24 +2507,48 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Color _dashboardAlarmColor(double level) {
-    if (level >= 18.0) return const Color(0xFFD32F2F);
-    if (level >= 16.0) return const Color(0xFFFF9800);
-    if (level >= 15.0) return const Color(0xFFFBC02D);
-    return const Color(0xFF4CAF50);
+    final thr = StationThresholds.fromApiOrDefault(
+        _dashboardSensorKey, _dashboardRiverData);
+    switch (thr.statusFor(level)) {
+      case ColorStatus.critical:
+        return const Color(0xFFD32F2F);
+      case ColorStatus.warning:
+        return const Color(0xFFFF9800);
+      case ColorStatus.alert:
+        return const Color(0xFFFBC02D);
+      case ColorStatus.safe:
+        return const Color(0xFF4CAF50);
+    }
   }
 
   String _dashboardAlarmLabel(double level) {
-    if (level >= 18.0) return 'FORCE EVACUATION';
-    if (level >= 16.0) return 'PREPARE TO EVACUATE';
-    if (level >= 15.0) return 'ALERT';
-    return 'NORMAL — SAFE';
+    final thr = StationThresholds.fromApiOrDefault(
+        _dashboardSensorKey, _dashboardRiverData);
+    switch (thr.statusFor(level)) {
+      case ColorStatus.critical:
+        return 'CRITICAL';
+      case ColorStatus.warning:
+        return 'ALARM';
+      case ColorStatus.alert:
+        return 'ALERT';
+      case ColorStatus.safe:
+        return 'NORMAL — SAFE';
+    }
   }
 
   String _dashboardAlarmShortLabel(double level) {
-    if (level >= 18.0) return 'EVACUATE';
-    if (level >= 16.0) return 'PREPARE';
-    if (level >= 15.0) return 'ALERT';
-    return 'NORMAL';
+    final thr = StationThresholds.fromApiOrDefault(
+        _dashboardSensorKey, _dashboardRiverData);
+    switch (thr.statusFor(level)) {
+      case ColorStatus.critical:
+        return 'CRITICAL';
+      case ColorStatus.warning:
+        return 'ALARM';
+      case ColorStatus.alert:
+        return 'ALERT';
+      case ColorStatus.safe:
+        return 'SAFE';
+    }
   }
 
   Widget _buildDashboardForecastCard(Color textColor, Color? subColor) {

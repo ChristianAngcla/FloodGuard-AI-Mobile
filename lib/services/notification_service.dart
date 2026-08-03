@@ -201,7 +201,7 @@ class NotificationService {
       // On Mobile, we can do it directly or via the server. We'll use the server for both for consistency.
       final response = await http.post(
         Uri.parse(
-            'https://floodguard-database.onrender.com/api/user/subscribe'),
+            'https://floodguard-api-xyjx.onrender.com/api/user/subscribe'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'token': token,

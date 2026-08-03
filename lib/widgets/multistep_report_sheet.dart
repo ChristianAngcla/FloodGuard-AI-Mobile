@@ -148,16 +148,16 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // RATE LIMITING CHECK
-      final lastReportStr = prefs.getString('last_report_time');
-      if (lastReportStr != null) {
-        final lastReport = DateTime.parse(lastReportStr);
-        if (DateTime.now().difference(lastReport).inMinutes < 30) {
-          setState(() => _isSubmitting = false);
-          _showError(widget.isTaglish ? "Maaari ka lamang mag-submit ng isang ulat bawat 30 minuto." : "You can only submit one report every 30 minutes to prevent spam.");
-          return;
-        }
-      }
+      // RATE LIMITING disabled for functional testing
+      // final lastReportStr = prefs.getString('last_report_time');
+      // if (lastReportStr != null) {
+      //   final lastReport = DateTime.parse(lastReportStr);
+      //   if (DateTime.now().difference(lastReport).inMinutes < 30) {
+      //     setState(() => _isSubmitting = false);
+      //     _showError(widget.isTaglish ? "Maaari ka lamang mag-submit ng isang ulat bawat 30 minuto." : "You can only submit one report every 30 minutes to prevent spam.");
+      //     return;
+      //   }
+      // }
 
       final userDataString = prefs.getString('user_data');
       if (userDataString != null) {
