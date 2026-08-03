@@ -497,25 +497,45 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     if (!_isLoggedIn || _userProfile == null) return;
 
     final userBarangay = _userProfile!.barangay;
+    final sensorKey =
+        FloodApiService.barangayToSensor[userBarangay] ?? 'sto_nino';
+    final thr = StationThresholds.forSensor(sensorKey);
 
-    // Try to find matching data
+    double level = 0.0;
     final data =
         FloodApiService.findDataForBarangay(_barangayData, userBarangay);
+    if (data != null) level = data.waterLevel;
 
-    // Check threshold (50%)
-    if (data != null && data.riskLevel > 50) {
-      _hasShownEarlyWarning = true;
-
-      // Show dialog after a short delay to ensure context is valid
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          _showEarlyWarningDialog(data.riskLevel, userBarangay);
-        }
-      });
+    final river = FloodApiService.getFullPredictionData()?['prediction']
+        ?['rivers']?[sensorKey];
+    if (river is Map) {
+      final peak = river['time_series_insights']?['peak_predicted_level'];
+      final pred = river['predicted_water_level'];
+      if (peak is num) {
+        level = peak.toDouble();
+      } else if (pred is num) {
+        level = pred.toDouble();
+      }
     }
+
+    final status = thr.statusFor(level);
+    // Only warn when this barangay's river reaches Alert / Alarm / Critical
+    if (status == ColorStatus.safe) return;
+
+    _hasShownEarlyWarning = true;
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        _showEarlyWarningDialog(status.label, level, userBarangay, thr);
+      }
+    });
   }
 
-  void _showEarlyWarningDialog(int risk, String location) {
+  void _showEarlyWarningDialog(
+    String statusLabel,
+    double level,
+    String location,
+    StationThresholds thr,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -541,9 +561,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              t("earlyWarningMsg")
-                  .replaceAll("{risk}", risk.toString())
-                  .replaceAll("{location}", location),
+              _isTaglish
+                  ? 'Babala ($statusLabel): ${level.toStringAsFixed(2)} m sa $location.\n'
+                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
+                      'Sundin ang opisyal na babala ng PAGASA/MDRRMO. Ang prediksyon ay hindi 100% tumpak.'
+                  : 'Warning ($statusLabel): ${level.toStringAsFixed(2)} m at $location.\n'
+                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
+                      'Follow official PAGASA/MDRRMO advisories. Predictions are not 100% accurate.',
               style: const TextStyle(fontSize: 16, height: 1.5),
             ),
             const SizedBox(height: 16),
@@ -594,9 +618,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             ),
             onPressed: () {
               Navigator.pop(context);
-              // Navigate to details for that barangay
               _showBarangayDetails(location);
-              // Show preparedness guide instead of details
               _showPreparednessGuide();
             },
             child: Text(t("beReady")),

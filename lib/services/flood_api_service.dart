@@ -96,18 +96,18 @@ class FloodApiService {
     'Malanday': 'tumana',
     'Marikina Heights': 'tumana',
     'Concepcion Dos': 'tumana',
-    'Industrial Valley': 'tumana',
+    'Industrial Valley': 'sto_nino', // Southern Marikina — Sto. Niño, not Tumana
     'Santo Niño': 'sto_nino',
-    'Concepcion Uno': 'sto_nino',
+    'Concepcion Uno': 'tumana',
     'San Roque': 'sto_nino',
     'Barangka': 'sto_nino',
     'Jesus Dela Peña': 'sto_nino',
     'Santa Elena': 'sto_nino',
     'Tañong': 'sto_nino',
+    'Calumpang': 'sto_nino', // Southern Marikina — nearer Sto. Niño, not Nangka
     'Nangka': 'nangka',
     'Fortune': 'nangka',
     'Parang': 'nangka',
-    'Calumpang': 'sto_nino', // Southern Marikina — nearer Sto. Niño, not Nangka
   };
 
   /// Human-readable sensor names
@@ -268,8 +268,7 @@ class FloodApiService {
                 peakLevel = insights['peak_predicted_level'].toDouble();
               }
 
-              // UNIFIED with server: PAGASA alert/alarm/critical status bands
-              // (same rule as predictionEngine getStatusLabel — not a separate 15/16/18 legend)
+              // Map color/alerts from PAGASA station status only (not a 0–100 % hack)
               String status =
                   (riverData['status'] ?? 'safe').toString().toLowerCase();
               int riskLevel;
@@ -284,13 +283,8 @@ class FloodApiService {
                   riskLevel = 60;
                   break;
                 default:
-                  // Prefer server base_risk_pct when SAFE so map still shows relative level
-                  final base = riverData['base_risk_pct'];
-                  if (base is num) {
-                    riskLevel = base.round().clamp(0, 59);
-                  } else {
-                    riskLevel = 20;
-                  }
+                  // SAFE must stay below early-warning trigger (< 50)
+                  riskLevel = 15;
               }
 
               final thresholds = riverData['thresholds'] ?? {};
