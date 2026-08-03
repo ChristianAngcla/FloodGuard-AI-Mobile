@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart';
 import '../models/user_profile_model.dart';
 import 'package:http/http.dart' as http;
 
-/// 🌊 Flood Data Model - Represents one barangay's flood information
-/// This data comes from your Python AI backend after it processes
-/// real-time data from PAGASA (Philippine weather service)
+/// 🌊 Flood Data Model - One barangay's flood information from the
+/// FloodGuard predictive analytics engine (time-series OLS), using
+/// raw meteorological/hydrological observations as inputs.
 class FloodData {
   final String barangay;
-  final int riskLevel; // 0-100% from ML model
+  final int riskLevel; // 0-100% from OLS / PAGASA status mapping
   final double rainfall; // mm/hour from PAGASA
   final double waterLevel; // current meters
   final double
@@ -55,10 +55,10 @@ class FloodData {
   String toString() => 'FloodData($barangay: $riskLevel% risk)';
 }
 
-/// 🔗 Flood API Service - Communicates with Python Flask backend
+/// 🔗 Flood API Service - Talks to the FloodGuard analytics engine.
 ///
-/// This service handles all API calls to your Python AI server.
-/// The server fetches real-time data from PAGASA and runs ML predictions.
+/// Data flow: authorized/raw observations → time-series OLS → this service → UI
+/// (Not a third-party flood algorithm; OLS coefficients are project-trained.)
 ///
 /// 📡 Data Flow:
 ///    PAGASA → Python AI → Flask API → This Service → Flutter UI
@@ -67,7 +67,7 @@ class FloodData {
 ///    - For Emulator: Use 'http://10.0.2.2:5000/api'
 ///    - For Physical Device: Use your PC's IP (e.g., 'http://192.168.1.57:5000/api')
 class FloodApiService {
-  // 🌐 Base URL for the live AI Engine.
+  // 🌐 Base URL for the live predictive analytics engine.
   static const String baseUrl = 'https://floodguard-database.onrender.com/api';
 
   // 🗄️ Base URL for the MongoDB Database (Users, Reports).
@@ -107,7 +107,7 @@ class FloodApiService {
     'Nangka': 'nangka',
     'Fortune': 'nangka',
     'Parang': 'nangka',
-    'Calumpang': 'nangka',
+    'Calumpang': 'sto_nino', // Southern Marikina — nearer Sto. Niño, not Nangka
   };
 
   /// Human-readable sensor names
@@ -268,19 +268,34 @@ class FloodApiService {
                 peakLevel = insights['peak_predicted_level'].toDouble();
               }
 
-              // EXACT alignment with legend thresholds
-              int riskLevel = 10;
-              if (peakLevel >= 18.0) {
-                riskLevel = 90; // Red (Force Evacuation)
-              } else if (peakLevel >= 16.0)
-                riskLevel = 65; // Orange (Prepare)
-              else if (peakLevel >= 15.0) riskLevel = 35; // Yellow (Alert)
+              // UNIFIED with server: PAGASA alert/alarm/critical status bands
+              // (same rule as predictionEngine getStatusLabel — not a separate 15/16/18 legend)
+              String status =
+                  (riverData['status'] ?? 'safe').toString().toLowerCase();
+              int riskLevel;
+              switch (status) {
+                case 'critical':
+                  riskLevel = 90;
+                  break;
+                case 'warning':
+                  riskLevel = 75;
+                  break;
+                case 'alert':
+                  riskLevel = 60;
+                  break;
+                default:
+                  // Prefer server base_risk_pct when SAFE so map still shows relative level
+                  final base = riverData['base_risk_pct'];
+                  if (base is num) {
+                    riskLevel = base.round().clamp(0, 59);
+                  } else {
+                    riskLevel = 20;
+                  }
+              }
 
               final thresholds = riverData['thresholds'] ?? {};
               double maxWaterLevel =
                   (thresholds['critical'] ?? 20.0).toDouble();
-              String status =
-                  (riverData['status'] ?? 'safe').toString().toLowerCase();
 
               map[b] = FloodData(
                 barangay: b,

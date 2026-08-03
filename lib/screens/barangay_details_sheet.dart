@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'home_map_screen.dart';
 import '../widgets/weather_card.dart';
 import '../services/flood_api_service.dart';
+import '../utils/station_thresholds.dart';
 
 /// Live Risk Assessment bottom sheet matching the new design.
 /// Shows: barangay dropdown, projected peak with alarm gauge,
@@ -26,42 +27,53 @@ class BarangayDetailsSheet extends StatefulWidget {
 class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   late String _selectedBarangay;
 
-  // Alarm thresholds (user spec)
-  static const double _greenMax = 15.0;
-  static const double _yellowMax = 16.0;
-  static const double _orangeMax = 18.0;
-
-  // Gauge range
-  static const double _gaugeMin = 0.0;
-  static const double _gaugeMax = 20.0;
-
   @override
   void initState() {
     super.initState();
     _selectedBarangay = widget.barangayName;
   }
 
-  // ── Alarm helpers ──────────────────────────────────────────────
+  StationThresholds get _thr =>
+      StationThresholds.fromApiOrDefault(_sensorKey, _riverData);
 
-  static Color alarmColor(double level) {
-    if (level >= _orangeMax) return const Color(0xFFD32F2F); // Red
-    if (level >= _yellowMax) return const Color(0xFFFF9800); // Orange
-    if (level >= _greenMax) return const Color(0xFFFBC02D); // Yellow
-    return const Color(0xFF4CAF50); // Green
+  Color _alarmColor(double level) {
+    final s = _thr.statusFor(level);
+    switch (s) {
+      case ColorStatus.critical:
+        return const Color(0xFFD32F2F);
+      case ColorStatus.warning:
+        return const Color(0xFFFF9800);
+      case ColorStatus.alert:
+        return const Color(0xFFFBC02D);
+      case ColorStatus.safe:
+        return const Color(0xFF4CAF50);
+    }
   }
 
-  static String alarmLabel(double level) {
-    if (level >= _orangeMax) return 'FORCE EVACUATION';
-    if (level >= _yellowMax) return 'PREPARE TO EVACUATE';
-    if (level >= _greenMax) return 'ALERT';
-    return 'NORMAL — SAFE';
+  String _alarmLabel(double level) {
+    switch (_thr.statusFor(level)) {
+      case ColorStatus.critical:
+        return 'CRITICAL';
+      case ColorStatus.warning:
+        return 'WARNING / ALARM';
+      case ColorStatus.alert:
+        return 'ALERT';
+      case ColorStatus.safe:
+        return 'NORMAL — SAFE';
+    }
   }
 
-  static String alarmShortLabel(double level) {
-    if (level >= _orangeMax) return 'EVACUATE';
-    if (level >= _yellowMax) return 'PREPARE';
-    if (level >= _greenMax) return 'ALERT';
-    return 'NORMAL';
+  String _alarmShortLabel(double level) {
+    switch (_thr.statusFor(level)) {
+      case ColorStatus.critical:
+        return 'CRITICAL';
+      case ColorStatus.warning:
+        return 'ALARM';
+      case ColorStatus.alert:
+        return 'ALERT';
+      case ColorStatus.safe:
+        return 'SAFE';
+    }
   }
 
   // ── Data helpers ───────────────────────────────────────────────
@@ -300,8 +312,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
   Widget _buildForecastCard(Color textColor, Color? subColor) {
     final peak = _peakLevel;
-    final color = alarmColor(peak);
-    final label = alarmLabel(peak);
+    final color = _alarmColor(peak);
+    final label = _alarmLabel(peak);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -415,20 +427,64 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     );
   }
 
-  // ── Alarm Gauge ────────────────────────────────────────────────
+  // ── Alarm Gauge (station-specific PAGASA thresholds) ───────────
 
   Widget _buildAlarmGauge(double currentLevel) {
-    // Clamp to gauge range
-    final clamped = currentLevel.clamp(_gaugeMin, _gaugeMax);
-    final ratio = (clamped - _gaugeMin) / (_gaugeMax - _gaugeMin);
+    final thr = _thr;
+    const gaugeMin = 0.0;
+    final gaugeMax = thr.gaugeMax;
+    final clamped = currentLevel.clamp(gaugeMin, gaugeMax);
+    final ratio = (clamped - gaugeMin) / (gaugeMax - gaugeMin);
 
-    // Threshold positions as fractions of gauge
-    final yellow = (_greenMax - _gaugeMin) / (_gaugeMax - _gaugeMin); // 15m
-    final orange = (_yellowMax - _gaugeMin) / (_gaugeMax - _gaugeMin); // 16m
-    final red = (_orangeMax - _gaugeMin) / (_gaugeMax - _gaugeMin); // 18m
+    final alertPos = (thr.alert - gaugeMin) / (gaugeMax - gaugeMin);
+    final alarmPos = (thr.alarm - gaugeMin) / (gaugeMax - gaugeMin);
+    final critPos = (thr.critical - gaugeMin) / (gaugeMax - gaugeMin);
+
+    String fmt(double m) =>
+        '${m.toStringAsFixed(m == m.roundToDouble() ? 0 : 2)}m';
 
     return Column(
       children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: widget.isDarkMode
+                ? Colors.white.withValues(alpha: 0.06)
+                : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_sensorDisplayName thresholds (EL.m)',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: widget.isDarkMode ? Colors.white70 : Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _thrChip('Current', currentLevel.toStringAsFixed(2),
+                      _alarmColor(currentLevel)),
+                  const SizedBox(width: 8),
+                  _thrChip('Alert', thr.alert.toStringAsFixed(2),
+                      const Color(0xFFFBC02D)),
+                  const SizedBox(width: 8),
+                  _thrChip('Alarm', thr.alarm.toStringAsFixed(2),
+                      const Color(0xFFFF9800)),
+                  const SizedBox(width: 8),
+                  _thrChip('Critical', thr.critical.toStringAsFixed(2),
+                      const Color(0xFFD32F2F)),
+                ],
+              ),
+            ],
+          ),
+        ),
         SizedBox(
           height: 28,
           child: LayoutBuilder(
@@ -437,7 +493,6 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Background track (grey)
                   Container(
                     height: 14,
                     margin: const EdgeInsets.only(top: 7),
@@ -448,101 +503,82 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                       borderRadius: BorderRadius.circular(7),
                     ),
                   ),
-                  // Filled portion (colored)
                   Positioned(
                     top: 7,
                     left: 0,
                     child: Container(
                       height: 14,
-                      width: w * ratio,
+                      width: (w * ratio).clamp(0.0, w),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(7),
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF4CAF50),
-                            ratio > yellow
-                                ? const Color(0xFFFBC02D)
-                                : const Color(0xFF4CAF50),
-                            if (ratio > orange) const Color(0xFFFF9800),
-                            if (ratio > red) const Color(0xFFD32F2F),
-                          ],
-                        ),
+                        color: _alarmColor(currentLevel),
                       ),
                     ),
                   ),
-                  // Threshold markers
                   _buildThresholdMarker(
-                      w, yellow, const Color(0xFFFBC02D), '15m'),
+                      w, alertPos, const Color(0xFFFBC02D), fmt(thr.alert)),
                   _buildThresholdMarker(
-                      w, orange, const Color(0xFFFF9800), '16m'),
-                  _buildThresholdMarker(w, red, const Color(0xFFD32F2F), '18m'),
+                      w, alarmPos, const Color(0xFFFF9800), fmt(thr.alarm)),
+                  _buildThresholdMarker(
+                      w, critPos, const Color(0xFFD32F2F), fmt(thr.critical)),
                 ],
               );
             },
           ),
         ),
-        const SizedBox(height: 6),
-        // Scale labels
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final w = constraints.maxWidth;
-            return SizedBox(
-              height: 14,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                      left: 0,
-                      child: Text('0m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: widget.isDarkMode
-                                  ? Colors.white38
-                                  : Colors.grey[500]))),
-                  Positioned(
-                      left: w * yellow - 10,
-                      child: Text('15m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFFBC02D)))),
-                  Positioned(
-                      left: w * orange - 10,
-                      child: Text('16m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFFF9800)))),
-                  Positioned(
-                      left: w * red - 10,
-                      child: Text('18m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFD32F2F)))),
-                  Positioned(
-                      right: 0,
-                      child: Text('20m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: widget.isDarkMode
-                                  ? Colors.white38
-                                  : Colors.grey[500]))),
-                ],
-              ),
-            );
-          },
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(fmt(gaugeMin),
+                style: TextStyle(
+                    fontSize: 10,
+                    color: widget.isDarkMode
+                        ? Colors.white38
+                        : Colors.grey[500])),
+            Text(fmt(gaugeMax),
+                style: TextStyle(
+                    fontSize: 10,
+                    color: widget.isDarkMode
+                        ? Colors.white38
+                        : Colors.grey[500])),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _thrChip(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: widget.isDarkMode
+                        ? Colors.white54
+                        : Colors.grey[600])),
+            const SizedBox(height: 2),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildThresholdMarker(
       double totalWidth, double fraction, Color color, String label) {
     return Positioned(
-      left: totalWidth * fraction - 1.5,
+      left: (totalWidth * fraction - 1.5).clamp(0.0, totalWidth - 3),
       top: 4,
       child: Container(
         width: 3,
@@ -555,19 +591,37 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     );
   }
 
-  // ── Legend ──────────────────────────────────────────────────────
-
   Widget _buildGaugeLegend() {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 6,
+    final thr = _thr;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _legendItem(
-            const Color(0xFFD32F2F), '3rd ALARM (FORCE EVACUATION): ≥ 18m'),
-        _legendItem(
-            const Color(0xFFFF9800), '2nd ALARM (PREPARE TO EVACUATE): ≥ 16m'),
-        _legendItem(const Color(0xFFFBC02D), '1st ALARM (ALERT): ≥ 15m'),
-        _legendItem(const Color(0xFF4CAF50), 'NORMAL (SAFE): < 15m'),
+        Text(
+          widget.isTaglish
+              ? 'Tandaan: Ang prediksyon ay HINDI 100% tumpak. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
+              : 'Note: Predictions are NOT 100% accurate. Always follow official PAGASA/MDRRMO advisories.',
+          style: TextStyle(
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+            color: widget.isDarkMode ? Colors.white60 : Colors.grey[700],
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            _legendItem(const Color(0xFFD32F2F),
+                'CRITICAL: ≥ ${thr.critical.toStringAsFixed(2)}m'),
+            _legendItem(const Color(0xFFFF9800),
+                'ALARM: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
+            _legendItem(const Color(0xFFFBC02D),
+                'ALERT: ≥ ${thr.alert.toStringAsFixed(2)}m'),
+            _legendItem(const Color(0xFF4CAF50),
+                'SAFE: < ${thr.alert.toStringAsFixed(2)}m'),
+          ],
+        ),
       ],
     );
   }
@@ -629,10 +683,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           final entry = timeline[index] as Map<String, dynamic>;
           final time = entry['time']?.toString() ?? '';
           final level = (entry[_sensorKey] ?? 0.0).toDouble();
-          final color = alarmColor(level);
-          final statusText = alarmShortLabel(level);
+          final color = _alarmColor(level);
+          final statusText = _alarmShortLabel(level);
 
-          // Parse time: "May 05, 02:06 PM" → "2 PM" or "May 06, 12 AM" → "12 AM"
           String shortTime = time;
           final parts = time.split(', ');
           if (parts.length >= 2) shortTime = parts.last;

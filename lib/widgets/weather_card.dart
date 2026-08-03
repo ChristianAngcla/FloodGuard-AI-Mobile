@@ -354,25 +354,31 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
   Widget _buildDetailItem(String label, String value, Color labelColor, Color valueColor) {
     return Expanded(
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: labelColor,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: labelColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
+          const SizedBox(width: 6),
+          Flexible(
             child: Text(
               value,
+              textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 color: valueColor,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

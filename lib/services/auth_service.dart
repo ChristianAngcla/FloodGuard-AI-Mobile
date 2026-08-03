@@ -170,12 +170,54 @@ class AuthService {
       }
     }
 
-    // Clear everything
+    // Clear auth session only — keep theme/language preferences
     await prefs.remove('user_data');
     await prefs.remove('auth_token');
     await prefs.setBool('is_logged_in', false);
 
     // Also sign out from Firebase just in case
     await _auth.signOut();
+  }
+
+  /// Request a password reset code (MongoDB auth — not Firebase email reset).
+  /// Returns the demo_code when the API includes it (for testing without SMTP).
+  Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+            'https://floodguard-database.onrender.com/api/auth/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email.trim().toLowerCase()}),
+      );
+      final data = jsonDecode(response.body);
+      return Map<String, dynamic>.from(data as Map);
+    } catch (e) {
+      print("Forgot password error: $e");
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+            'https://floodguard-database.onrender.com/api/auth/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim().toLowerCase(),
+          'code': code.trim(),
+          'newPassword': newPassword,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      return Map<String, dynamic>.from(data as Map);
+    } catch (e) {
+      print("Reset password error: $e");
+      return {'success': false, 'message': e.toString()};
+    }
   }
 }

@@ -1366,75 +1366,76 @@ class _SignupScreenState extends State<SignupScreen> {
   /// ---------- CONTENT STRINGS ----------
   String _getTermsOfServiceContent() {
     if (widget.isTaglish) {
-      return """FloodGuard AI Mga Tuntunin ng Serbisyo
+      return """FloodGuard — Mga Tuntunin ng Serbisyo
 
-1. Pagtanggap sa mga Tuntunin
-Sa pag-access at paggamit ng FloodGuard AI, tinatanggap at sumasang-ayon ka na matali sa mga tuntunin at probisyon ng kasunduang ito.
+1. Pagtanggap
+Sa paggamit ng FloodGuard, sumasang-ayon ka sa mga tuntuning ito.
 
-2. Lisensya sa Paggamit
-Pinahihintulutan ang pansamantalang pag-download ng isang kopya ng mga materyales para sa personal at hindi komersyal na pagtingin lamang.
+2. Layunin ng App
+Ang FloodGuard ay para sa paghahanda sa baha sa Marikina. Hindi ito kapalit ng opisyal na babala ng PAMAHALAAN.
 
-3. Disclaimer ng Pagtataya ng Baha
-Ang mga forecast ng baha ay batay sa Ordinary Least Squares (OLS) Multiple Linear Regression. Ang impormasyon ay ibinibigay para sa paghahanda sa sakuna at dapat sabayan ng opisyal na babala mula sa PAGASA at MDRRMO.
+3. Disclaimer ng Prediksyon
+Ang prediksyon ng water level ay HINDI 100% tumpak. Ito ay batay sa OLS / time-series analytics at maaaring mali dahil sa biglaang ulan, sira/kulang na sensor, o lokal na drainage. Sundin palagi ang PAGASA at Marikina CDRRMO/MDRRMO.
 
-4. Privacy at Proteksyon ng Data
-Ang iyong data sa lokasyon at ulat ay ginagamit lamang para sa emergency flood alert services at hindi ibinebenta sa kanino man.""";
+4. Ulat at Lokasyon
+Ang mga ulat, numero, at lokasyon ay ginagamit para sa emergency response at hindi ibinebenta.
+
+5. Responsibilidad ng User
+Ikaw ang responsable sa katotohanan ng iyong account at mga ulat.""";
     }
-    return """FloodGuard AI Terms of Service
+    return """FloodGuard — Terms of Service
 
-1. Acceptance of Terms
-By accessing and using FloodGuard AI, you accept and agree to be bound by the terms and provision of this agreement.
+1. Acceptance
+By using FloodGuard, you agree to these terms.
 
-2. Use License
-Permission is granted to temporarily download one copy of the materials (information or software) on FloodGuard AI for personal, non-commercial transitory viewing only.
+2. App Purpose
+FloodGuard supports flood preparedness in Marikina. It does not replace official government warnings.
 
-3. Flood Forecasting Disclaimer
-Flood predictions are generated using Ordinary Least Squares (OLS) Multiple Linear Regression. Information is provided for disaster preparedness and should be complemented by official advisories from PAGASA and MDRRMO.
+3. Prediction Disclaimer
+Water-level predictions are NOT 100% accurate. They use OLS / time-series analytics and may miss sudden rainfall, sensor gaps, or local drainage effects. Always follow PAGASA and Marikina CDRRMO/MDRRMO advisories.
 
-4. Data Privacy
-Your location and report data are strictly used for emergency flood warning services and will never be shared for commercial purposes.""";
-  }
-- Attempting to decompile or reverse engineer any software contained on FloodGuard AI
-- Removing any copyright or other proprietary notations from the materials
-- Transferring the materials to another person or "mirroring" the materials on any other server
+4. Reports and Location
+Reports, phone numbers, and location data are used for emergency response and are not sold.
 
-3. Disclaimer
-The materials on FloodGuard AI are provided on an 'as is' basis. FloodGuard AI makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
-
-4. Limitations
-In no event shall FloodGuard AI or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on FloodGuard AI.""";
+5. User Responsibility
+You are responsible for the accuracy of your account details and submitted reports.""";
   }
 
   String _getPrivacyPolicyContent() {
-    return """FloodGuard AI Privacy Policy
+    if (widget.isTaglish) {
+      return """FloodGuard — Patakaran sa Privacy
+
+1. Panimula
+Ipinapaliwanag ng patakarang ito kung anong personal na datos ang kinokolekta at paano ginagamit.
+
+2. Datos na Kinokolekta
+Maaaring kabilang ang: email, pangalan, numero ng telepono, barangay/address, lokasyon (GPS), at mga flood report.
+
+3. Paggamit ng Datos
+Ginagamit ang datos para sa account, flood alerts, pagpapakita ng mga ulat sa admin/responders, at pagpapabuti ng serbisyo.
+
+4. Seguridad
+Nagsusumikap kaming protektahan ang datos, ngunit walang sistemang 100% secure sa internet.
+
+5. Mga Pagbabago
+Maaaring i-update ang patakarang ito; ang pinakabagong bersyon ang mananaig sa app.""";
+    }
+    return """FloodGuard — Privacy Policy
 
 1. Introduction
-FloodGuard AI ("we" or "us" or "our") operates the FloodGuard AI application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service and the choices you have associated with that data.
+This policy explains what personal data we collect and how we use it.
 
-2. Information Collection and Use
-We collect several different types of information for various purposes to provide and improve our Service to you.
-
-Types of Data Collected:
-- Personal Data: While using our Service, we may ask you to provide us with certain personally identifiable information that can be used to contact or identify you ("Personal Data"). This may include, but is not limited to:
-  * Email address
-  * First name and last name
-  * Username
-  * Location data
+2. Data Collected
+May include: email, name, phone number, barangay/address, GPS location, and flood reports.
 
 3. Use of Data
-FloodGuard AI uses the collected data for various purposes:
-- To provide and maintain our Service
-- To notify you about changes to our Service
-- To provide customer care and support
-- To gather analysis or valuable information so that we can improve our Service
-- To monitor the usage of our Service
-- To detect, prevent and address technical issues
+Data is used for accounts, flood alerts, showing reports to admins/responders, and improving the service.
 
-4. Security of Data
-The security of your data is important to us, but remember that no method of transmission over the Internet or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your Personal Data, we cannot guarantee its absolute security.
+4. Security
+We work to protect data, but no internet system is 100% secure.
 
-5. Changes to This Privacy Policy
-We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page.""";
+5. Changes
+This policy may be updated; the latest in-app version applies.""";
   }
 
   Widget _buildSuccessContent(bool isDark) {

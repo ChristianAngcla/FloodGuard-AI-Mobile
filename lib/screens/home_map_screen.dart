@@ -24,6 +24,7 @@ import '../services/flood_api_service.dart';
 import '../models/user_profile_model.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../utils/station_thresholds.dart';
 import 'alerts_screen.dart';
 import 'profile_screen.dart';
 import '../widgets/wave_background.dart';
@@ -1725,7 +1726,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                   );
                                 },
                                 child: Text(
-                                  "FloodGuard AI",
+                                  "FloodGuard",
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w800,
@@ -1957,7 +1958,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
                       // Title
                       Text(
-                        "FloodGuard AI",
+                        "FloodGuard",
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.w900,
@@ -2571,19 +2572,42 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           const SizedBox(height: 24),
           _buildDashboardAlarmGauge(peak),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 16,
-            runSpacing: 6,
-            children: [
-              _buildDashboardLegendItem(const Color(0xFFD32F2F),
-                  '3rd ALARM (FORCE EVACUATION): ≥ 18m'),
-              _buildDashboardLegendItem(const Color(0xFFFF9800),
-                  '2nd ALARM (PREPARE TO EVACUATE): ≥ 16m'),
-              _buildDashboardLegendItem(
-                  const Color(0xFFFBC02D), '1st ALARM (ALERT): ≥ 15m'),
-              _buildDashboardLegendItem(
-                  const Color(0xFF4CAF50), 'NORMAL (SAFE): < 15m'),
-            ],
+          Builder(
+            builder: (context) {
+              final thr = StationThresholds.fromApiOrDefault(
+                  _dashboardSensorKey, _dashboardRiverData);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isTaglish
+                        ? 'Tandaan: Ang prediksyon ay HINDI 100% tumpak. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
+                        : 'Note: Predictions are NOT 100% accurate. Always follow official PAGASA/MDRRMO advisories.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: _isDarkMode ? Colors.white60 : Colors.grey[700],
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _buildDashboardLegendItem(const Color(0xFFD32F2F),
+                          'CRITICAL: ≥ ${thr.critical.toStringAsFixed(2)}m'),
+                      _buildDashboardLegendItem(const Color(0xFFFF9800),
+                          'ALARM: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
+                      _buildDashboardLegendItem(const Color(0xFFFBC02D),
+                          'ALERT: ≥ ${thr.alert.toStringAsFixed(2)}m'),
+                      _buildDashboardLegendItem(const Color(0xFF4CAF50),
+                          'SAFE: < ${thr.alert.toStringAsFixed(2)}m'),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -2616,17 +2640,78 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildDashboardAlarmGauge(double currentLevel) {
+    final thr = StationThresholds.fromApiOrDefault(
+        _dashboardSensorKey, _dashboardRiverData);
     const min = 0.0;
-    const max = 20.0;
+    final max = thr.gaugeMax;
     final clamped = currentLevel.clamp(min, max);
     final ratio = (clamped - min) / (max - min);
 
-    final yellow = (15.0 - min) / (max - min);
-    final orange = (16.0 - min) / (max - min);
-    final red = (18.0 - min) / (max - min);
+    final alertPos = (thr.alert - min) / (max - min);
+    final alarmPos = (thr.alarm - min) / (max - min);
+    final critPos = (thr.critical - min) / (max - min);
+
+    String fmt(double m) =>
+        '${m.toStringAsFixed(m == m.roundToDouble() ? 0 : 2)}m';
+
+    Color barColor;
+    final status = thr.statusFor(currentLevel);
+    switch (status) {
+      case ColorStatus.critical:
+        barColor = const Color(0xFFD32F2F);
+        break;
+      case ColorStatus.warning:
+        barColor = const Color(0xFFFF9800);
+        break;
+      case ColorStatus.alert:
+        barColor = const Color(0xFFFBC02D);
+        break;
+      case ColorStatus.safe:
+        barColor = const Color(0xFF4CAF50);
+        break;
+    }
 
     return Column(
       children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: _isDarkMode
+                ? Colors.white.withValues(alpha: 0.06)
+                : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_dashboardSensorDisplayName thresholds (EL.m)',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _isDarkMode ? Colors.white70 : Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _dashThrChip('Current', currentLevel.toStringAsFixed(2), barColor),
+                  const SizedBox(width: 8),
+                  _dashThrChip('Alert', thr.alert.toStringAsFixed(2),
+                      const Color(0xFFFBC02D)),
+                  const SizedBox(width: 8),
+                  _dashThrChip('Alarm', thr.alarm.toStringAsFixed(2),
+                      const Color(0xFFFF9800)),
+                  const SizedBox(width: 8),
+                  _dashThrChip('Critical', thr.critical.toStringAsFixed(2),
+                      const Color(0xFFD32F2F)),
+                ],
+              ),
+            ],
+          ),
+        ),
         SizedBox(
           height: 28,
           child: LayoutBuilder(
@@ -2648,24 +2733,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     left: 0,
                     child: Container(
                       height: 14,
-                      width: w * ratio,
+                      width: (w * ratio).clamp(0.0, w),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(7),
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF4CAF50),
-                            ratio > yellow
-                                ? const Color(0xFFFBC02D)
-                                : const Color(0xFF4CAF50),
-                            if (ratio > orange) const Color(0xFFFF9800),
-                            if (ratio > red) const Color(0xFFD32F2F),
-                          ],
-                        ),
+                        color: barColor,
                       ),
                     ),
                   ),
                   Positioned(
-                      left: w * yellow - 1.5,
+                      left: (w * alertPos - 1.5).clamp(0.0, w - 3),
                       top: 4,
                       child: Container(
                           width: 3,
@@ -2674,7 +2750,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               color: const Color(0xFFFBC02D),
                               borderRadius: BorderRadius.circular(1.5)))),
                   Positioned(
-                      left: w * orange - 1.5,
+                      left: (w * alarmPos - 1.5).clamp(0.0, w - 3),
                       top: 4,
                       child: Container(
                           width: 3,
@@ -2683,7 +2759,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               color: const Color(0xFFFF9800),
                               borderRadius: BorderRadius.circular(1.5)))),
                   Positioned(
-                      left: w * red - 1.5,
+                      left: (w * critPos - 1.5).clamp(0.0, w - 3),
                       top: 4,
                       child: Container(
                           width: 3,
@@ -2696,60 +2772,46 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             },
           ),
         ),
-        const SizedBox(height: 6),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final w = constraints.maxWidth;
-            return SizedBox(
-              height: 14,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                      left: 0,
-                      child: Text('0m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: _isDarkMode
-                                  ? Colors.white38
-                                  : Colors.grey[500]))),
-                  Positioned(
-                      left: w * yellow - 10,
-                      child: Text('15m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFFBC02D)))),
-                  Positioned(
-                      left: w * orange - 10,
-                      child: Text('16m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFFF9800)))),
-                  Positioned(
-                      left: w * red - 10,
-                      child: Text('18m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFD32F2F)))),
-                  Positioned(
-                      right: 0,
-                      child: Text('20m',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: _isDarkMode
-                                  ? Colors.white38
-                                  : Colors.grey[500]))),
-                ],
-              ),
-            );
-          },
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(fmt(min),
+                style: TextStyle(
+                    fontSize: 10,
+                    color: _isDarkMode ? Colors.white38 : Colors.grey[500])),
+            Text(fmt(max),
+                style: TextStyle(
+                    fontSize: 10,
+                    color: _isDarkMode ? Colors.white38 : Colors.grey[500])),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _dashThrChip(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: _isDarkMode ? Colors.white54 : Colors.grey[600])),
+            const SizedBox(height: 2),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2863,10 +2925,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 /// *****  2c13d96e-27e7-42ae-b43d-754886f52360  ****** Widget
       _buildReportButton() {
     return Expanded(
-      flex: 2,
+      flex: 3,
       child: Container(
         height: 48,
-        margin: const EdgeInsets.symmetric(horizontal: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFFFF6B6B), Color(0xFFD32F2F)],
@@ -2889,26 +2951,31 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             borderRadius: BorderRadius.circular(24),
             splashColor: Colors.white.withValues(alpha: 0.3),
             highlightColor: Colors.white.withValues(alpha: 0.1),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.warning_amber_rounded,
-                    color: Colors.white, size: 20),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    t("askForHelp"),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      letterSpacing: 0.2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        t("askForHelp"),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          letterSpacing: 0.1,
+                        ),
+                        maxLines: 1,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

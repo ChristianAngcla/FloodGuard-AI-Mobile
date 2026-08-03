@@ -78,7 +78,7 @@ class WelcomePopup extends StatelessWidget {
             const SizedBox(height: 24),
 
             Text(
-              isTaglish ? "Maligayang Pagdating!" : "Welcome to FloodGuard AI",
+              isTaglish ? "Maligayang Pagdating!" : "Welcome to FloodGuard",
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 22,
