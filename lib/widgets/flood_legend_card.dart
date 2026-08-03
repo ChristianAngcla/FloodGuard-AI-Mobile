@@ -50,7 +50,7 @@ class FloodLegendCard extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
-                width: isExpanded ? 320 : 160,
+                width: isExpanded ? 320 : 180,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(

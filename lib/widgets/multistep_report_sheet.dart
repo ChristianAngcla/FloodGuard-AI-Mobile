@@ -4,9 +4,8 @@ import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/flood_api_service.dart';
 import '../services/auth_service.dart';
+import '../theme/app_spacing.dart';
 import 'package:geolocator/geolocator.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 
 class MultistepReportSheet extends StatefulWidget {
   final bool isTaglish;
@@ -166,7 +165,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         final lastName = userData['lastName'] ?? userData['last_name'] ?? '';
         reporterName = '$firstName $lastName'.trim();
         if (reporterName.isEmpty) reporterName = 'Unknown Reporter';
-        reporterPhone = userData['phone'] ?? '';
+        reporterPhone = formatPhMobileNumber(userData['phone'] ?? '');
       }
       
       // PHONE VERIFICATION CHECK
@@ -220,6 +219,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       latitude: lat,
       longitude: lng,
       status: reportStatus,
+      helpNeeded: (_isSafe == false) ? _helpNeeded : null,
     );
 
     if (mounted) {
@@ -260,107 +260,113 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             ),
           ),
           child: SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                // Drag Handle
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Progress Indicator
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: List.generate(_totalSteps, (index) {
-                      final isActive = _currentStep >= index;
-                      return Expanded(
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: isActive
-                                ? accentColor
-                                : (widget.isDarkMode
-                                    ? Colors.white24
-                                    : Colors.grey[300]),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Page Content
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics:
-                        const NeverScrollableScrollPhysics(), // Disable swipe
-                    children: [
-                      _buildStep0Location(),
-                      _buildStep1Situation(),
-                      _buildStep2Safety(),
-                      _buildStep3Evidence(),
-                      _buildStep4Summary(),
-                    ],
-                  ),
-                ),
-
-                // Bottom Controls
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: bgColor.withValues(alpha: 0.0), // Transparent here
-                  ),
-                  child: Row(
-                    children: [
-                      if (_currentStep > 0) ...[
-                        TextButton(
-                          onPressed: _prevStep,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 16),
-                          ),
-                          child: Text(
-                            widget.isTaglish ? "Bumalik" : "Back",
-                            style: TextStyle(
-                                color: subTextColor,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                      ],
-                      Expanded(
-                        child: _buildGradientButton(
-                          onPressed: _isSubmitting
-                              ? null
-                              : (_currentStep == _totalSteps - 1
-                                  ? _submitReport
-                                  : _nextStep),
-                          isSubmit: _currentStep == _totalSteps - 1,
-                          isSubmitting: _isSubmitting,
-                          text: _currentStep == _totalSteps - 1
-                              ? (widget.isTaglish
-                                  ? "I-submit"
-                                  : "Submit Report")
-                              : (widget.isTaglish ? "Susunod" : "Next"),
-                        ),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 550),
+                child: Column(
+                  children: [
+                    const SizedBox(height: AppSpacing.s6),
+                    // Drag Handle
+                    Container(
+                      width: AppSpacing.s13 + AppSpacing.s4, // 40
+                      height: AppSpacing.s2,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                       ),
-                    ],
-                  ),
-                )
-              ],
+                    ),
+                    const SizedBox(height: AppSpacing.s8),
+
+                    // Progress Indicator
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s11),
+                      child: Row(
+                        children: List.generate(_totalSteps, (index) {
+                          final isActive = _currentStep >= index;
+                          return Expanded(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? accentColor
+                                    : (widget.isDarkMode
+                                        ? Colors.white24
+                                        : Colors.grey[300]),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Page Content
+                    Expanded(
+                      child: PageView(
+                        controller: _pageController,
+                        physics:
+                            const NeverScrollableScrollPhysics(), // Disable swipe
+                        children: [
+                          _buildStep0Location(),
+                          _buildStep1Situation(),
+                          _buildStep2Safety(),
+                          _buildStep3Evidence(),
+                          _buildStep4Summary(),
+                        ],
+                      ),
+                    ),
+
+                    // Bottom Controls
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: bgColor.withValues(alpha: 0.0), // Transparent here
+                      ),
+                      child: Row(
+                        children: [
+                          if (_currentStep > 0) ...[
+                            TextButton(
+                              onPressed: _prevStep,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 16),
+                              ),
+                              child: Text(
+                                widget.isTaglish ? "Bumalik" : "Back",
+                                style: TextStyle(
+                                    color: subTextColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                          ],
+                          Expanded(
+                            child: _buildGradientButton(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : (_currentStep == _totalSteps - 1
+                                      ? _submitReport
+                                      : _nextStep),
+                              isSubmit: _currentStep == _totalSteps - 1,
+                              isSubmitting: _isSubmitting,
+                              text: _currentStep == _totalSteps - 1
+                                  ? (widget.isTaglish
+                                      ? "I-submit"
+                                      : "Submit Report")
+                                  : (widget.isTaglish ? "Susunod" : "Next"),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -379,7 +385,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     final buttonColor = isSubmit ? const Color(0xFFE53935) : accentColor;
 
     return Container(
-      height: 56,
+      height: 52,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [buttonColor.withValues(alpha: 0.8), buttonColor],
@@ -405,8 +411,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         ),
         child: isSubmitting
             ? const SizedBox(
-                width: 24,
-                height: 24,
+                width: 22,
+                height: 22,
                 child: CircularProgressIndicator(
                     color: Colors.white, strokeWidth: 2))
             : Text(
@@ -431,7 +437,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         children: [
           Text(widget.isTaglish ? "Lokasyon ng Insidente" : "Incident Location",
               style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
           Text(
               widget.isTaglish
@@ -442,7 +448,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           DropdownButtonFormField<String>(
             initialValue: _selectedBarangay,
             dropdownColor: bgColor,
-            style: TextStyle(color: textColor, fontSize: 16),
+            style: TextStyle(color: textColor, fontSize: 15),
             decoration: _inputDecoration(
                 widget.isTaglish ? "Pumili ng Barangay" : "Select Barangay",
                 Icons.map_outlined),
@@ -454,7 +460,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           const SizedBox(height: 20),
           TextField(
             controller: _streetCtrl,
-            style: TextStyle(color: textColor),
+            style: TextStyle(color: textColor, fontSize: 15),
             decoration: _inputDecoration(
                 widget.isTaglish
                     ? "Kalye o Landmark (Opsyonal)"
@@ -475,8 +481,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           Text(
               widget.isTaglish ? "Kasalukuyang Sitwasyon" : "Current Situation",
               style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
-          const SizedBox(height: 32),
+                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 24),
           Text(
               widget.isTaglish
                   ? "Umuulan ba ngayon?"
@@ -501,20 +507,20 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       () => setState(() => _isRaining = false))),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: AppSpacing.s13),
           Text(
               widget.isTaglish
                   ? "Gaano kataas ang baha?"
                   : "Estimated Flood Level",
               style: TextStyle(
                   fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.s6),
           _buildSelectionCard(
               widget.isTaglish ? "Walang Baha" : "No Flood",
               Icons.do_not_disturb_alt_rounded,
               _floodLevel == "None",
               () => setState(() => _floodLevel = "None")),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s4),
           _buildSelectionCard(
               widget.isTaglish
                   ? "Hanggang Binti (<= 0.45m)"
@@ -522,7 +528,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               Icons.waves_rounded,
               _floodLevel == "Below Knee",
               () => setState(() => _floodLevel = "Below Knee")),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s4),
           _buildSelectionCard(
               widget.isTaglish
                   ? "Hanggang Tuhod (0.45m - 0.60m)"
@@ -530,7 +536,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               Icons.waves_rounded,
               _floodLevel == "Knee Level",
               () => setState(() => _floodLevel = "Knee Level")),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s4),
           _buildSelectionCard(
               widget.isTaglish
                   ? "Hanggang Baywang (0.60m - 1.10m)"
@@ -538,7 +544,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               Icons.waves_rounded,
               _floodLevel == "Waist Level",
               () => setState(() => _floodLevel = "Waist Level")),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s4),
           _buildSelectionCard(
               widget.isTaglish
                   ? "Hanggang Ulo (1.10m - 1.75m)"
@@ -547,7 +553,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               _floodLevel == "Head Level",
               () => setState(() => _floodLevel = "Head Level"),
               activeColor: Colors.orange),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s4),
           _buildSelectionCard(
               widget.isTaglish
                   ? "Lagpas Ulo (> 1.75m)"
@@ -569,7 +575,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         children: [
           Text(widget.isTaglish ? "Iyong Kaligtasan" : "Your Safety",
               style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
           Text(
               widget.isTaglish
@@ -588,7 +594,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               widget.isTaglish ? "Oo, ligtas ako" : "Yes, I am safe",
               Icons.health_and_safety_rounded,
               _isSafe == true,
-              () => setState(() => _isSafe = true),
+              () => setState(() {
+                    _isSafe = true;
+                    _helpNeeded = null;
+                  }),
               activeColor: Colors.green),
           const SizedBox(height: 12),
           _buildSelectionCard(
@@ -605,32 +614,52 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   }
 
   Widget _buildStep3Evidence() {
+    final needsHelp = _isSafe == false;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.isTaglish ? "Uri ng Tulong (Opsyonal)" : "Kind of Help Needed",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+          Text(
+              needsHelp
+                  ? (widget.isTaglish
+                      ? "Uri ng Tulong (Opsyonal)"
+                      : "Kind of Help Needed")
+                  : (widget.isTaglish
+                      ? "Kumpirmasyon"
+                      : "Confirmation"),
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
-          Text(widget.isTaglish ? "Anong klaseng tulong ang kailangan ninyo?" : "What kind of assistance do you require?",
+          Text(
+              needsHelp
+                  ? (widget.isTaglish
+                      ? "Anong klaseng tulong ang kailangan ninyo?"
+                      : "What kind of assistance do you require?")
+                  : (widget.isTaglish
+                      ? "Dahil ligtas ka, hindi kailangan pumili ng tulong. Pakisuri ang babala sa ibaba."
+                      : "Since you are safe, no help type is needed. Please review the notice below."),
               style: TextStyle(fontSize: 14, color: subTextColor)),
-          const SizedBox(height: 24),
-          DropdownButtonFormField<String>(
-            value: _helpNeeded,
-            dropdownColor: bgColor,
-            style: TextStyle(color: textColor, fontSize: 16),
-            decoration: _inputDecoration(
-                widget.isTaglish ? "Pumili ng tulong" : "Select help needed",
-                Icons.medical_services_outlined),
-            items: [
-              "Immediate Rescue / Evacuation",
-              "Medical Assistance",
-              "Food and Water",
-              "Relief Goods"
-            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-            onChanged: (val) => setState(() => _helpNeeded = val),
-          ),
+          if (needsHelp) ...[
+            const SizedBox(height: 24),
+            DropdownButtonFormField<String>(
+              value: _helpNeeded,
+              dropdownColor: bgColor,
+              style: TextStyle(color: textColor, fontSize: 15),
+              decoration: _inputDecoration(
+                  widget.isTaglish ? "Pumili ng tulong" : "Select help needed",
+                  Icons.medical_services_outlined),
+              items: [
+                "Immediate Rescue / Evacuation",
+                "Medical Assistance",
+                "Food and Water",
+                "Relief Goods"
+              ]
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (val) => setState(() => _helpNeeded = val),
+            ),
+          ],
           const SizedBox(height: 32),
           // Legal Warning
           Container(
@@ -669,7 +698,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         children: [
           Text(widget.isTaglish ? "Buod ng Request" : "Request Summary",
               style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
+                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
           Text(
               widget.isTaglish
@@ -721,6 +750,17 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                     widget.isTaglish ? "Ligtas" : "Safety",
                     _isSafe == true ? "Safe" : "Needs Assistance",
                     valueColor: _isSafe == true ? Colors.green : Colors.red),
+                if (_isSafe == false) ...[
+                  const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Divider(height: 1)),
+                  _buildSummaryRow(
+                      Icons.medical_services_outlined,
+                      widget.isTaglish ? "Uri ng Tulong" : "Help Needed",
+                      _helpNeeded ??
+                          (widget.isTaglish ? "Hindi tinukoy" : "Not specified"),
+                      valueColor: const Color(0xFF9A3412)),
+                ],
               ],
             ),
           ),
@@ -788,9 +828,19 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
 
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       labelText: label,
-      labelStyle: TextStyle(color: subTextColor),
-      prefixIcon: Icon(icon, color: accentColor),
+      labelStyle: TextStyle(
+        color: widget.isDarkMode ? Colors.white70 : const Color(0xFF64748B),
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 12, right: 8),
+        child: Icon(icon, color: accentColor, size: 22),
+      ),
       filled: true,
       fillColor: cardColor,
       enabledBorder: OutlineInputBorder(
@@ -811,7 +861,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         decoration: BoxDecoration(
           color: isSelected ? color.withValues(alpha: 0.12) : cardColor,
           borderRadius: BorderRadius.circular(16),
@@ -832,15 +882,15 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? color : subTextColor),
-            const SizedBox(width: 16),
+            Icon(icon, color: isSelected ? color : subTextColor, size: 22),
+            const SizedBox(width: 14),
             Expanded(
                 child: Text(label,
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: isSelected ? color : textColor,
-                        fontSize: 15))),
-            if (isSelected) Icon(Icons.check_circle_rounded, color: color)
+                        fontSize: 14))),
+            if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 20)
           ],
         ),
       ),
@@ -854,12 +904,19 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         Icon(icon, size: 20, color: subTextColor),
         const SizedBox(width: 12),
         Text(label, style: TextStyle(color: subTextColor, fontSize: 14)),
-        const Spacer(),
-        Text(value,
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
             style: TextStyle(
                 color: valueColor ?? textColor,
                 fontWeight: FontWeight.bold,
-                fontSize: 15)),
+                fontSize: 14),
+          ),
+        ),
       ],
     );
   }

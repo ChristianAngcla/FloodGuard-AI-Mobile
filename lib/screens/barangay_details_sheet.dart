@@ -5,9 +5,9 @@ import '../widgets/weather_card.dart';
 import '../services/flood_api_service.dart';
 import '../utils/station_thresholds.dart';
 
-/// Live Risk Assessment bottom sheet matching the new design.
-/// Shows: barangay dropdown, projected peak with alarm gauge,
-/// and a 24-hour horizontally-scrollable timeline.
+/// Live river-station assessment bottom sheet.
+/// Shows: barangay dropdown (associated station), predicted peak with status gauge,
+/// and a 24-hour path that interpolates from current WL to the one-step OLS prediction.
 class BarangayDetailsSheet extends StatefulWidget {
   final String barangayName;
   final bool isTaglish;
@@ -55,7 +55,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
       case ColorStatus.critical:
         return 'CRITICAL';
       case ColorStatus.warning:
-        return 'WARNING / ALARM';
+        return 'WARNING';
       case ColorStatus.alert:
         return 'ALERT';
       case ColorStatus.safe:
@@ -68,7 +68,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
       case ColorStatus.critical:
         return 'CRITICAL';
       case ColorStatus.warning:
-        return 'ALARM';
+        return 'WARNING';
       case ColorStatus.alert:
         return 'ALERT';
       case ColorStatus.safe:
@@ -139,170 +139,188 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         color: bg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: SingleChildScrollView(
-        padding:
-            const EdgeInsets.only(top: 12, bottom: 32, left: 20, right: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Drag handle ──
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color:
-                      widget.isDarkMode ? Colors.grey[600] : Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-
-            // ── Title ──
-            Text(
-              widget.isTaglish
-                  ? 'Live na Pagsusuri ng Panganib'
-                  : 'Live Risk Assessment',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // ── Barangay Dropdown ──
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: widget.isDarkMode
-                    ? const Color(0xFF253B50)
-                    : Colors.grey[50],
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color:
-                      widget.isDarkMode ? Colors.white12 : Colors.grey.shade300,
-                ),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: _selectedBarangay,
-                  dropdownColor: widget.isDarkMode
-                      ? const Color(0xFF253B50)
-                      : Colors.white,
-                  icon:
-                      Icon(Icons.keyboard_arrow_down_rounded, color: subColor),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
+      child: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 550),
+            child: SingleChildScrollView(
+              padding:
+                  const EdgeInsets.only(top: 12, bottom: 32, left: 20, right: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Drag handle ──
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color:
+                            widget.isDarkMode ? Colors.grey[600] : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                  items: allBarangays
-                      .map((b) => DropdownMenuItem(value: b, child: Text(b)))
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedBarangay = val);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
 
-            // ── Weather Card ──
-            Builder(
-              builder: (context) {
-                final center = HomeMapScreen.barangayCenters[_selectedBarangay] ?? const LatLng(14.6503, 121.1020);
-                return WeatherCard(
-                  latitude: center.latitude,
-                  longitude: center.longitude,
-                  locationName: _selectedBarangay,
-                  isDarkMode: widget.isDarkMode,
-                  isTaglish: widget.isTaglish,
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // ── Forecast header row ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
+                  // ── Title ──
+                  Text(
                     widget.isTaglish
-                        ? 'Pagtataya para sa $_selectedBarangay'
-                        : 'Forecast for $_selectedBarangay',
+                        ? 'Live na Pagsusuri ng Panganib'
+                        : 'Live Risk Assessment',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
                       color: textColor,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Sensor: $_sensorDisplayName',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: subColor,
+                  const SizedBox(height: 16),
+
+                  // ── Barangay Dropdown ──
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: widget.isDarkMode
+                          ? const Color(0xFF253B50)
+                          : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color:
+                            widget.isDarkMode ? Colors.white12 : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _selectedBarangay,
+                        dropdownColor: widget.isDarkMode
+                            ? const Color(0xFF253B50)
+                            : Colors.white,
+                        icon:
+                            Icon(Icons.keyboard_arrow_down_rounded, color: subColor),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                        items: allBarangays
+                            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedBarangay = val);
+                        },
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+                  const SizedBox(height: 20),
 
-            // ── Forecast card ──
-            _buildForecastCard(textColor, subColor),
-            const SizedBox(height: 28),
+                  // ── Weather Card ──
+                  Builder(
+                    builder: (context) {
+                      final center = HomeMapScreen.barangayCenters[_selectedBarangay] ?? const LatLng(14.6503, 121.1020);
+                      return WeatherCard(
+                        latitude: center.latitude,
+                        longitude: center.longitude,
+                        locationName: _selectedBarangay,
+                        isDarkMode: widget.isDarkMode,
+                        isTaglish: widget.isTaglish,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
 
-            // ── 24-Hour Timeline ──
-            Text(
-              widget.isTaglish
-                  ? '24-Oras na Inaasahang Timeline'
-                  : '24-Hour Projected Timeline',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: textColor,
+                  // ── Forecast header row ──
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.isTaglish
+                              ? 'Pagtataya para sa $_selectedBarangay'
+                              : 'Forecast for $_selectedBarangay',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Sensor: $_sensorDisplayName',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: subColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Forecast card ──
+                  _buildForecastCard(textColor, subColor),
+                  const SizedBox(height: 28),
+
+                  // ── 24-Hour Timeline ──
+                  Text(
+                    widget.isTaglish
+                        ? '24-Oras na Landas ng Antas ng Ilog'
+                        : '24-Hour River Level Path',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.isTaglish
+                        ? 'Interpolation mula sa kasalukuyang antas patungo sa isang hakbang na OLS prediksyon (hindi 24 na hiwalay na forecast).'
+                        : 'Interpolation from current level to the one-step OLS prediction (not 24 separate forecasts).',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: widget.isDarkMode ? Colors.white60 : Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTimeline(textColor, subColor),
+                  const SizedBox(height: 28),
+
+                  // ── Close button ──
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.isDarkMode
+                            ? const Color(0xFF3784DF).withValues(alpha: 0.2)
+                            : const Color(0xFFF4F9FF),
+                        foregroundColor: const Color(0xFF3784DF),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(
+                              color: const Color(0xFF3784DF).withValues(alpha: 0.3)),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        widget.isTaglish ? 'Isara' : 'Close',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            _buildTimeline(textColor, subColor),
-            const SizedBox(height: 28),
-
-            // ── Close button ──
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.isDarkMode
-                      ? const Color(0xFF3784DF).withValues(alpha: 0.2)
-                      : const Color(0xFFF4F9FF),
-                  foregroundColor: const Color(0xFF3784DF),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                        color: const Color(0xFF3784DF).withValues(alpha: 0.3)),
-                  ),
-                  elevation: 0,
-                ),
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  widget.isTaglish ? 'Isara' : 'Close',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -475,7 +493,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   _thrChip('Alert', thr.alert.toStringAsFixed(2),
                       const Color(0xFFFBC02D)),
                   const SizedBox(width: 8),
-                  _thrChip('Alarm', thr.alarm.toStringAsFixed(2),
+                  _thrChip('Warning', thr.alarm.toStringAsFixed(2),
                       const Color(0xFFFF9800)),
                   const SizedBox(width: 8),
                   _thrChip('Critical', thr.critical.toStringAsFixed(2),
@@ -551,24 +569,36 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   Widget _thrChip(String label, String value, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
         decoration: BoxDecoration(
           border: Border.all(color: color.withValues(alpha: 0.5)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           children: [
-            Text(label,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
                 style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
                     color: widget.isDarkMode
                         ? Colors.white54
-                        : Colors.grey[600])),
+                        : Colors.grey[600]),
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(value,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
                 style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+                    fontSize: 12, fontWeight: FontWeight.w800, color: color),
+              ),
+            ),
           ],
         ),
       ),
@@ -615,7 +645,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             _legendItem(const Color(0xFFD32F2F),
                 'CRITICAL: ≥ ${thr.critical.toStringAsFixed(2)}m'),
             _legendItem(const Color(0xFFFF9800),
-                'ALARM: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
+                'WARNING: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
             _legendItem(const Color(0xFFFBC02D),
                 'ALERT: ≥ ${thr.alert.toStringAsFixed(2)}m'),
             _legendItem(const Color(0xFF4CAF50),

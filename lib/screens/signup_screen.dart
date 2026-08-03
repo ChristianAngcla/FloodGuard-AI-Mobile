@@ -1,16 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
-import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'dart:ui';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
 import '../data/translations.dart';
-import '../services/flood_api_service.dart';
-import '../models/user_model.dart';
 import '../services/auth_service.dart';
-import 'login_screen.dart';
-import 'home_map_screen.dart';
 import '../widgets/wave_background.dart';
+import 'home_map_screen.dart';
+import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   final bool isTaglish;
@@ -64,11 +63,16 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isOtpVerified = false;
 
   String? _verificationId;
+  int? _forceResendingToken;
   bool _isSendingOtp = false;
   bool _isVerifyingOtp = false;
+  bool _isSigningUp = false;
+  Timer? _resendTimer;
+  int _resendCooldownSec = 0;
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _emailCtrl.dispose();
@@ -85,6 +89,48 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() => _resendCooldownSec = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendCooldownSec <= 1) {
+        timer.cancel();
+        setState(() => _resendCooldownSec = 0);
+      } else {
+        setState(() => _resendCooldownSec -= 1);
+      }
+    });
+  }
+
+  String _otpFailureMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return widget.isTaglish
+            ? 'Hindi valid ang numero ng telepono.'
+            : 'Invalid phone number.';
+      case 'too-many-requests':
+        return widget.isTaglish
+            ? 'Masyadong maraming OTP request. Subukan ulit mamaya.'
+            : 'Too many OTP requests. Please try again later.';
+      case 'network-request-failed':
+        return widget.isTaglish
+            ? 'Walang network. Suriin ang koneksyon.'
+            : 'Network error. Check your connection.';
+      case 'session-expired':
+        return widget.isTaglish
+            ? 'Nag-expire ang OTP. Mag-resend ng code.'
+            : 'OTP expired. Please resend the code.';
+      default:
+        return e.message?.isNotEmpty == true
+            ? e.message!
+            : (widget.isTaglish ? 'Nabigo ang OTP.' : 'OTP failed.');
+    }
+  }
+
   String _t(String key) {
     return Translations.texts[key]?[widget.isTaglish ? "tl" : "en"] ?? key;
   }
@@ -97,6 +143,8 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _sendOtp() async {
+    if (_isSendingOtp || _isOtpVerified || _resendCooldownSec > 0) return;
+
     String phone = _phoneCtrl.text.trim();
 
     // Ensure proper +63 format regardless of whether they typed a leading 0
@@ -110,6 +158,8 @@ class _SignupScreenState extends State<SignupScreen> {
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
+        timeout: const Duration(seconds: 60),
+        forceResendingToken: _forceResendingToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             await FirebaseAuth.instance.signInWithCredential(credential);
@@ -118,6 +168,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 _isOtpVerified = true;
                 _otpCtrl.text = credential.smsCode ?? '';
                 _isSendingOtp = false;
+                if (_currentStep < 2) _currentStep = 2;
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -135,12 +186,22 @@ class _SignupScreenState extends State<SignupScreen> {
           }
         },
         verificationFailed: (FirebaseAuthException e) {
+          // Temporary diagnostics for real-device OTP (no secrets / no SMS codes).
+          debugPrint(
+            'Firebase Phone Auth failed: code=${e.code}, message=${e.message}',
+          );
           if (mounted) {
             setState(() => _isSendingOtp = false);
+            final friendly = _otpFailureMessage(e);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("OTP Failed: ${e.message}"),
+                content: Text(
+                  kDebugMode
+                      ? '$friendly\n[${e.code}]'
+                      : friendly,
+                ),
                 backgroundColor: Colors.redAccent,
+                duration: const Duration(seconds: 6),
               ),
             );
           }
@@ -149,11 +210,14 @@ class _SignupScreenState extends State<SignupScreen> {
           if (mounted) {
             setState(() {
               _verificationId = verId;
+              _forceResendingToken = resendToken;
               _isSendingOtp = false;
               if (_currentStep == 1) {
                 _currentStep++; // Move to Step 2 only after OTP is successfully sent
               }
             });
+            // Start/reset 60s cooldown only after Firebase accepts the send.
+            _startResendCooldown();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -175,7 +239,11 @@ class _SignupScreenState extends State<SignupScreen> {
         setState(() => _isSendingOtp = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error: $e"),
+            content: Text(
+              widget.isTaglish
+                  ? "Hindi maipadala ang OTP. Subukan ulit."
+                  : "Could not send OTP. Please try again.",
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -184,51 +252,85 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _verifyOtp() async {
-    if (_step2Key.currentState!.validate() && _verificationId != null) {
-      setState(() {
-        _isVerifyingOtp = true;
-      });
-      try {
-        PhoneAuthCredential credential = PhoneAuthProvider.credential(
-          verificationId: _verificationId!,
-          smsCode: _otpCtrl.text.trim(),
+    if (_isVerifyingOtp || _isOtpVerified) return;
+    if (_verificationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isTaglish
+                ? "Walang OTP session. Mag-resend ng code."
+                : "No OTP session. Please resend the code.",
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    if (!_step2Key.currentState!.validate()) return;
+
+    setState(() {
+      _isVerifyingOtp = true;
+    });
+    try {
+      PhoneAuthCredential credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: _otpCtrl.text.trim(),
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (mounted) {
+        setState(() {
+          _isOtpVerified = true;
+          _isVerifyingOtp = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.isTaglish
+                  ? "Matagumpay na na-verify!"
+                  : "Verified successfully!",
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-
-        await FirebaseAuth.instance.signInWithCredential(credential);
-
-        if (mounted) {
-          setState(() {
-            _isOtpVerified = true;
-            _isVerifyingOtp = false;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.isTaglish
-                    ? "Matagumpay na na-verify!"
-                    : "Verified successfully!",
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+        });
+        final msg = e.code == 'session-expired' || e.code == 'invalid-verification-code'
+            ? (e.code == 'session-expired'
+                ? (widget.isTaglish
+                    ? "Nag-expire ang OTP. Mag-resend ng code."
+                    : "OTP expired. Please resend the code.")
+                : (widget.isTaglish ? "Maling OTP code." : "Invalid OTP code."))
+            : _otpFailureMessage(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.isTaglish ? "Maling OTP code." : "Invalid OTP code.",
             ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _isVerifyingOtp = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.isTaglish ? "Maling OTP code." : "Invalid OTP code.",
-              ),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
   }
@@ -281,6 +383,9 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _handleSignup() async {
+    if (_isSigningUp || _isSuccess) return;
+    if (!_isOtpVerified) return;
+
     String finalBarangay = _selectedBarangay ?? "Unknown";
 
     String email = _emailCtrl.text.trim();
@@ -288,12 +393,14 @@ class _SignupScreenState extends State<SignupScreen> {
     String firstName = _firstNameCtrl.text.trim();
     String lastName = _lastNameCtrl.text.trim();
 
-    try {
-      // Show loading indicator
-      setState(() => _isSuccess = false);
+    setState(() {
+      _isSigningUp = true;
+      _isSuccess = false;
+    });
 
+    try {
       final authService = AuthService();
-      final success = await authService.signUp(
+      final result = await authService.signUp(
         email: email,
         password: _passwordCtrl.text,
         firstName: firstName,
@@ -308,13 +415,14 @@ class _SignupScreenState extends State<SignupScreen> {
         country: _countryCtrl.text.trim(),
       );
 
-      if (success) {
-        // If all successful, show the success animation
+      if (!mounted) return;
+
+      if (result['success'] == true) {
         setState(() {
           _isSuccess = true;
+          _isSigningUp = false;
         });
 
-        // Automatically navigate away after success animation.
         Future.delayed(const Duration(seconds: 3), () async {
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
@@ -329,11 +437,30 @@ class _SignupScreenState extends State<SignupScreen> {
           }
         });
       } else {
-        throw Exception(widget.isTaglish
-            ? "Nabigo ang paggawa ng account."
-            : "Account creation failed.");
+        setState(() => _isSigningUp = false);
+        final serverMsg = result['message']?.toString() ?? '';
+        final isDuplicate =
+            serverMsg.toLowerCase().contains('already registered');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isDuplicate
+                  ? (widget.isTaglish
+                      ? "Naka-register na ang email. Mag-login na lang."
+                      : "Email already registered. Please log in.")
+                  : (serverMsg.isNotEmpty
+                      ? serverMsg
+                      : (widget.isTaglish
+                          ? "Nabigo ang paggawa ng account."
+                          : "Account creation failed.")),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSigningUp = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceFirst("Exception: ", "")),
@@ -345,10 +472,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-
     final isDark = widget.isDarkMode;
-    final bgColor = isDark ? const Color(0xFF1A2B3C) : const Color(0xFFF5F7FA);
+    final bgColor = isDark ? const Color(0xFF1A2B3C) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF1A2B3C);
 
     if (_isSuccess) {
@@ -363,6 +488,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -378,7 +504,7 @@ class _SignupScreenState extends State<SignupScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 16, bottom: 16),
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
                   child: _buildProgressIndicator(),
                 ),
                 _buildStepHeader(_currentStep),
@@ -392,7 +518,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     ],
                   ),
                 ),
-                if (!isKeyboardOpen) _buildBottomControls(),
+                _buildBottomControls(),
               ],
             ),
           ),
@@ -452,46 +578,57 @@ class _SignupScreenState extends State<SignupScreen> {
         key: ValueKey<int>(stepIndex),
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: const Color(0xFF3784DF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(stepIcon, size: 36, color: const Color(0xFF3784DF)),
+            child: stepIndex == 0
+                ? Image.asset(
+                    'assets/new_logo_nobg.png',
+                    height: 32,
+                    errorBuilder: (_, __, ___) => Icon(
+                      stepIcon,
+                      size: 28,
+                      color: const Color(0xFF3784DF),
+                    ),
+                  )
+                : Icon(stepIcon, size: 28, color: const Color(0xFF3784DF)),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Text(
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 28, fontWeight: FontWeight.w900, color: textColor),
+                fontSize: 22, fontWeight: FontWeight.w900, color: textColor),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: subTextColor),
+            style: TextStyle(fontSize: 14, color: subTextColor),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
-  // Centralized wrapper to ensure all form steps are perfectly centered vertically
+  // Scrollable step form — top-aligned & constrained for tablets/wide screens
   Widget _buildCenteredStepForm(
       {required Key key, required List<Widget> children}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
-            child: IntrinsicHeight(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
               child: Form(
                 key: key,
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: children,
                 ),
               ),
@@ -504,101 +641,122 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Widget _buildStep0() {
     final isDark = widget.isDarkMode;
-    return _buildCenteredStepForm(
-      key: _step0Key,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 360;
+        return _buildCenteredStepForm(
+          key: _step0Key,
           children: [
-            Expanded(
-              child: _buildTextField(
+            if (isNarrow) ...[
+              _buildTextField(
                 controller: _firstNameCtrl,
                 label: _t("firstName"),
                 icon: Icons.person_outline,
                 isDark: isDark,
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildTextField(
+              const SizedBox(height: 16),
+              _buildTextField(
                 controller: _lastNameCtrl,
                 label: _t("lastName"),
                 icon: Icons.person_outline,
                 isDark: isDark,
               ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _firstNameCtrl,
+                      label: _t("firstName"),
+                      icon: Icons.person_outline,
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _lastNameCtrl,
+                      label: _t("lastName"),
+                      icon: Icons.person_outline,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _emailCtrl,
+              label: "Email",
+              icon: Icons.email_outlined,
+              isDark: isDark,
+              inputType: TextInputType.emailAddress,
+              validator: (val) {
+                if (val == null || val.isEmpty) return "Required";
+                if (!val.contains('@')) return "Enter a valid email";
+                return null;
+              },
             ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _phoneCtrl,
+              label: widget.isTaglish ? "Numero ng Telepono" : "Phone Number",
+              hintText: "9123456789",
+              prefixText: "+63 ",
+              icon: Icons.phone_outlined,
+              isDark: isDark,
+              inputType: TextInputType.phone,
+              maxLength: 10,
+              validator: (val) {
+                if (val == null || val.isEmpty) return "Required";
+                String checkVal = val.startsWith('0') ? val.substring(1) : val;
+                if (checkVal.length != 10) {
+                  return widget.isTaglish
+                      ? "Dapat 10 numero (hal. 9123456789)"
+                      : "Must be 10 digits (e.g. 9123456789)";
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _passwordCtrl,
+              label: _t("password"),
+              icon: Icons.lock_outline_rounded,
+              isDark: isDark,
+              isPassword: true,
+              obscureText: _obscurePassword,
+              onTogglePassword: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+              validator: (val) {
+                if (val == null || val.isEmpty) return "Required";
+                if (!_isStrongPassword(val)) {
+                  return "Use 8+ chars with upper, lower, number & symbol";
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _confirmPasswordCtrl,
+              label: _t("confirmPassword"),
+              icon: Icons.lock_outline_rounded,
+              isDark: isDark,
+              isPassword: true,
+              obscureText: _obscureConfirmPassword,
+              onTogglePassword: () => setState(
+                  () => _obscureConfirmPassword = !_obscureConfirmPassword),
+              validator: (val) {
+                if (val != _passwordCtrl.text) return "Passwords do not match";
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            // Compact Agreement Checkbox
+            _buildCompactAgreement(),
           ],
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _emailCtrl,
-          label: "Email",
-          icon: Icons.email_outlined,
-          isDark: isDark,
-          inputType: TextInputType.emailAddress,
-          validator: (val) {
-            if (val == null || val.isEmpty) return "Required";
-            if (!val.contains('@')) return "Enter a valid email";
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _phoneCtrl,
-          label: widget.isTaglish ? "Numero ng Telepono" : "Phone Number",
-          hintText: "9123456789",
-          prefixText: "+63 ",
-          icon: Icons.phone_outlined,
-          isDark: isDark,
-          inputType: TextInputType.phone,
-          maxLength: 10,
-          validator: (val) {
-            if (val == null || val.isEmpty) return "Required";
-            String checkVal = val.startsWith('0') ? val.substring(1) : val;
-            if (checkVal.length != 10) {
-              return widget.isTaglish
-                  ? "Dapat 10 numero (hal. 9123456789)"
-                  : "Must be 10 digits (e.g. 9123456789)";
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _passwordCtrl,
-          label: _t("password"),
-          icon: Icons.lock_outline_rounded,
-          isDark: isDark,
-          isPassword: true,
-          obscureText: _obscurePassword,
-          onTogglePassword: () =>
-              setState(() => _obscurePassword = !_obscurePassword),
-          validator: (val) {
-            if (val == null || val.isEmpty) return "Required";
-            if (!_isStrongPassword(val)) {
-              return "Use 8+ chars with upper, lower, number & symbol";
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _confirmPasswordCtrl,
-          label: _t("confirmPassword"),
-          icon: Icons.lock_outline_rounded,
-          isDark: isDark,
-          isPassword: true,
-          obscureText: _obscureConfirmPassword,
-          onTogglePassword: () => setState(
-              () => _obscureConfirmPassword = !_obscureConfirmPassword),
-          validator: (val) {
-            if (val != _passwordCtrl.text) return "Passwords do not match";
-            return null;
-          },
-        ),
-        const SizedBox(height: 24),
-        // Compact Agreement Checkbox
-        _buildCompactAgreement(),
-      ],
+        );
+      },
     );
   }
 
@@ -660,7 +818,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 readOnly: true,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(
               child: _buildTextField(
                 controller: _provinceCtrl,
@@ -684,7 +842,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 readOnly: true,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(
               child: _buildTextField(
                 controller: _countryCtrl,
@@ -711,9 +869,9 @@ class _SignupScreenState extends State<SignupScreen> {
               : "We've sent a 6-digit code to your phone number.",
           textAlign: TextAlign.center,
           style: TextStyle(
-              fontSize: 16, color: isDark ? Colors.white70 : Colors.black87),
+              fontSize: 15, color: isDark ? Colors.white70 : Colors.black87),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 16),
         _buildTextField(
           controller: _otpCtrl,
           label: "6-Digit OTP",
@@ -730,9 +888,10 @@ class _SignupScreenState extends State<SignupScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
+          height: 52,
           child: ElevatedButton(
             onPressed: (_isOtpVerified || _isVerifyingOtp) ? null : _verifyOtp,
             style: ElevatedButton.styleFrom(
@@ -742,16 +901,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   isDark ? Colors.white10 : Colors.grey[300],
               disabledForegroundColor:
                   isDark ? Colors.white54 : Colors.grey[500],
-              padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
               ),
               elevation: 0,
             ),
             child: _isVerifyingOtp
                 ? const SizedBox(
-                    height: 20,
-                    width: 20,
+                    height: 22,
+                    width: 22,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white),
                   )
@@ -764,20 +922,32 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         TextButton(
-          onPressed: (_isSendingOtp || _isOtpVerified) ? null : _sendOtp,
+          onPressed: (_isSendingOtp ||
+                  _isOtpVerified ||
+                  _resendCooldownSec > 0)
+              ? null
+              : _sendOtp,
           child: _isSendingOtp
               ? const SizedBox(
                   height: 16,
                   width: 16,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : Text(
-                  widget.isTaglish ? "I-resend ang Code" : "Resend Code",
-                  style: const TextStyle(
-                      color: Color(0xFF3784DF),
+                  _resendCooldownSec > 0
+                      ? (widget.isTaglish
+                          ? "I-resend ang code sa $_resendCooldownSec s"
+                          : "Resend code in $_resendCooldownSec s")
+                      : (widget.isTaglish
+                          ? "I-resend ang Code"
+                          : "Resend code"),
+                  style: TextStyle(
+                      color: (_resendCooldownSec > 0 || _isOtpVerified)
+                          ? (isDark ? Colors.white54 : Colors.black45)
+                          : const Color(0xFF3784DF),
                       fontWeight: FontWeight.bold,
-                      fontSize: 17),
+                      fontSize: 14),
                 ),
         )
       ],
@@ -786,110 +956,121 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Widget _buildBottomControls() {
     final isDark = widget.isDarkMode;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A2B3C) : Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              offset: const Offset(0, -4),
-              blurRadius: 16,
-            )
-          ]),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF3784DF), Color(0xFF2BA7A0)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF3784DF).withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton(
-                    onPressed:
-                        (_currentStep == 2 && !_isOtpVerified) || _isSendingOtp
-                            ? null
-                            : _nextStep,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: _isSendingOtp && _currentStep == 1
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2B3C) : Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    offset: const Offset(0, -4),
+                    blurRadius: 16,
+                  )
+                ]),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3784DF),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF3784DF).withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
-                          )
-                        : Text(
-                            _currentStep == _totalSteps - 1
-                                ? _t("signupBtn")
-                                : (widget.isTaglish ? "Susunod" : "Next"),
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.0,
-                                color: Colors.white),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: (_currentStep == 2 && !_isOtpVerified) ||
+                                  _isSendingOtp ||
+                                  _isSigningUp
+                              ? null
+                              : _nextStep,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            disabledForegroundColor: Colors.white70,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                           ),
-                  ),
+                          child: (_isSendingOtp && _currentStep == 1) || _isSigningUp
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _currentStep == _totalSteps - 1
+                                      ? _t("signupBtn")
+                                      : (widget.isTaglish ? "Susunod" : "Next"),
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                      color: Colors.white),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          if (_currentStep == 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _t("alreadyAccount"),
-                    style: TextStyle(
-                        color: isDark ? Colors.white70 : Colors.black54,
-                        fontSize: 15),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => LoginScreen(
-                            isTaglish: widget.isTaglish,
-                            isDarkMode: widget.isDarkMode,
+                if (_currentStep == 0)
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _t("alreadyAccount"),
+                          style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              fontSize: 13),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LoginScreen(
+                                  isTaglish: widget.isTaglish,
+                                  isDarkMode: widget.isDarkMode,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "Login",
+                            style: TextStyle(
+                                color: Color(0xFF3784DF),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13),
                           ),
                         ),
-                      );
-                    },
-                    child: const Text(
-                      "Login",
-                      style: TextStyle(
-                          color: Color(0xFF3784DF),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15),
+                      ],
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -913,8 +1094,8 @@ class _SignupScreenState extends State<SignupScreen> {
     String? Function(String?)? validator,
   }) {
     final fillColor = isDark
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.black.withValues(alpha: 0.03);
+        ? const Color(0xFF253B50)
+        : const Color(0xFFF4F9FF);
     final activeFillColor =
         readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
 
@@ -933,20 +1114,32 @@ class _SignupScreenState extends State<SignupScreen> {
       onChanged: onChanged,
       textAlign: textAlign,
       style: TextStyle(
-          color: isDark ? Colors.white : Colors.black87, fontSize: 15),
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          overflow: TextOverflow.ellipsis),
       validator: validator ??
           (val) => (val == null || val.isEmpty) ? "Required" : null,
       decoration: InputDecoration(
+        isDense: true,
         counterText: "",
         prefixText: prefixText,
         hintText: hintText,
         hintStyle: TextStyle(
-            color: isDark ? Colors.white30 : Colors.black38, fontSize: 13),
+            color: isDark ? Colors.white30 : Colors.black38, fontSize: 14),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         labelText: label,
-        labelStyle: TextStyle(color: iconColor, fontSize: 14),
-        prefixIcon: Icon(icon, color: iconColor),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
@@ -954,6 +1147,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
                   color: iconColor,
+                  size: 22,
                 ),
                 onPressed: onTogglePassword,
               )
@@ -961,15 +1155,15 @@ class _SignupScreenState extends State<SignupScreen> {
         filled: true,
         fillColor: activeFillColor,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: defaultBorderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
       ),
@@ -985,37 +1179,47 @@ class _SignupScreenState extends State<SignupScreen> {
     required Function(String?) onChanged,
   }) {
     final fillColor = isDark
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.black.withValues(alpha: 0.03);
+        ? const Color(0xFF253B50)
+        : const Color(0xFFF4F9FF);
     final iconColor =
         isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
     final defaultBorderColor =
         isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      value: value,
+      isDense: true,
       dropdownColor: isDark ? const Color(0xFF1A2B3C) : Colors.white,
       style: TextStyle(
           color: isDark ? Colors.white : Colors.black87, fontSize: 15),
       validator: (val) => (val == null || val.isEmpty) ? "Required" : null,
       decoration: InputDecoration(
+        isDense: true,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         labelText: label,
-        labelStyle: TextStyle(color: iconColor, fontSize: 14),
-        prefixIcon: Icon(icon, color: iconColor),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
         filled: true,
         fillColor: fillColor,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: defaultBorderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2.5),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
       ),
@@ -1094,21 +1298,38 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _showUnifiedLegalPopup() {
+    final scrollController = ScrollController();
+    var hasScrolledToBottom = false;
+    var listenerAttached = false;
+    VoidCallback? scrollListener;
+
     showDialog(
       context: context,
       barrierColor:
           widget.isDarkMode ? Colors.black87 : Colors.black54, // Dim background
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        bool hasScrolledToBottom = false;
-        final ScrollController scrollController = ScrollController();
-
         final isDark = widget.isDarkMode;
         final bgColor = isDark ? const Color(0xFF1A2B3C) : Colors.white;
         final textColor = isDark ? Colors.white : Colors.black87;
 
         return StatefulBuilder(
           builder: (context, setStateDialog) {
+            if (!listenerAttached) {
+              listenerAttached = true;
+              scrollListener = () {
+                if (!hasScrolledToBottom &&
+                    scrollController.hasClients &&
+                    scrollController.offset >=
+                        scrollController.position.maxScrollExtent - 20) {
+                  setStateDialog(() {
+                    hasScrolledToBottom = true;
+                  });
+                }
+              };
+              scrollController.addListener(scrollListener!);
+            }
+
             // Check automatically in case screen is large enough it doesn't need to scroll
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (scrollController.hasClients) {
@@ -1116,16 +1337,6 @@ class _SignupScreenState extends State<SignupScreen> {
                     !hasScrolledToBottom) {
                   setStateDialog(() => hasScrolledToBottom = true);
                 }
-              }
-            });
-
-            scrollController.addListener(() {
-              if (!hasScrolledToBottom &&
-                  scrollController.offset >=
-                      scrollController.position.maxScrollExtent - 20) {
-                setStateDialog(() {
-                  hasScrolledToBottom = true;
-                });
               }
             });
 
@@ -1360,7 +1571,12 @@ class _SignupScreenState extends State<SignupScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      if (scrollListener != null) {
+        scrollController.removeListener(scrollListener!);
+      }
+      scrollController.dispose();
+    });
   }
 
   /// ---------- CONTENT STRINGS ----------

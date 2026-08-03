@@ -48,7 +48,7 @@ class HomeMapScreen extends StatefulWidget {
 }
 
 class _HomeMapScreenState extends State<HomeMapScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MapController _mapController = MapController();
   late bool _isDarkMode;
@@ -88,40 +88,62 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
-  late AnimationController _loadingRippleController;
+
+  /// Cached GeoJSON features — avoid re-parsing asset on every refresh.
+  static List<dynamic>? _cachedGeoFeatures;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _isDarkMode = widget.initialDarkMode;
     _isTaglish = widget.initialTaglish;
 
-    // 🌊 Setup "Breathing" Animation for Map Polygons
+    // 🌊 Breathing animation for map polygons (rebuild scoped via AnimatedBuilder)
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
     _pulseAnimation =
         CurvedAnimation(parent: _pulseController, curve: Curves.easeInOutSine);
-    _pulseController.addListener(() {
-      // Only rebuild the UI if the user is actively on the Map Tab to prevent massive typing lag in other tabs!
-      if (mounted && _currentTabIndex == 1) setState(() {});
-    });
 
-    // 🌊 Setup Ripple Animation for Loading Screen
-    _loadingRippleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    _startAutoRefreshTimer();
+    _performInitialLoad();
+  }
 
-    // 🔄 Auto-refresh timer every 3 minutes
+  void _startAutoRefreshTimer() {
+    _autoRefreshTimer?.cancel();
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 3), (timer) {
       if (mounted && _currentTabIndex == 1 && !_isLoading) {
         _refreshData(silent: true);
       }
     });
+  }
 
-    _performInitialLoad();
+  void _pauseBackgroundWork() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
+    _positionStream?.cancel();
+    _positionStream = null;
+    if (_pulseController.isAnimating) _pulseController.stop();
+  }
+
+  void _resumeBackgroundWork() {
+    _startAutoRefreshTimer();
+    _startLocationTracking();
+    if (_currentTabIndex == 1 && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _pauseBackgroundWork();
+    } else if (state == AppLifecycleState.resumed) {
+      _resumeBackgroundWork();
+    }
   }
 
   Future<void> _performInitialLoad() async {
@@ -338,19 +360,24 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   Future<void> loadMarikinaBarangays({bool forceRefresh = false}) async {
     try {
-      // Step 1: Load barangay boundaries from GeoJSON
-      final data = await rootBundle.loadString(
-        'assets/marikina1.geojson',
-      );
-
-      final json = jsonDecode(data);
-      final features = json['features'] as List<dynamic>;
+      // Step 1: Load barangay boundaries from GeoJSON (cached after first parse)
+      late final List<dynamic> features;
+      if (_cachedGeoFeatures != null) {
+        features = _cachedGeoFeatures!;
+      } else {
+        final data = await rootBundle.loadString(
+          'assets/marikina1.geojson',
+        );
+        final json = jsonDecode(data);
+        features = json['features'] as List<dynamic>;
+        _cachedGeoFeatures = features;
+      }
 
       final List<Barangay> loaded = [];
       final Map<String, LatLng> centers = {};
       final Map<String, FloodData> loadedData = {};
 
-      // Step 2: Fetch REAL data from your teammate's Python backend
+      // Step 2: Fetch REAL data from FloodGuard /api/status
       Map<String, FloodData> apiData = {};
       try {
         apiData = await FloodApiService.getAllBarangayFloodData(
@@ -415,30 +442,43 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
         centers[name] = center;
 
-        // Color by THIS barangay's river WL vs THAT river's Alert/Alarm/Critical
+        // Color by associated river station STATUS (not peak WL)
         final matchedData = FloodApiService.findDataForBarangay(apiData, name);
         final sensorKey = FloodApiService.barangayToSensor[name] ?? 'sto_nino';
-        final thr = StationThresholds.forSensor(sensorKey);
-        double levelForColor = matchedData?.waterLevel ?? 0.0;
-        // Prefer peak when available from full API cache
         final full = FloodApiService.getFullPredictionData();
-        final river = full?['prediction']?['rivers']?[sensorKey];
-        if (river is Map) {
-          final peak = river['time_series_insights']?['peak_predicted_level'];
-          final pred = river['predicted_water_level'];
-          if (peak is num) {
-            levelForColor = peak.toDouble();
-          } else if (pred is num) {
-            levelForColor = pred.toDouble();
-          }
-          final apiThr = river['thresholds'];
-          if (apiThr is Map) {
-            // keep StationThresholds.forSensor unless API has all three
-          }
+        final riverRaw = full?['prediction']?['rivers']?[sensorKey];
+        Map<String, dynamic>? riverMap;
+        if (riverRaw is Map<String, dynamic>) {
+          riverMap = riverRaw;
+        } else if (riverRaw is Map) {
+          riverMap = Map<String, dynamic>.from(riverRaw);
+        }
+        final thr =
+            StationThresholds.fromApiOrDefault(sensorKey, riverMap);
+
+        final statusStr = (matchedData?.status ??
+                riverMap?['status'] ??
+                'safe')
+            .toString()
+            .toLowerCase();
+        ColorStatus colorStatus;
+        switch (statusStr) {
+          case 'critical':
+            colorStatus = ColorStatus.critical;
+            break;
+          case 'warning':
+            colorStatus = ColorStatus.warning;
+            break;
+          case 'alert':
+            colorStatus = ColorStatus.alert;
+            break;
+          default:
+            // Fall back to threshold-of-predicted WL if status missing
+            colorStatus = thr.statusFor(matchedData?.waterLevel ?? 0.0);
         }
 
         Color baseColor;
-        switch (thr.statusFor(levelForColor)) {
+        switch (colorStatus) {
           case ColorStatus.critical:
             baseColor = const Color(0xFFD32F2F);
             break;
@@ -456,8 +496,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         if (matchedData != null) {
           loadedData[name] = matchedData;
           debugPrint(
-              "🌊 $name: ${levelForColor.toStringAsFixed(2)}m → ${thr.statusFor(levelForColor).label} ($sensorKey)");
+              "🌊 $name: status=$statusStr WL=${matchedData.waterLevel.toStringAsFixed(2)}m peak=${matchedData.peakPredictedLevel.toStringAsFixed(2)}m ($sensorKey)");
         }
+
+        // silence unused thr in color path (kept for threshold UI elsewhere)
+        thr;
 
         loaded.add(
           Barangay(
@@ -499,33 +542,44 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final userBarangay = _userProfile!.barangay;
     final sensorKey =
         FloodApiService.barangayToSensor[userBarangay] ?? 'sto_nino';
-    final thr = StationThresholds.forSensor(sensorKey);
 
     double level = 0.0;
     final data =
         FloodApiService.findDataForBarangay(_barangayData, userBarangay);
     if (data != null) level = data.waterLevel;
 
-    final river = FloodApiService.getFullPredictionData()?['prediction']
+    final riverRaw = FloodApiService.getFullPredictionData()?['prediction']
         ?['rivers']?[sensorKey];
-    if (river is Map) {
-      final peak = river['time_series_insights']?['peak_predicted_level'];
-      final pred = river['predicted_water_level'];
-      if (peak is num) {
-        level = peak.toDouble();
-      } else if (pred is num) {
+    Map<String, dynamic>? riverMap;
+    if (riverRaw is Map<String, dynamic>) {
+      riverMap = riverRaw;
+    } else if (riverRaw is Map) {
+      riverMap = Map<String, dynamic>.from(riverRaw);
+    }
+    if (riverMap != null) {
+      final pred = riverMap['predicted_water_level'];
+      if (pred is num) {
         level = pred.toDouble();
       }
     }
 
-    final status = thr.statusFor(level);
-    // Only warn when this barangay's river reaches Alert / Alarm / Critical
-    if (status == ColorStatus.safe) return;
+    final thr = StationThresholds.fromApiOrDefault(sensorKey, riverMap);
+    final statusStr =
+        (data?.status ?? riverMap?['status'] ?? 'safe').toString().toLowerCase();
+    if (statusStr == 'safe') return;
+
+    final warnStatus = switch (statusStr) {
+      'critical' => ColorStatus.critical,
+      'warning' => ColorStatus.warning,
+      'alert' => ColorStatus.alert,
+      _ => thr.statusFor(level),
+    };
+    if (warnStatus == ColorStatus.safe) return;
 
     _hasShownEarlyWarning = true;
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
-        _showEarlyWarningDialog(status.label, level, userBarangay, thr);
+        _showEarlyWarningDialog(warnStatus.label, level, userBarangay, thr);
       }
     });
   }
@@ -563,10 +617,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             Text(
               _isTaglish
                   ? 'Babala ($statusLabel): ${level.toStringAsFixed(2)} m sa $location.\n'
-                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
+                      'Alert ${thr.alert.toStringAsFixed(2)} · Warning ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
                       'Sundin ang opisyal na babala ng PAGASA/MDRRMO. Ang prediksyon ay hindi 100% tumpak.'
                   : 'Warning ($statusLabel): ${level.toStringAsFixed(2)} m at $location.\n'
-                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
+                      'Alert ${thr.alert.toStringAsFixed(2)} · Warning ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
                       'Follow official PAGASA/MDRRMO advisories. Predictions are not 100% accurate.',
               style: const TextStyle(fontSize: 16, height: 1.5),
             ),
@@ -981,9 +1035,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoRefreshTimer?.cancel();
     _pulseController.dispose();
-    _loadingRippleController.dispose();
     _positionStream?.cancel();
     super.dispose();
   }
@@ -1454,7 +1508,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                     ],
                                   ),
                                 if (marikinaBarangays.isNotEmpty)
-                                  PolygonLayer(
+                                  AnimatedBuilder(
+                                    animation: _pulseAnimation,
+                                    builder: (context, _) {
+                                      return PolygonLayer(
                                     polygons: marikinaBarangays.map((b) {
                                       final isHovered =
                                           b.name == _hoveredBarangayName;
@@ -1508,6 +1565,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         isFilled: true,
                                       );
                                     }).toList(),
+                                  );
+                                    },
                                   ),
                                 if (marikinaBarangays.isNotEmpty)
                                   MarkerLayer(
@@ -1518,23 +1577,27 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                       final sensorKey =
                                           FloodApiService.barangayToSensor[name] ??
                                               'sto_nino';
-                                      final thr =
-                                          StationThresholds.forSensor(sensorKey);
                                       double level =
                                           _barangayData[name]?.waterLevel ?? 0.0;
-                                      final river = FloodApiService
+                                      final riverRaw = FloodApiService
                                               .getFullPredictionData()?[
                                           'prediction']?['rivers']?[sensorKey];
-                                      if (river is Map) {
-                                        final peak = river['time_series_insights']
-                                            ?['peak_predicted_level'];
-                                        final pred = river['predicted_water_level'];
-                                        if (peak is num) {
-                                          level = peak.toDouble();
-                                        } else if (pred is num) {
+                                      Map<String, dynamic>? riverMap;
+                                      if (riverRaw is Map<String, dynamic>) {
+                                        riverMap = riverRaw;
+                                      } else if (riverRaw is Map) {
+                                        riverMap =
+                                            Map<String, dynamic>.from(riverRaw);
+                                      }
+                                      if (riverMap != null) {
+                                        final pred =
+                                            riverMap['predicted_water_level'];
+                                        if (pred is num) {
                                           level = pred.toDouble();
                                         }
                                       }
+                                      final thr = StationThresholds.fromApiOrDefault(
+                                          sensorKey, riverMap);
                                       final status = thr.statusFor(level);
                                       late Color riskColor;
                                       late String statusText;
@@ -1559,7 +1622,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         case ColorStatus.warning:
                                           riskColor = const Color(0xFFFF9800);
                                           statusText =
-                                              _isTaglish ? "Maghanda" : "Alarm";
+                                              _isTaglish ? "Babala" : "Warning";
                                           textColor = Colors.black87;
                                           statusIcon = Icons.warning_rounded;
                                           break;
@@ -1820,13 +1883,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 3. Floating Bottom Navigation Bar
           if (!isKeyboardOpen)
             Positioned(
-              bottom: 24,
-              left: 20,
-              right: 20,
+              bottom: MediaQuery.of(context).padding.bottom + 12,
+              left: 12,
+              right: 12,
               child: Container(
-                height: 72,
+                height: 64,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(34),
+                  borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.15),
@@ -1836,7 +1899,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(34),
+                  borderRadius: BorderRadius.circular(32),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                     child: Container(
@@ -1853,7 +1916,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         ),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _buildNavItem(
                             icon: Icons.home_rounded,
@@ -2103,6 +2165,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             if (isAction) {
             } else {
               setState(() => _currentTabIndex = index);
+              if (index == 1) {
+                if (!_pulseController.isAnimating) {
+                  _pulseController.repeat(reverse: true);
+                }
+              } else if (_pulseController.isAnimating) {
+                _pulseController.stop();
+              }
             }
           },
           borderRadius: BorderRadius.circular(34),
@@ -2110,12 +2179,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           splashColor: activeColor.withValues(alpha: 0.2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOut,
                 padding:
-                    const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                    const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? activeColor.withValues(alpha: 0.15)
@@ -2125,16 +2195,21 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 child: Icon(
                   icon,
                   color: isSelected ? activeColor : inactiveColor,
-                  size: 24,
+                  size: 20,
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  color: isSelected ? activeColor : inactiveColor,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected ? activeColor : inactiveColor,
+                  ),
                 ),
               ),
             ],
@@ -2336,24 +2411,35 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
                   // ── Forecast header row (MOVED UP FOR PRIORITY) ──
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _isTaglish
-                            ? 'Pagtataya para sa $_dashboardSelectedBarangay'
-                            : 'Forecast for $_dashboardSelectedBarangay',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
+                      Expanded(
+                        flex: 6,
+                        child: Text(
+                          _isTaglish
+                              ? 'Pagtataya para sa $_dashboardSelectedBarangay'
+                              : 'Forecast for $_dashboardSelectedBarangay',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                          ),
                         ),
                       ),
-                      Text(
-                        'Sensor: $_dashboardSensorDisplayName',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: subColor,
+                      const SizedBox(width: 6),
+                      Expanded(
+                        flex: 4,
+                        child: Text(
+                          'Sensor: $_dashboardSensorDisplayName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: subColor,
+                          ),
                         ),
                       ),
                     ],
@@ -2377,12 +2463,22 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   // ── 24-Hour Timeline ──
                   Text(
                     _isTaglish
-                        ? '24-Oras na Inaasahang Timeline'
-                        : '24-Hour Projected Timeline',
+                        ? '24-Oras na Landas ng Antas ng Ilog'
+                        : '24-Hour River Level Path',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _isTaglish
+                        ? 'Interpolation mula sa kasalukuyang antas patungo sa isang hakbang na OLS prediksyon (hindi 24 na hiwalay na forecast).'
+                        : 'Interpolation from current level to the one-step OLS prediction (not 24 separate forecasts).',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _isDarkMode ? Colors.white60 : Colors.grey[600],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -2530,7 +2626,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       case ColorStatus.critical:
         return 'CRITICAL';
       case ColorStatus.warning:
-        return 'ALARM';
+        return 'WARNING';
       case ColorStatus.alert:
         return 'ALERT';
       case ColorStatus.safe:
@@ -2545,7 +2641,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       case ColorStatus.critical:
         return 'CRITICAL';
       case ColorStatus.warning:
-        return 'ALARM';
+        return 'WARNING';
       case ColorStatus.alert:
         return 'ALERT';
       case ColorStatus.safe:
@@ -2683,7 +2779,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       _buildDashboardLegendItem(const Color(0xFFD32F2F),
                           'CRITICAL: ≥ ${thr.critical.toStringAsFixed(2)}m'),
                       _buildDashboardLegendItem(const Color(0xFFFF9800),
-                          'ALARM: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
+                          'WARNING: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
                       _buildDashboardLegendItem(const Color(0xFFFBC02D),
                           'ALERT: ≥ ${thr.alert.toStringAsFixed(2)}m'),
                       _buildDashboardLegendItem(const Color(0xFF4CAF50),
@@ -2787,7 +2883,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   _dashThrChip('Alert', thr.alert.toStringAsFixed(2),
                       const Color(0xFFFBC02D)),
                   const SizedBox(width: 8),
-                  _dashThrChip('Alarm', thr.alarm.toStringAsFixed(2),
+                  _dashThrChip('Warning', thr.alarm.toStringAsFixed(2),
                       const Color(0xFFFF9800)),
                   const SizedBox(width: 8),
                   _dashThrChip('Critical', thr.critical.toStringAsFixed(2),
@@ -2878,22 +2974,35 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   Widget _dashThrChip(String label, String value, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
         decoration: BoxDecoration(
-          border: Border.all(color: color.withValues(alpha: 0.5)),
+          color: color.withValues(alpha: _isDarkMode ? 0.08 : 0.05),
+          border: Border.all(color: color.withValues(alpha: 0.6)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           children: [
-            Text(label,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
                 style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: _isDarkMode ? Colors.white54 : Colors.grey[600])),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: _isDarkMode ? Colors.white70 : Colors.grey[800]),
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(value,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
                 style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+                    fontSize: 13, fontWeight: FontWeight.w800, color: color),
+              ),
+            ),
           ],
         ),
       ),
@@ -3001,31 +3110,24 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-/*************  ✨ Windsurf Command ⭐  *************/
-  /// Builds a button to report a flood. The button is
-  /// displayed in the navigation bar and has a gradient
-  /// background with a white text and a warning icon.
-  /// When tapped, it shows a [ReportFloodSheet].
-  ///
-/// *****  2c13d96e-27e7-42ae-b43d-754886f52360  ****** Widget
-      _buildReportButton() {
+  Widget _buildReportButton() {
     return Expanded(
-      flex: 3,
+      flex: 2,
       child: Container(
-        height: 48,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
+        height: 40,
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFFFF6B6B), Color(0xFFD32F2F)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFD32F2F).withValues(alpha: 0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: const Color(0xFFD32F2F).withValues(alpha: 0.35),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
             )
           ],
         ),
@@ -3033,17 +3135,17 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           color: Colors.transparent,
           child: InkWell(
             onTap: _showReportFloodSheet,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(20),
             splashColor: Colors.white.withValues(alpha: 0.3),
             highlightColor: Colors.white.withValues(alpha: 0.1),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.warning_amber_rounded,
-                      color: Colors.white, size: 18),
-                  const SizedBox(width: 6),
+                      color: Colors.white, size: 16),
+                  const SizedBox(width: 4),
                   Flexible(
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
@@ -3052,7 +3154,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                          fontSize: 11,
                           letterSpacing: 0.1,
                         ),
                         maxLines: 1,

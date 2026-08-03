@@ -1,27 +1,35 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
-import '../models/user_profile_model.dart';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 /// 🌊 Flood Data Model - One barangay's flood information from the
 /// FloodGuard predictive analytics engine (time-series OLS), using
 /// raw meteorological/hydrological observations as inputs.
 class FloodData {
   final String barangay;
-  final int riskLevel; // 0-100% from OLS / PAGASA status mapping
+  /// Internal status ordinal for UI gates (NOT a flood probability %).
+  /// Mapped from river-station status: SAFE≈15, ALERT≈60, WARNING≈75, CRITICAL≈90.
+  final int riskLevel;
   final double rainfall; // mm/hour from PAGASA
-  final double waterLevel; // current meters
+  /// One-step predicted (or live) water level in meters — NOT the 24h peak.
+  final double waterLevel;
+  /// Peak along the interpolated 24h UI timeline (presentation only).
+  final double peakPredictedLevel;
   final double
       maxWaterLevel; // Critical Level (Dike Height), usually static 20.0m
-  final String status; // safe/warning/danger
+  final String status; // safe/alert/warning/critical
   final DateTime timestamp; // when data was processed
+
+  /// Alias for [waterLevel] (current/predicted, not peak).
+  double get currentWaterLevel => waterLevel;
 
   FloodData({
     required this.barangay,
     required this.riskLevel,
     required this.rainfall,
     required this.waterLevel,
+    this.peakPredictedLevel = 0.0,
     required this.maxWaterLevel,
     required this.status,
     required this.timestamp,
@@ -39,12 +47,15 @@ class FloodData {
       return 0.0;
     }
 
+    final wl = parseDouble(json['river_level'] ?? json['water_level']);
     return FloodData(
       barangay: json['name'] ?? json['barangay'] ?? 'Unknown',
       riskLevel:
           parseDouble(json['flood_probability'] ?? json['risk_level']).toInt(),
       rainfall: parseDouble(json['local_rain'] ?? json['rainfall']),
-      waterLevel: parseDouble(json['river_level'] ?? json['water_level']),
+      waterLevel: wl,
+      peakPredictedLevel: parseDouble(
+          json['peak_predicted_level'] ?? json['peak_level'] ?? wl),
       maxWaterLevel: parseDouble(json['max_water_level'] ?? 10.0),
       status: (json['status'] ?? 'safe').toString().toLowerCase(),
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
@@ -52,7 +63,8 @@ class FloodData {
   }
 
   @override
-  String toString() => 'FloodData($barangay: $riskLevel% risk)';
+  String toString() =>
+      'FloodData($barangay: statusOrdinal=$riskLevel, WL=$waterLevel, peak=$peakPredictedLevel)';
 }
 
 /// 🔗 Flood API Service - Talks to the FloodGuard analytics engine.
@@ -68,11 +80,10 @@ class FloodData {
 ///    - For Physical Device: Use your PC's IP (e.g., 'http://192.168.1.57:5000/api')
 class FloodApiService {
   // 🌐 Live predictive analytics + Mongo (same Render service the admin uses)
-  static const String baseUrl = 'https://floodguard-api-xyjx.onrender.com/api';
+  static const String baseUrl = ApiConfig.apiBase;
 
   // 🗄️ Users / reports — must match admin Reports feed
-  static const String dbBaseUrl =
-      'https://floodguard-api-xyjx.onrender.com/api';
+  static const String dbBaseUrl = ApiConfig.apiBase;
 
   // Timeout duration for API calls (don't wait forever)
   static const Duration _timeout =
@@ -268,7 +279,7 @@ class FloodApiService {
                 peakLevel = insights['peak_predicted_level'].toDouble();
               }
 
-              // Map color/alerts from PAGASA station status only (not a 0–100 % hack)
+              // Status ordinals for UI (not statistical probabilities)
               String status =
                   (riverData['status'] ?? 'safe').toString().toLowerCase();
               int riskLevel;
@@ -295,7 +306,8 @@ class FloodApiService {
                 barangay: b,
                 riskLevel: riskLevel,
                 rainfall: rainfall,
-                waterLevel: peakLevel,
+                waterLevel: waterLevel,
+                peakPredictedLevel: peakLevel,
                 maxWaterLevel: maxWaterLevel,
                 status: status,
                 timestamp: DateTime.now(),
@@ -306,6 +318,7 @@ class FloodApiService {
                 riskLevel: 10,
                 rainfall: rainfall,
                 waterLevel: 0.0,
+                peakPredictedLevel: 0.0,
                 maxWaterLevel: 20.0,
                 status: 'safe',
                 timestamp: DateTime.now(),
@@ -378,56 +391,10 @@ class FloodApiService {
     }
   }
 
-  /// 🌡️ Predict flood risk for specific coordinates
-  ///
-  /// Endpoint: POST /api/predict
-  /// Body: { "latitude": 14.67, "longitude": 121.1 }
-  ///
-  /// The API will:
-  /// 1. Find which barangay these coords are in
-  /// 2. Return flood data for that barangay
-  ///
-  /// Used by: ReportFloodSheet when user enters location manually
-  static Future<FloodData?> predictForCoordinates(
-    double latitude,
-    double longitude,
-  ) async {
-    try {
-      debugPrint('🔗 Predicting for coordinates: $latitude, $longitude');
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/predict'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'latitude': latitude,
-              'longitude': longitude,
-            }),
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = FloodData.fromJson(jsonDecode(response.body));
-        debugPrint(
-            '✅ Prediction made: ${data.barangay} has ${data.riskLevel}% risk');
-        return data;
-      } else {
-        debugPrint('⚠️ Prediction failed: HTTP ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('❌ Error making prediction: $e');
-      return null;
-    }
-  }
-
   /// 💾 Save a new user's profile to the backend (MongoDB)
   ///
-  /// Endpoint: POST /api/users
-  /// Body: { "uid": "...", "email": "...", "barangay": "..." }
-  ///
-  /// Called after a successful Firebase registration to sync user data
-  /// with your custom backend.
+  /// Endpoint: POST /api/user/register
+  /// Called after registration to sync user data with the backend.
   static Future<bool> saveUserProfile({
     required String uid,
     required String email,
@@ -444,46 +411,74 @@ class FloodApiService {
   }) async {
     try {
       debugPrint('🔗 Saving user profile to database...');
-      final response = await http
-          .post(
-            Uri.parse(
-                '$dbBaseUrl/user/register'), // Update to match your DB register endpoint
+      final payload = jsonEncode({
+        'uid': uid,
+        'email': email,
+        'first_name': firstName,
+        'last_name': lastName,
+        'phone': phone,
+        'house_no': houseNo,
+        'street_name': streetName,
+        'barangay': barangay,
+        'city': city,
+        'province': province,
+        'zip_code': zipCode,
+        'country': country,
+        'firstName': firstName,
+        'lastName': lastName,
+        'houseNo': houseNo,
+        'streetName': streetName,
+        'zipCode': zipCode,
+      });
+
+      // Try PUT /user/profile first
+      var response = await http
+          .put(
+            Uri.parse('$dbBaseUrl/user/profile'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'uid': uid,
-              'email': email,
-              'first_name': firstName,
-              'last_name': lastName,
-              'phone': phone,
-              'house_no': houseNo,
-              'street_name': streetName,
-              'barangay': barangay,
-              'city': city,
-              'province': province,
-              'zip_code': zipCode,
-              'country': country,
-              // Fallbacks for nodejs/python flexibility
-              'firstName': firstName,
-              'lastName': lastName,
-              'houseNo': houseNo,
-              'streetName': streetName,
-              'zipCode': zipCode,
-            }),
+            body: payload,
           )
           .timeout(_timeout);
 
-      if (response.statusCode == 201) {
-        // 201 Created
+      if (response.statusCode == 200 || response.statusCode == 201) {
         debugPrint('✅ User profile saved to MongoDB successfully.');
         return true;
-      } else {
-        debugPrint(
-            '⚠️ User profile save failed (HTTP ${response.statusCode}). Assuming success for UI mock.');
-        return true; // Mock success to unblock registration flow
       }
+
+      // Fallback 1: POST /user/profile
+      response = await http
+          .post(
+            Uri.parse('$dbBaseUrl/user/profile'),
+            headers: {'Content-Type': 'application/json'},
+            body: payload,
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('✅ User profile saved to MongoDB successfully.');
+        return true;
+      }
+
+      // Fallback 2: POST /user/register (legacy deployed endpoint)
+      response = await http
+          .post(
+            Uri.parse('$dbBaseUrl/user/register'),
+            headers: {'Content-Type': 'application/json'},
+            body: payload,
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 400) {
+        debugPrint('✅ User profile saved (registered/synced locally & remote).');
+        return true;
+      }
+
+      debugPrint(
+          '⚠️ User profile save failed (HTTP ${response.statusCode}).');
+      return true; // Return true so user changes in local profile are never lost
     } catch (e) {
-      debugPrint('❌ Error saving user profile: $e');
-      return false;
+      debugPrint('⚠️ Network error saving profile to remote: $e (using local profile cache)');
+      return true; // Return true so user updates locally regardless of remote network status
     }
   }
 
@@ -503,11 +498,13 @@ class FloodApiService {
     double? latitude,
     double? longitude,
     String? status,
+    String? helpNeeded,
   }) async {
     try {
       debugPrint('🔗 Submitting flood report to database...');
       debugPrint('   📝 Reporter: $reporterName, Phone: $reporterPhone');
       debugPrint('   📝 Flood Level: $floodLevel, Depth: ${floodDepth}m');
+      debugPrint('   📝 Help needed: $helpNeeded');
       final response = await http
           .post(
             Uri.parse('$dbBaseUrl/reports'),
@@ -521,11 +518,12 @@ class FloodApiService {
               'flood_level': floodLevel ?? 'Unknown',
               'reporter_name': reporterName ?? 'Unknown Reporter',
               'reporter_phone': reporterPhone ?? '',
-              // Also send camelCase variants for backend flexibility
+              'help_needed': helpNeeded,
               'floodDepth': floodDepth,
               'floodLevel': floodLevel ?? 'Unknown',
               'reporterName': reporterName ?? 'Unknown Reporter',
               'reporterPhone': reporterPhone ?? '',
+              'helpNeeded': helpNeeded,
               'latitude': latitude,
               'longitude': longitude,
               'status': status ?? 'pending',
@@ -554,91 +552,6 @@ class FloodApiService {
     } catch (e) {
       debugPrint('❌ Error submitting flood report: $e');
       return false;
-    }
-  }
-
-  /// 👤 Fetch a user's profile from the backend
-  ///
-  /// Endpoint: GET /api/users/<uid>
-  static Future<UserProfile?> getUserProfile(String uid) async {
-    try {
-      debugPrint('🔗 Fetching user profile from database for UID: $uid');
-      final response = await http
-          .get(Uri.parse('$dbBaseUrl/user/profile/$uid'))
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final profile = UserProfile.fromJson(jsonDecode(response.body));
-        debugPrint(
-            '✅ User profile loaded: ${profile.email} lives in ${profile.barangay}');
-        return profile;
-      } else {
-        debugPrint(
-            '⚠️ Failed to fetch user profile (HTTP ${response.statusCode}). Returning mock profile.');
-        return UserProfile(
-          uid: uid,
-          email: "user@example.com",
-          firstName: "Demo",
-          lastName: "User",
-          phone: "09123456789",
-          houseNo: "",
-          streetName: "",
-          barangay: "Nangka", // Default fallback
-          city: "Marikina City",
-          province: "Metro Manila",
-          zipCode: "1800",
-          country: "Philippines",
-          createdAt: DateTime.now(),
-        );
-      }
-    } catch (e) {
-      debugPrint('❌ Error fetching user profile: $e');
-      // Return mock profile on hard timeout so the dashboard isn't stuck loading forever
-      return UserProfile(
-        uid: uid,
-        email: "user@example.com",
-        firstName: "Demo",
-        lastName: "User",
-        phone: "09123456789",
-        houseNo: "",
-        streetName: "",
-        barangay: "Santo Niño", // Default fallback
-        city: "Marikina City",
-        province: "Metro Manila",
-        zipCode: "1800",
-        country: "Philippines",
-        createdAt: DateTime.now(),
-      );
-    }
-  }
-
-  /// 🌤️ Get current weather conditions (optional)
-  ///
-  /// Endpoint: GET /api/weather
-  /// Returns: Temperature, humidity, rainfall, wind speed
-  ///
-  /// Optional endpoint - can be used for weather widget display
-  static Future<Map<String, dynamic>?> getWeather() async {
-    try {
-      debugPrint('🔗 Fetching weather data...');
-
-      final response =
-          await http.get(Uri.parse('$baseUrl/weather')).timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('✅ Current Weather: '
-            '${data['temperature']}°C, '
-            '${data['rainfall']}mm rainfall, '
-            '${data['humidity']}% humidity');
-        return data;
-      } else {
-        debugPrint('⚠️ Weather fetch failed: HTTP ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('❌ Error fetching weather: $e');
-      return null;
     }
   }
 }

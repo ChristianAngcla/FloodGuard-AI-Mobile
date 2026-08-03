@@ -25,29 +25,31 @@ class WelcomePopup extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: [
-            BoxShadow(
-              color:
-                  isDarkMode ? Colors.black54 : Colors.black.withValues(alpha: 0.15),
-              blurRadius: 30,
-              offset: const Offset(0, 15),
-            ),
-            // Inner highlight glow
-            BoxShadow(
-              color: Colors.white.withValues(alpha: isDarkMode ? 0.05 : 0.6),
-              blurRadius: 0,
-              spreadRadius: 1,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    isDarkMode ? Colors.black54 : Colors.black.withValues(alpha: 0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 15),
+              ),
+              // Inner highlight glow
+              BoxShadow(
+                color: Colors.white.withValues(alpha: isDarkMode ? 0.05 : 0.6),
+                blurRadius: 0,
+                spreadRadius: 1,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           children: [
             // Glowing Logo
             Container(
@@ -269,8 +271,9 @@ class WelcomePopup extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildLegendItem(
       Color color, String label, String value, bool isDark) {

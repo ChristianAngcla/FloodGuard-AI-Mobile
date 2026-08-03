@@ -49,12 +49,13 @@ class DefaultFirebaseOptions {
     storageBucket: 'floodguard-web.firebasestorage.app',
   );
 
+  // Sourced from android/app/google-services.json (project floodguard-ai-6a9b6).
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAvrAPkv3W1LXfpDURB_cTScBRuHEBkBT0',
-    appId: '1:837721359628:android:538a53d4f254a5ea033529',
-    messagingSenderId: '837721359628',
-    projectId: 'floodguard-web',
-    storageBucket: 'floodguard-web.firebasestorage.app',
+    apiKey: 'AIzaSyCi2CkqbKnWbq9RTi8nkaaqe3LAnBwabnY',
+    appId: '1:274299040311:android:396bad82074bd83e9385b2',
+    messagingSenderId: '274299040311',
+    projectId: 'floodguard-ai-6a9b6',
+    storageBucket: 'floodguard-ai-6a9b6.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

@@ -133,105 +133,111 @@ class _AlertsScreenState extends State<AlertsScreen> {
         children: [
           WaveBackground(isDarkMode: isDark),
           SafeArea(
-            child: Column(
-              children: [
-                // Custom Header to fit safely below HomeMapScreen's Top Bar
-                Padding(
-                  padding: const EdgeInsets.only(
-                      top: 35, left: 24, right: 24, bottom: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 48), // Balance for centering
-                      Text(
-                        widget.isTaglish ? "Mga Abiso" : "Alerts",
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      _alerts.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.delete_sweep_rounded,
-                                  color: Colors.redAccent),
-                              tooltip: widget.isTaglish
-                                  ? "Burahin Lahat"
-                                  : "Clear All",
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    backgroundColor: isDark
-                                        ? const Color(0xFF253B50)
-                                        : Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(16)),
-                                    title: Text(
-                                        widget.isTaglish
-                                            ? "Burahin Lahat?"
-                                            : "Clear All Alerts?",
-                                        style: TextStyle(color: textColor)),
-                                    content: Text(
-                                        widget.isTaglish
-                                            ? "Sigurado ka ba? Hindi na ito mababawi."
-                                            : "Are you sure? This cannot be undone.",
-                                        style: TextStyle(color: textColor)),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: Text(
-                                            widget.isTaglish
-                                                ? "Kanselahin"
-                                                : "Cancel",
-                                            style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.white54
-                                                    : Colors.grey[700])),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.red),
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          _clearAll();
-                                        },
-                                        child: Text(
-                                            widget.isTaglish
-                                                ? "Burahin"
-                                                : "Clear",
-                                            style: const TextStyle(
-                                                color: Colors.white)),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            )
-                          : const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _alerts.isEmpty
-                          ? _buildEmptyState(isDark)
-                          : RefreshIndicator(
-                              onRefresh: _loadAlerts,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.only(
-                                    left: 16, right: 16, top: 8, bottom: 120),
-                                itemCount: _alerts.length,
-                                itemBuilder: (context, index) {
-                                  final alert = _alerts[index];
-                                  return _buildAlertCard(alert, isDark);
-                                },
-                              ),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 550),
+                child: Column(
+                  children: [
+                    // Custom Header to fit safely below HomeMapScreen's Top Bar
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          top: 35, left: 24, right: 24, bottom: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const SizedBox(width: 48), // Balance for centering
+                          Text(
+                            widget.isTaglish ? "Mga Abiso" : "Alerts",
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
+                          _alerts.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.delete_sweep_rounded,
+                                      color: Colors.redAccent),
+                                  tooltip: widget.isTaglish
+                                      ? "Burahin Lahat"
+                                      : "Clear All",
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        backgroundColor: isDark
+                                            ? const Color(0xFF253B50)
+                                            : Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(16)),
+                                        title: Text(
+                                            widget.isTaglish
+                                                ? "Burahin Lahat?"
+                                                : "Clear All Alerts?",
+                                            style: TextStyle(color: textColor)),
+                                        content: Text(
+                                            widget.isTaglish
+                                                ? "Sigurado ka ba? Hindi na ito mababawi."
+                                                : "Are you sure? This cannot be undone.",
+                                            style: TextStyle(color: textColor)),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: Text(
+                                                widget.isTaglish
+                                                    ? "Kanselahin"
+                                                    : "Cancel",
+                                                style: TextStyle(
+                                                    color: isDark
+                                                        ? Colors.white54
+                                                        : Colors.grey[700])),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.red),
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              _clearAll();
+                                            },
+                                            child: Text(
+                                                widget.isTaglish
+                                                    ? "Burahin"
+                                                    : "Clear",
+                                                style: const TextStyle(
+                                                    color: Colors.white)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                )
+                              : const SizedBox(width: 48),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _alerts.isEmpty
+                              ? _buildEmptyState(isDark)
+                              : RefreshIndicator(
+                                  onRefresh: _loadAlerts,
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.only(
+                                        left: 16, right: 16, top: 8, bottom: 140),
+                                    itemCount: _alerts.length,
+                                    itemBuilder: (context, index) {
+                                      final alert = _alerts[index];
+                                      return _buildAlertCard(alert, isDark);
+                                    },
+                                  ),
+                                ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],

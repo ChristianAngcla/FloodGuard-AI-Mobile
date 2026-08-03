@@ -6,6 +6,7 @@ import 'screens/signup_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
+import 'theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -55,6 +56,9 @@ class FloodGuardApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'FloodGuard',
+      theme: AppTheme.lightTheme(),
+      darkTheme: AppTheme.darkTheme(),
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       // The Map will ALWAYS be the first screen now
       home:
           HomeMapScreen(initialDarkMode: isDarkMode, initialTaglish: isTaglish),

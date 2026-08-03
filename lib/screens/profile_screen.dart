@@ -54,17 +54,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     "Concepcion Uno",
     "Fortune",
     "Industrial Valley",
-    "Jesus De La Pena",
+    "Jesus Dela Peña",
     "Malanday",
     "Marikina Heights",
     "Nangka",
     "Parang",
     "San Roque",
     "Santa Elena",
-    "Santo Nino",
-    "Tanong",
+    "Santo Niño",
+    "Tañong",
     "Tumana"
   ];
+
+  /// Map legacy ASCII spellings from older accounts onto canonical names.
+  String _canonicalBarangay(String raw) {
+    const aliases = {
+      'Jesus De La Pena': 'Jesus Dela Peña',
+      'Jesus Dela Pena': 'Jesus Dela Peña',
+      'Santo Nino': 'Santo Niño',
+      'Tanong': 'Tañong',
+    };
+    return aliases[raw] ?? raw;
+  }
 
   @override
   void initState() {
@@ -125,8 +136,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 profile.country.isNotEmpty ? profile.country : "Philippines";
             _avatarSeed = prefs.getString('avatar_seed_$safeEmail') ?? 'Felix';
 
-            if (_marikinaBarangays.contains(profile.barangay)) {
-              _selectedBarangay = profile.barangay;
+            final barangay = _canonicalBarangay(profile.barangay);
+            if (_marikinaBarangays.contains(barangay)) {
+              _selectedBarangay = barangay;
             } else {
               _selectedBarangay = "Nangka";
             }
@@ -147,85 +159,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
-    final uid = await AuthService().getEffectiveUid();
+    final uid = await AuthService().getEffectiveUid() ?? _userProfile?.uid ?? 'anon_user';
 
-    if (uid != null && _userProfile != null) {
-      final success = await FloodApiService.saveUserProfile(
-        uid: uid,
-        email: _userProfile!.email,
-        firstName: _firstNameCtrl.text.trim(),
-        lastName: _lastNameCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-        houseNo: _houseNoCtrl.text.trim(),
-        streetName: _streetNameCtrl.text.trim(),
-        barangay: _selectedBarangay ?? "Unknown",
-        city: _cityCtrl.text.trim(),
-        province: _provinceCtrl.text.trim(),
-        zipCode: _zipCodeCtrl.text.trim(),
-        country: _countryCtrl.text.trim(),
+    String capitalize(String s) {
+      if (s.isEmpty) return s;
+      return s.split(' ').map((word) {
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+      }).join(' ');
+    }
+
+    final formattedFirstName = capitalize(_firstNameCtrl.text.trim());
+    final formattedLastName = capitalize(_lastNameCtrl.text.trim());
+    final barangay = _selectedBarangay ?? "Nangka";
+    final phone = _phoneCtrl.text.trim();
+    final houseNo = _houseNoCtrl.text.trim();
+    final streetName = _streetNameCtrl.text.trim();
+    final city = _cityCtrl.text.trim().isEmpty ? "Marikina City" : _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim().isEmpty ? "Metro Manila" : _provinceCtrl.text.trim();
+    final zipCode = _zipCodeCtrl.text.trim().isEmpty ? "1800" : _zipCodeCtrl.text.trim();
+    final country = _countryCtrl.text.trim().isEmpty ? "Philippines" : _countryCtrl.text.trim();
+    final safeEmail = (_userProfile?.email ?? '').trim().toLowerCase();
+
+    // Call API service to persist to backend
+    await FloodApiService.saveUserProfile(
+      uid: uid,
+      email: safeEmail,
+      firstName: formattedFirstName,
+      lastName: formattedLastName,
+      phone: phone,
+      houseNo: houseNo,
+      streetName: streetName,
+      barangay: barangay,
+      city: city,
+      province: province,
+      zipCode: zipCode,
+      country: country,
+    );
+
+    if (mounted) {
+      // Instantly update the local cache so changes reflect everywhere across the app!
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString('user_data');
+      Map<String, dynamic> userData = {};
+      if (userDataString != null) {
+        try {
+          userData = Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
+        } catch (_) {}
+      }
+
+      userData['uid'] = uid;
+      userData['email'] = safeEmail;
+      userData['firstName'] = formattedFirstName;
+      userData['lastName'] = formattedLastName;
+      userData['first_name'] = formattedFirstName;
+      userData['last_name'] = formattedLastName;
+      userData['phone'] = phone;
+      userData['houseNo'] = houseNo;
+      userData['house_no'] = houseNo;
+      userData['streetName'] = streetName;
+      userData['street_name'] = streetName;
+      userData['barangay'] = barangay;
+      userData['city'] = city;
+      userData['province'] = province;
+      userData['zipCode'] = zipCode;
+      userData['zip_code'] = zipCode;
+      userData['country'] = country;
+
+      await prefs.setString('user_data', jsonEncode(userData));
+
+      if (safeEmail.isNotEmpty) {
+        await prefs.setString('temp_house_no_$safeEmail', houseNo);
+        await prefs.setString('temp_street_name_$safeEmail', streetName);
+        await prefs.setString('avatar_seed_$safeEmail', _avatarSeed);
+      }
+
+      // Re-subscribe FCM to the new barangay for live emergency alerts!
+      NotificationService.subscribeToBarangay(barangay);
+
+      setState(() {
+        _isEditing = false;
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.isTaglish
+              ? "Na-save ang profile!"
+              : "Profile updated successfully!"),
+          backgroundColor: Colors.green,
+        ),
       );
 
-      if (mounted) {
-        if (success) {
-          // Instantly update the local cache so changes reflect everywhere!
-          final prefs = await SharedPreferences.getInstance();
-          final userDataString = prefs.getString('user_data');
-          if (userDataString != null) {
-            Map<String, dynamic> userData = jsonDecode(userDataString);
-
-            // Helper function to capitalize
-            String capitalize(String s) {
-              if (s.isEmpty) return s;
-              return s.split(' ').map((word) {
-                if (word.isEmpty) return word;
-                return word[0].toUpperCase() + word.substring(1).toLowerCase();
-              }).join(' ');
-            }
-
-            userData['firstName'] = capitalize(_firstNameCtrl.text.trim());
-            userData['lastName'] = capitalize(_lastNameCtrl.text.trim());
-            userData['phone'] = _phoneCtrl.text.trim();
-            userData['houseNo'] = _houseNoCtrl.text.trim();
-            userData['streetName'] = _streetNameCtrl.text.trim();
-            userData['barangay'] = _selectedBarangay ?? "Unknown";
-
-            // Keep snake_case synced for robust mapping
-            userData['first_name'] = capitalize(_firstNameCtrl.text.trim());
-            userData['last_name'] = capitalize(_lastNameCtrl.text.trim());
-            userData['house_no'] = _houseNoCtrl.text.trim();
-            userData['street_name'] = _streetNameCtrl.text.trim();
-
-            await prefs.setString('user_data', jsonEncode(userData));
-
-            // Save to temp cache so they survive future logins!
-            final safeEmail = _userProfile!.email.trim().toLowerCase();
-            await prefs.setString(
-                'temp_house_no_$safeEmail', _houseNoCtrl.text.trim());
-            await prefs.setString(
-                'temp_street_name_$safeEmail', _streetNameCtrl.text.trim());
-            await prefs.setString('avatar_seed_$safeEmail', _avatarSeed);
-          }
-
-          setState(() => _isEditing = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(widget.isTaglish
-                    ? "Na-save ang profile!"
-                    : "Profile updated successfully!"),
-                backgroundColor: Colors.green),
-          );
-          _loadProfile();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(widget.isTaglish
-                    ? "Nabigo ang pag-save."
-                    : "Failed to update profile."),
-                backgroundColor: Colors.red),
-          );
-          setState(() => _isLoading = false);
-        }
-      }
+      _loadProfile();
     }
   }
 
@@ -329,10 +355,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = AuthService().currentUser;
     final isDark = widget.isDarkMode;
     final bgColor = isDark ? const Color(0xFF1A2B3C) : const Color(0xFFF5F7FA);
-    final cardColor = isDark ? const Color(0xFF253B50) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF1A2B3C);
     final subTextColor = isDark ? Colors.white70 : Colors.black54;
 
@@ -439,339 +463,345 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     )
                   : SingleChildScrollView(
                       padding: const EdgeInsets.only(
-                          top: 60, bottom: 120, left: 24, right: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Custom Header
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          top: 40, bottom: 140, left: 24, right: 24),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const SizedBox(
-                                  width: 48), // Balance for centering
-                              Text(
-                                _t("profile"),
-                                style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              if (_userProfile != null)
-                                IconButton(
-                                  icon: Icon(
-                                      _isEditing
-                                          ? Icons.close_rounded
-                                          : Icons.edit_rounded,
-                                      color: const Color(0xFF3784DF)),
-                                  onPressed: () {
-                                    setState(() {
-                                      if (_isEditing) {
-                                        _loadProfile(); // Revert changes
-                                      }
-                                      _isEditing = !_isEditing;
-                                    });
-                                  },
-                                )
-                              else
-                                const SizedBox(width: 48),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          // Avatar
-                          GestureDetector(
-                            onTap: _isEditing ? _showAvatarPicker : null,
-                            child: Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: const Color(0xFF3784DF),
-                                        width: 2),
+                              // Custom Header
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const SizedBox(
+                                      width: 48), // Balance for centering
+                                  Text(
+                                    _t("profile"),
+                                    style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 50,
-                                    backgroundColor: const Color(0xFF3784DF)
-                                        .withValues(alpha: 0.1),
-                                    backgroundImage: NetworkImage(
-                                        'https://api.dicebear.com/7.x/adventurer/png?seed=$_avatarSeed'),
-                                  ),
-                                ),
-                                if (_isEditing)
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF3784DF),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.edit_rounded,
-                                        size: 20, color: Colors.white),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _userProfile != null &&
-                                    (_userProfile!.firstName.isNotEmpty ||
-                                        _userProfile!.lastName.isNotEmpty)
-                                ? '${_userProfile!.firstName} ${_userProfile!.lastName}'
-                                    .trim()
-                                : "User",
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _userProfile?.email ?? "",
-                            style: TextStyle(fontSize: 14, color: subTextColor),
-                          ),
-                          const SizedBox(height: 32),
-
-                          // Form Fields
-                          Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildTextField(
-                                        controller: _firstNameCtrl,
-                                        label: widget.isTaglish
-                                            ? "Pangalan"
-                                            : "First Name",
-                                        icon: Icons.person_outline,
-                                        isDark: isDark,
-                                        readOnly: !_isEditing,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildTextField(
-                                        controller: _lastNameCtrl,
-                                        label: widget.isTaglish
-                                            ? "Apelyido"
-                                            : "Last Name",
-                                        icon: Icons.person_outline,
-                                        isDark: isDark,
-                                        readOnly: !_isEditing,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  controller: _phoneCtrl,
-                                  label: "Mobile Number",
-                                  icon: Icons.phone_outlined,
-                                  isDark: isDark,
-                                  readOnly: !_isEditing,
-                                  keyboardType: TextInputType.phone,
-                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                ),
-                                const SizedBox(height: 32),
-                                const Divider(),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  controller: _houseNoCtrl,
-                                  label: "House No.",
-                                  icon: Icons.numbers_rounded,
-                                  isDark: isDark,
-                                  readOnly: !_isEditing,
-                                ),
-                                const SizedBox(height: 16),
-                                _buildTextField(
-                                  controller: _streetNameCtrl,
-                                  label: "Street Name",
-                                  icon: Icons.add_road_rounded,
-                                  isDark: isDark,
-                                  readOnly: !_isEditing,
-                                ),
-                                const SizedBox(height: 16),
-                                _buildDropdownField(
-                                  label: "Barangay",
-                                  icon: Icons.map_rounded,
-                                  value: _selectedBarangay,
-                                  items: _marikinaBarangays,
-                                  isDark: isDark,
-                                  readOnly: !_isEditing,
-                                  onChanged: _isEditing
-                                      ? (val) => setState(
-                                          () => _selectedBarangay = val)
-                                      : null,
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildTextField(
-                                        controller: _cityCtrl,
-                                        label: "City",
-                                        icon: Icons.location_city_rounded,
-                                        isDark: isDark,
-                                        readOnly: true,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildTextField(
-                                        controller: _provinceCtrl,
-                                        label: "Province",
-                                        icon: Icons.map_outlined,
-                                        isDark: isDark,
-                                        readOnly: true,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildTextField(
-                                        controller: _zipCodeCtrl,
-                                        label: "ZIP Code",
-                                        icon: Icons.markunread_mailbox_outlined,
-                                        isDark: isDark,
-                                        readOnly: true,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildTextField(
-                                        controller: _countryCtrl,
-                                        label: "Country",
-                                        icon: Icons.public_rounded,
-                                        isDark: isDark,
-                                        readOnly: true,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 40),
-
-                          if (_isEditing)
-                            Container(
-                              width: double.infinity,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF3784DF),
-                                    Color(0xFF2BA7A0)
-                                  ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF3784DF)
-                                        .withValues(alpha: 0.4),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
+                                  if (_userProfile != null)
+                                    IconButton(
+                                      icon: Icon(
+                                          _isEditing
+                                              ? Icons.close_rounded
+                                              : Icons.edit_rounded,
+                                          color: const Color(0xFF3784DF)),
+                                      onPressed: () {
+                                        setState(() {
+                                          if (_isEditing) {
+                                            _loadProfile(); // Revert changes
+                                          }
+                                          _isEditing = !_isEditing;
+                                        });
+                                      },
+                                    )
+                                  else
+                                    const SizedBox(width: 48),
                                 ],
                               ),
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                onPressed: _saveProfile,
-                                icon: const Icon(Icons.save_rounded,
-                                    color: Colors.white),
-                                label: Text(
-                                  widget.isTaglish
-                                      ? "I-save ang Profile"
-                                      : "Save Profile",
-                                  style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white),
+                              const SizedBox(height: 24),
+                              // Avatar
+                              GestureDetector(
+                                onTap: _isEditing ? _showAvatarPicker : null,
+                                child: Stack(
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: const Color(0xFF3784DF),
+                                            width: 2),
+                                      ),
+                                      child: CircleAvatar(
+                                        radius: 50,
+                                        backgroundColor: const Color(0xFF3784DF)
+                                            .withValues(alpha: 0.1),
+                                        backgroundImage: NetworkImage(
+                                            'https://api.dicebear.com/7.x/adventurer/png?seed=$_avatarSeed'),
+                                      ),
+                                    ),
+                                    if (_isEditing)
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF3784DF),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.edit_rounded,
+                                            size: 20, color: Colors.white),
+                                      ),
+                                  ],
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _userProfile != null &&
+                                        (_userProfile!.firstName.isNotEmpty ||
+                                            _userProfile!.lastName.isNotEmpty)
+                                    ? '${_userProfile!.firstName} ${_userProfile!.lastName}'
+                                        .trim()
+                                    : "User",
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _userProfile?.email ?? "",
+                                style: TextStyle(fontSize: 14, color: subTextColor),
+                              ),
+                              const SizedBox(height: 32),
 
-                          if (_isEditing) const SizedBox(height: 16),
+                              // Form Fields
+                              Form(
+                                key: _formKey,
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _firstNameCtrl,
+                                            label: widget.isTaglish
+                                                ? "Pangalan"
+                                                : "First Name",
+                                            icon: Icons.person_outline,
+                                            isDark: isDark,
+                                            readOnly: !_isEditing,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _lastNameCtrl,
+                                            label: widget.isTaglish
+                                                ? "Apelyido"
+                                                : "Last Name",
+                                            icon: Icons.person_outline,
+                                            isDark: isDark,
+                                            readOnly: !_isEditing,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildTextField(
+                                      controller: _phoneCtrl,
+                                      label: "Mobile Number",
+                                      icon: Icons.phone_outlined,
+                                      isDark: isDark,
+                                      readOnly: !_isEditing,
+                                      keyboardType: TextInputType.phone,
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    ),
+                                    const SizedBox(height: 32),
+                                    const Divider(),
+                                    const SizedBox(height: 16),
+                                    _buildTextField(
+                                      controller: _houseNoCtrl,
+                                      label: "House No.",
+                                      icon: Icons.numbers_rounded,
+                                      isDark: isDark,
+                                      readOnly: !_isEditing,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildTextField(
+                                      controller: _streetNameCtrl,
+                                      label: "Street Name",
+                                      icon: Icons.add_road_rounded,
+                                      isDark: isDark,
+                                      readOnly: !_isEditing,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildDropdownField(
+                                      label: "Barangay",
+                                      icon: Icons.map_rounded,
+                                      value: _selectedBarangay,
+                                      items: _marikinaBarangays,
+                                      isDark: isDark,
+                                      readOnly: !_isEditing,
+                                      onChanged: _isEditing
+                                          ? (val) => setState(
+                                              () => _selectedBarangay = val)
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _cityCtrl,
+                                            label: "City",
+                                            icon: Icons.location_city_rounded,
+                                            isDark: isDark,
+                                            readOnly: true,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _provinceCtrl,
+                                            label: "Province",
+                                            icon: Icons.map_outlined,
+                                            isDark: isDark,
+                                            readOnly: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _zipCodeCtrl,
+                                            label: "ZIP Code",
+                                            icon: Icons.markunread_mailbox_outlined,
+                                            isDark: isDark,
+                                            readOnly: true,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _buildTextField(
+                                            controller: _countryCtrl,
+                                            label: "Country",
+                                            icon: Icons.public_rounded,
+                                            isDark: isDark,
+                                            readOnly: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
 
-                          // Logout Button
-                          Container(
-                            width: double.infinity,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: _isEditing
-                                  ? (isDark ? Colors.white10 : Colors.grey[200])
-                                  : Colors.redAccent,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: _isEditing
-                                  ? []
-                                  : [
+                              const SizedBox(height: 40),
+
+                              if (_isEditing)
+                                Container(
+                                  width: double.infinity,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF3784DF),
+                                        Color(0xFF2BA7A0)
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
                                       BoxShadow(
-                                        color:
-                                            Colors.redAccent.withValues(alpha: 0.4),
+                                        color: const Color(0xFF3784DF)
+                                            .withValues(alpha: 0.4),
                                         blurRadius: 12,
                                         offset: const Offset(0, 4),
-                                      )
+                                      ),
                                     ],
-                            ),
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    onPressed: _saveProfile,
+                                    icon: const Icon(Icons.save_rounded,
+                                        color: Colors.white),
+                                    label: Text(
+                                      widget.isTaglish
+                                          ? "I-save ang Profile"
+                                          : "Save Profile",
+                                      style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                    ),
+                                  ),
                                 ),
-                                elevation: 0,
-                              ),
-                              onPressed: _isEditing ? null : _handleLogout,
-                              icon: Icon(
-                                Icons.logout_rounded,
-                                color: _isEditing
-                                    ? (isDark ? Colors.white54 : Colors.grey)
-                                    : Colors.white,
-                              ),
-                              label: Text(
-                                _t("logout"),
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+
+                              if (_isEditing) const SizedBox(height: 16),
+
+                              // Logout Button
+                              Container(
+                                width: double.infinity,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: _isEditing
+                                      ? (isDark ? Colors.white10 : Colors.grey[200])
+                                      : Colors.redAccent,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: _isEditing
+                                      ? []
+                                      : [
+                                          BoxShadow(
+                                            color:
+                                                Colors.redAccent.withValues(alpha: 0.4),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          )
+                                        ],
+                                ),
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: _isEditing ? null : _handleLogout,
+                                  icon: Icon(
+                                    Icons.logout_rounded,
                                     color: _isEditing
-                                        ? (isDark
+                                        ? (isDark ? Colors.white54 : Colors.grey)
+                                        : Colors.white,
+                                  ),
+                                  label: Text(
+                                    _t("logout"),
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: _isEditing
+                                            ? (isDark
+                                                ? Colors.white54
+                                                : Colors.grey)
+                                            : Colors.white),
+                                  ),
+                                ),
+                              ),
+                              if (_isEditing)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12.0),
+                                  child: Text(
+                                    widget.isTaglish
+                                        ? "Kailangan i-save ang profile bago mag-logout."
+                                        : "You must save your profile to logout.",
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark
                                             ? Colors.white54
-                                            : Colors.grey)
-                                        : Colors.white),
-                              ),
-                            ),
+                                            : Colors.grey[600]),
+                                  ),
+                                ),
+                            ],
                           ),
-                          if (_isEditing)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12.0),
-                              child: Text(
-                                widget.isTaglish
-                                    ? "Kailangan i-save ang profile bago mag-logout."
-                                    : "You must save your profile to logout.",
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? Colors.white54
-                                        : Colors.grey[600]),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
                     ),
         ],
@@ -802,21 +832,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       style: TextStyle(
-          color: isDark ? Colors.white : Colors.black87, fontSize: 15),
+        color: isDark ? Colors.white : Colors.black87,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+        overflow: TextOverflow.ellipsis,
+      ),
       validator: (val) => (val == null || val.isEmpty) ? "Required" : null,
       decoration: InputDecoration(
+        isDense: true,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         labelText: label,
-        labelStyle: TextStyle(color: iconColor, fontSize: 14),
-        prefixIcon: Icon(icon, color: iconColor),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
         filled: true,
         fillColor: activeFillColor,
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide(color: defaultBorderColor)),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2)),
       ),
     );
@@ -841,6 +884,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return DropdownButtonFormField<String>(
       initialValue: value,
+      isDense: true,
       icon: readOnly
           ? const SizedBox()
           : null, // Hide dropdown arrow if read-only
@@ -848,11 +892,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       style: TextStyle(
           color: isDark ? Colors.white : Colors.black87, fontSize: 15),
       decoration: InputDecoration(
+        isDense: true,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         labelText: label,
-        labelStyle: TextStyle(color: iconColor, fontSize: 14),
-        prefixIcon: Icon(icon, color: iconColor),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 12, right: 8),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
         filled: true,
         fillColor: activeFillColor,
         enabledBorder: OutlineInputBorder(
