@@ -21,8 +21,8 @@ class Translations {
       "tl": "Madilim na Tema",
     },
     "welcomeTitle": {
-      "en": "Welcome to FloodGuardAI",
-      "tl": "Maligayang Pagdating sa FloodGuardAI",
+      "en": "Welcome to FloodGuard",
+      "tl": "Maligayang Pagdating sa FloodGuard",
     },
     "welcomeDesc": {
       "en": "Your predictive flood mapping and early warning system.",

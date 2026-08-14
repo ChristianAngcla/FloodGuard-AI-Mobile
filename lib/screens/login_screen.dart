@@ -116,27 +116,54 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? 'Ilagay ang iyong rehistradong email address upang mahanap ang iyong account.'
                             : 'Enter your registered email address to locate your account.',
                         style: TextStyle(
-                          fontSize: 13,
-                          color: isDark ? Colors.white70 : Colors.black54,
+                          fontSize: 14,
+                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       TextField(
                         controller: emailCtrl,
                         keyboardType: TextInputType.emailAddress,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 15,
+                        ),
                         decoration: InputDecoration(
                           labelText: widget.isTaglish ? 'Rehistradong Email' : 'Registered Email',
+                          labelStyle: TextStyle(
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                           hintText: 'e.g. user@gmail.com',
-                          prefixIcon: const Icon(Icons.email_rounded),
-                          border: const OutlineInputBorder(),
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(Icons.email_rounded, color: Color(0xFF3784DF)),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
+                          ),
                         ),
                       ),
                     ] else if (currentStep == 1) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF3784DF).withValues(alpha: 0.1),
+                          color: const Color(0xFF3784DF).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF3784DF).withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -150,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white : const Color(0xFF1A2B3C),
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                                 ),
                               ),
                             ),
@@ -161,21 +188,70 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextField(
                         controller: otpCtrl,
                         keyboardType: TextInputType.number,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2.0,
+                        ),
+                        textAlign: TextAlign.center,
                         decoration: InputDecoration(
                           labelText: widget.isTaglish ? '6-Digit SMS OTP' : '6-Digit SMS OTP',
+                          labelStyle: TextStyle(
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0,
+                          ),
                           hintText: '123456',
-                          prefixIcon: const Icon(Icons.pin_rounded),
-                          border: const OutlineInputBorder(),
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontSize: 14,
+                            letterSpacing: 0,
+                          ),
+                          prefixIcon: const Icon(Icons.pin_rounded, color: Color(0xFF3784DF)),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: newPassCtrl,
                         obscureText: true,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 15,
+                        ),
                         decoration: InputDecoration(
                           labelText: widget.isTaglish ? 'Bagong Password' : 'New Password',
-                          prefixIcon: const Icon(Icons.lock_reset_rounded),
-                          border: const OutlineInputBorder(),
+                          labelStyle: TextStyle(
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          prefixIcon: const Icon(Icons.lock_reset_rounded, color: Color(0xFF3784DF)),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
+                          ),
                         ),
                       ),
                     ],
@@ -184,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text(
                         infoMessage!,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: Color(0xFF3784DF),
                           fontWeight: FontWeight.w600,
                         ),

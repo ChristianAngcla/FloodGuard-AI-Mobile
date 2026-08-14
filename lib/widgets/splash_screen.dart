@@ -113,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen>
                 FadeTransition(
                   opacity: _logoFade,
                   child: const Text(
-                    "FloodGuard AI",
+                    "FloodGuard",
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,

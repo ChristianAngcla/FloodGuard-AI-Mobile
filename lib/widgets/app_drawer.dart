@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile_model.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../data/translations.dart';
 import 'wave_background.dart';
 
@@ -67,12 +66,7 @@ class _AppDrawerState extends State<AppDrawer> {
     }
   }
 
-  void _refresh() {
-    _loadProfile();
-    if (mounted) {
-      setState(() {});
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -119,11 +113,9 @@ class _AppDrawerState extends State<AppDrawer> {
                       const SizedBox(height: 8),
 
                       // Dark Mode Toggle
-                      Container(
-                        decoration: BoxDecoration(
-                          color: surfaceColor,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                      Material(
+                        color: surfaceColor,
+                        borderRadius: BorderRadius.circular(16),
                         child: SwitchListTile(
                           title: Text(
                             _t("darkMode"),
@@ -210,7 +202,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   child: Column(
                     children: [
                       Text(
-                        "FloodGuard AI v1.0.0",
+                        "FloodGuard v1.0.0",
                         style: TextStyle(
                           color: textColor.withValues(alpha: 0.5),
                           fontSize: 12,
@@ -255,7 +247,7 @@ class _AppDrawerState extends State<AppDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "FloodGuard AI",
+                  "FloodGuard",
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -407,52 +399,6 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String label,
-    required Color textColor,
-    required Color bgColor,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF3784DF)),
-        title: AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          alignment: Alignment.centerLeft,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            layoutBuilder: (currentChild, previousChildren) {
-              return Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
-              );
-            },
-            child: Text(
-              label,
-              key: ValueKey<String>(label),
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-            ),
-          ),
-        ),
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: textColor.withValues(alpha: 0.3)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        onTap: onTap,
-      ),
-    );
-  }
-
   Widget _buildLanguageOption({
     required String label,
     required bool isSelected,
@@ -483,12 +429,5 @@ class _AppDrawerState extends State<AppDrawer> {
         ),
       ),
     );
-  }
-
-  Future<void> _openLink(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
   }
 }

@@ -1,36 +1,37 @@
 import 'package:flutter/material.dart';
 
-/// Standard, Best-Practice Material 3 Typography Scale for FloodGuard Mobile App.
+/// High-contrast, Accessible Typography Scale for FloodGuard Mobile App.
 class AppTypography {
   AppTypography._();
 
-  // Display Styles (Main Screen Headers - 20px)
+  // Display Styles (Main Screen Headers - 22-24px)
   static const TextStyle displayLarge = TextStyle(
-    fontSize: 22.0,
+    fontSize: 24.0,
     fontWeight: FontWeight.bold,
-    height: 1.2,
+    height: 1.25,
+    letterSpacing: -0.5,
   );
 
   static const TextStyle displayMedium = TextStyle(
-    fontSize: 20.0,
+    fontSize: 21.0,
     fontWeight: FontWeight.bold,
-    height: 1.25,
+    height: 1.3,
   );
 
-  // Headline Styles (Card & Modal Headers - 16-18px)
+  // Headline Styles (Card & Modal Headers - 18-20px)
   static const TextStyle headlineLarge = TextStyle(
-    fontSize: 18.0,
+    fontSize: 19.0,
     fontWeight: FontWeight.bold,
     height: 1.3,
   );
 
   static const TextStyle headlineMedium = TextStyle(
-    fontSize: 16.0,
+    fontSize: 17.0,
     fontWeight: FontWeight.w600,
-    height: 1.3,
+    height: 1.35,
   );
 
-  // Title Styles (Section Titles, List Items - 14-16px)
+  // Title Styles (Section Titles, List Items - 15-16px)
   static const TextStyle titleLarge = TextStyle(
     fontSize: 16.0,
     fontWeight: FontWeight.w600,
@@ -38,56 +39,56 @@ class AppTypography {
   );
 
   static const TextStyle titleMedium = TextStyle(
-    fontSize: 14.0,
+    fontSize: 15.0,
     fontWeight: FontWeight.w600,
     height: 1.35,
   );
 
   static const TextStyle titleSmall = TextStyle(
-    fontSize: 13.0,
+    fontSize: 14.0,
     fontWeight: FontWeight.w600,
     height: 1.4,
   );
 
-  // Body Styles (Standard Form Inputs & Paragraphs - 14px)
+  // Body Styles (Standard Form Inputs & Paragraphs - 15-16px)
   static const TextStyle bodyLarge = TextStyle(
-    fontSize: 15.0,
+    fontSize: 16.0,
     fontWeight: FontWeight.normal,
-    height: 1.4,
+    height: 1.45,
   );
 
   static const TextStyle bodyMedium = TextStyle(
-    fontSize: 14.0, // Standard, usual mobile body & input text (14px)
+    fontSize: 15.0,
+    fontWeight: FontWeight.normal,
+    height: 1.45,
+  );
+
+  static const TextStyle bodySmall = TextStyle(
+    fontSize: 13.0,
     fontWeight: FontWeight.normal,
     height: 1.4,
   );
 
-  static const TextStyle bodySmall = TextStyle(
-    fontSize: 12.0, // Standard small body & subtitles (12px)
-    fontWeight: FontWeight.normal,
-    height: 1.35,
-  );
-
-  // Label Styles (Buttons & Field Labels - 12-14px)
+  // Label Styles (Buttons & Field Labels - 13-16px)
   static const TextStyle labelLarge = TextStyle(
-    fontSize: 14.0, // Standard button text (14px)
+    fontSize: 16.0, // Standard button text
     fontWeight: FontWeight.w600,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   );
 
   static const TextStyle labelMedium = TextStyle(
-    fontSize: 12.0, // Standard field label (12px)
+    fontSize: 13.0, // Field labels
     fontWeight: FontWeight.w500,
     letterSpacing: 0.1,
   );
 
   static const TextStyle labelSmall = TextStyle(
-    fontSize: 11.0, // Standard small label (11px)
+    fontSize: 12.0,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.1,
   );
 
-  /// Material TextTheme mapping
+  /// Material TextTheme mapping with high-contrast baseline
   static TextTheme createTextTheme(Color primaryTextColor, Color secondaryTextColor) {
     return TextTheme(
       displayLarge: displayLarge.copyWith(color: primaryTextColor),

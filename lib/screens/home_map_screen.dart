@@ -54,6 +54,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   late bool _isDarkMode;
   double _currentZoom = 13.0;
   List<Barangay> marikinaBarangays = [];
+  List<Polygon> _cachedStaticPolygons = [];
   Map<String, LatLng> _barangayCenters = {};
   Map<String, FloodData> _barangayData = {};
   String? _hoveredBarangayName;
@@ -204,8 +205,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final target = _barangayCenters[name];
     if (target == null) return;
 
-    final start = _mapController.center;
-    final startZoom = _mapController.zoom;
+    final start = _mapController.camera.center;
+    final startZoom = _mapController.camera.zoom;
     const endZoom = 15.5;
 
     const duration = Duration(milliseconds: 600);
@@ -233,8 +234,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   void _animateCameraReset() {
     final target = LatLng(14.6503, 121.1020); // Marikina center
-    final start = _mapController.center;
-    final startZoom = _mapController.zoom;
+    final start = _mapController.camera.center;
+    final startZoom = _mapController.camera.zoom;
     const endZoom = 13.0;
 
     const duration = Duration(milliseconds: 600);
@@ -270,12 +271,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
     if (permission == LocationPermission.always ||
         permission == LocationPermission.whileInUse) {
+      _positionStream?.cancel();
       _positionStream = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5, // updates every 5 meters
+          accuracy: LocationAccuracy.medium,
+          distanceFilter: 15, // updates every 15 meters for optimal battery/CPU efficiency
         ),
       ).listen((Position position) {
+        if (!mounted) return;
         setState(() {
           _currentLocation = LatLng(
             position.latitude,
@@ -320,13 +323,39 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-  Color _getRiskColor(int risk) {
-    if (risk < 20) return const Color(0xFF4CAF50); // Green (Safe)
-    if (risk < 50) return const Color(0xFFFFC107); // Yellow (Alert)
-    if (risk < 80) {
-      return const Color(0xFFFF9800); // Orange (Prepare to Evacuate)
-    }
-    return const Color(0xFFE53935); // Red (Force Evacuation)
+  List<Polygon> _buildDynamicPolygons() {
+    final double pulse = _pulseAnimation.value;
+    final themeBorderColor = _isDarkMode ? Colors.white : Colors.black;
+    final double baseStroke = _currentZoom < 14.0 ? 2.0 : 3.0;
+
+    return marikinaBarangays.map((b) {
+      final isHovered = b.name == _hoveredBarangayName;
+      final isSelected = b.name == _selectedBarangayName;
+
+      if (isSelected || isHovered) {
+        final double strokeWidth = baseStroke + 2.0 + (pulse * 2.0);
+        final borderColor = themeBorderColor.withValues(
+          alpha: (_isDarkMode ? 0.8 : 0.7) + (pulse * 0.2),
+        );
+        final fillColor = b.polygon.color.withValues(alpha: 0.6);
+
+        return Polygon(
+          points: b.polygon.points,
+          color: fillColor,
+          borderColor: borderColor,
+          borderStrokeWidth: strokeWidth,
+          isFilled: true,
+        );
+      } else {
+        return Polygon(
+          points: b.polygon.points,
+          color: b.polygon.color.withValues(alpha: 0.35),
+          borderColor: themeBorderColor.withValues(alpha: _isDarkMode ? 0.6 : 0.4),
+          borderStrokeWidth: baseStroke,
+          isFilled: true,
+        );
+      }
+    }).toList();
   }
 
   LatLng _calculateCentroid(List<LatLng> points) {
@@ -515,8 +544,21 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         );
       }
 
+      final themeBorderColor = _isDarkMode ? Colors.white : Colors.black;
+      final double baseStroke = _currentZoom < 14.0 ? 2.0 : 3.0;
+      final staticList = loaded.map((b) {
+        return Polygon(
+          points: b.polygon.points,
+          color: b.polygon.color.withValues(alpha: 0.35),
+          borderColor: themeBorderColor.withValues(alpha: _isDarkMode ? 0.6 : 0.4),
+          borderStrokeWidth: baseStroke,
+          isFilled: true,
+        );
+      }).toList();
+
       setState(() {
         marikinaBarangays = loaded;
+        _cachedStaticPolygons = staticList;
         _barangayCenters = centers;
         HomeMapScreen.barangayCenters.clear();
         HomeMapScreen.barangayCenters.addAll(centers);
@@ -983,39 +1025,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     }
   }
 
-  Future<void> _getCurrentLocation() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return;
-      }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      setState(() {
-        _currentLocation = LatLng(
-          position.latitude,
-          position.longitude,
-        );
-      });
-
-      // 👇 Move map to your location
-      _mapController.move(_currentLocation!, 15);
-    } catch (e) {
-      debugPrint("Location error: $e");
-    }
-  }
 
   String t(String key) {
     return Translations.texts[key]?[_isTaglish ? "tl" : "en"] ?? key;
@@ -1063,6 +1073,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       setState(() {
         _selectedBarangayName = null;
       });
+      if (_pulseController.isAnimating) _pulseController.stop();
       _animateCameraReset();
     }
   }
@@ -1387,9 +1398,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               key: ValueKey(_isDarkMode),
                               mapController: _mapController,
                               options: MapOptions(
-                                center: LatLng(
+                                initialCenter: const LatLng(
                                     14.6503, 121.1020), // Marikina center
-                                zoom: 13,
+                                initialZoom: 13,
                                 minZoom: 12,
                                 maxZoom: 18,
                                 onPositionChanged: (position, hasGesture) {
@@ -1508,66 +1519,19 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                     ],
                                   ),
                                 if (marikinaBarangays.isNotEmpty)
-                                  AnimatedBuilder(
-                                    animation: _pulseAnimation,
-                                    builder: (context, _) {
-                                      return PolygonLayer(
-                                    polygons: marikinaBarangays.map((b) {
-                                      final isHovered =
-                                          b.name == _hoveredBarangayName;
-                                      final isSelected =
-                                          b.name == _selectedBarangayName;
-
-                                      // 🎨 Dynamic Border Color (Black & White)
-                                      final themeBorderColor = _isDarkMode
-                                          ? Colors.white
-                                          : Colors.black;
-
-                                      // 🌊 Animation Value (0.0 to 1.0)
-                                      final double pulse =
-                                          _pulseAnimation.value;
-
-                                      // Dynamic styling based on zoom
-                                      final double baseStroke =
-                                          _currentZoom < 14.0
-                                              ? 2.0
-                                              : 3.0; // Thicker base
-
-                                      double strokeWidth = baseStroke;
-                                      Color borderColor = themeBorderColor
-                                          .withValues(alpha: _isDarkMode
-                                              ? 0.6
-                                              : 0.4); // More visible default
-                                      Color fillColor =
-                                          b.polygon.color.withValues(alpha: 0.35);
-
-                                      if (isSelected || isHovered) {
-                                        // ✨ Active State: Strong Pulse & Thicker Line
-                                        strokeWidth += 2.0 +
-                                            (pulse *
-                                                2.0); // Breaths 2px-4px extra
-                                        borderColor =
-                                            themeBorderColor.withValues(
-                                                alpha: (_isDarkMode ? 0.8 : 0.7) +
-                                                    (pulse * 0.2));
-                                        fillColor =
-                                            b.polygon.color.withValues(alpha: 0.6);
-                                      } else {
-                                        // 💤 Idle State: Breathing Animation
-                                        strokeWidth += (pulse * 1.5);
-                                      }
-
-                                      return Polygon(
-                                        points: b.polygon.points,
-                                        color: fillColor,
-                                        borderColor: borderColor,
-                                        borderStrokeWidth: strokeWidth,
-                                        isFilled: true,
-                                      );
-                                    }).toList(),
-                                  );
-                                    },
-                                  ),
+                                  (_selectedBarangayName != null ||
+                                          _hoveredBarangayName != null)
+                                      ? AnimatedBuilder(
+                                          animation: _pulseAnimation,
+                                          builder: (context, _) => PolygonLayer(
+                                            polygons: _buildDynamicPolygons(),
+                                          ),
+                                        )
+                                      : PolygonLayer(
+                                          polygons: _cachedStaticPolygons.isNotEmpty
+                                              ? _cachedStaticPolygons
+                                              : _buildDynamicPolygons(),
+                                        ),
                                 if (marikinaBarangays.isNotEmpty)
                                   MarkerLayer(
                                     markers:
@@ -2166,7 +2130,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             } else {
               setState(() => _currentTabIndex = index);
               if (index == 1) {
-                if (!_pulseController.isAnimating) {
+                if ((_selectedBarangayName != null || _hoveredBarangayName != null) &&
+                    !_pulseController.isAnimating) {
                   _pulseController.repeat(reverse: true);
                 }
               } else if (_pulseController.isAnimating) {

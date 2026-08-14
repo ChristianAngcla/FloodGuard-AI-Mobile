@@ -4,10 +4,15 @@ import 'package:floodguard_ai/main.dart';
 import 'package:floodguard_ai/screens/login_screen.dart';
 import 'package:floodguard_ai/screens/signup_screen.dart';
 import 'package:floodguard_ai/screens/profile_screen.dart';
+import 'package:floodguard_ai/widgets/multistep_report_sheet.dart';
+import 'package:floodguard_ai/widgets/app_drawer.dart';
+import 'package:floodguard_ai/widgets/splash_screen.dart';
 import 'package:floodguard_ai/data/translations.dart';
+import 'package:floodguard_ai/theme/app_theme.dart';
+import 'package:floodguard_ai/theme/app_typography.dart';
 
 void main() {
-  group('♿ 1. ACCESSIBILITY AUDIT BENCHMARKS', () {
+  group('♿ 1. ACCESSIBILITY & CONTRAST BENCHMARKS', () {
     testWidgets('Touch target size meets Android 48x48dp guideline', (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -56,9 +61,123 @@ void main() {
         expect(Translations.texts[k]?['tl'], isNotNull, reason: 'Key $k missing Taglish');
       }
     });
+
+    test('Theme ColorScheme and Typography Contrast Check', () {
+      final lightTheme = AppTheme.lightTheme();
+      final darkTheme = AppTheme.darkTheme();
+
+      expect(lightTheme.colorScheme.surface, equals(AppTheme.lightBg));
+      expect(darkTheme.colorScheme.surface, equals(AppTheme.darkBg));
+      expect(AppTypography.bodyLarge.fontSize, greaterThanOrEqualTo(15.0));
+      expect(AppTypography.labelLarge.fontSize, greaterThanOrEqualTo(15.0));
+    });
   });
 
-  group('⚡ 2. SPEED & RENDER PERFORMANCE BENCHMARKS', () {
+  group('🔒 2. BUG A: REQUIRED OPTION SELECTION VALIDATION', () {
+    testWidgets('MultistepReportSheet blocks proceeding without selecting required barangay', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MultistepReportSheet(
+              isTaglish: false,
+              isDarkMode: false,
+              onSuccess: () {},
+              onSafe: () {},
+              onUnsafe: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final nextButton = find.text('Next');
+      expect(nextButton, findsOneWidget);
+
+      await tester.tap(nextButton);
+      await tester.pump();
+
+      expect(find.text('Please select an option to continue.'), findsOneWidget);
+    });
+
+    testWidgets('MultistepReportSheet Taglish validation message displays properly', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MultistepReportSheet(
+              isTaglish: true,
+              isDarkMode: false,
+              onSuccess: () {},
+              onSafe: () {},
+              onUnsafe: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final nextButton = find.text('Susunod');
+      expect(nextButton, findsOneWidget);
+
+      await tester.tap(nextButton);
+      await tester.pump();
+
+      expect(find.text('Pakipili ang isang opsyon upang magpatuloy.'), findsOneWidget);
+    });
+  });
+
+  group('🏷️ 3. BUG H: USER-VISIBLE BRANDING AUDIT', () {
+    test('Translations welcomeTitle does not contain AI suffix', () {
+      final enTitle = Translations.texts['welcomeTitle']?['en'];
+      final tlTitle = Translations.texts['welcomeTitle']?['tl'];
+
+      expect(enTitle, equals('Welcome to FloodGuard'));
+      expect(tlTitle, equals('Maligayang Pagdating sa FloodGuard'));
+      expect(enTitle?.contains('FloodGuardAI'), isFalse);
+      expect(tlTitle?.contains('FloodGuardAI'), isFalse);
+    });
+
+    testWidgets('AppDrawer header displays "FloodGuard" without AI suffix', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            drawer: AppDrawer(
+              isDarkMode: false,
+              isTaglish: false,
+              onToggleDarkMode: (_) {},
+              onToggleLanguage: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final ScaffoldState state = tester.firstState(find.byType(Scaffold));
+      state.openDrawer();
+      await tester.pumpAndSettle();
+
+      expect(find.text('FloodGuard'), findsWidgets);
+      expect(find.text('FloodGuard AI'), findsNothing);
+      expect(find.text('FloodGuard v1.0.0'), findsOneWidget);
+    });
+
+    testWidgets('SplashScreen displays "FloodGuard" title', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SplashScreen(
+            onFinished: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('FloodGuard'), findsOneWidget);
+      expect(find.text('FloodGuard AI'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 4));
+    });
+  });
+
+  group('⚡ 4. SPEED & RENDER PERFORMANCE BENCHMARKS', () {
     testWidgets('Cold App Startup & Initial Render Latency', (WidgetTester tester) async {
       final Stopwatch stopwatch = Stopwatch()..start();
       await tester.pumpWidget(const FloodGuardApp(
@@ -102,7 +221,7 @@ void main() {
     });
   });
 
-  group('🧠 3. RAM & MEMORY LEAK AUDIT BENCHMARKS', () {
+  group('🧠 5. RAM & MEMORY LEAK AUDIT BENCHMARKS', () {
     testWidgets('LoginScreen Controller Disposal & Memory Leak Audit', (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -111,7 +230,6 @@ void main() {
       );
       await tester.pump();
 
-      // Unmount screen to verify zero controller memory leaks
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
 
@@ -131,7 +249,6 @@ void main() {
       );
       await tester.pump();
 
-      // Unmount screen
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
 

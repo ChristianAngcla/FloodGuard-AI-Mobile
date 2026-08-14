@@ -211,7 +211,7 @@ class FloodApiService {
   ///   { more barangays... }
   /// ]
   ///
-  /// Returns: Map<barangay_name, FloodData>
+  /// Returns: `Map<String, FloodData>`
   /// Used by: HomeMapScreen to populate entire map with real data
   static Future<Map<String, FloodData>> getAllBarangayFloodData(
       {bool forceRefresh = false}) async {

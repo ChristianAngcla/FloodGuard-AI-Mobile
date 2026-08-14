@@ -83,25 +83,33 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     // Validation
     if (_currentStep == 0 && _selectedBarangay == null) {
       _showError(widget.isTaglish
-          ? "Pakipili ang iyong Barangay"
-          : "Please select a Barangay");
+          ? "Pakipili ang isang opsyon upang magpatuloy."
+          : "Please select an option to continue.");
       return;
     }
     if (_currentStep == 1 && (_isRaining == null || _floodLevel == null)) {
       _showError(widget.isTaglish
-          ? "Pakisagot ang lahat ng tanong"
-          : "Please answer all questions");
+          ? "Pakipili ang lahat ng kailangang opsyon upang magpatuloy."
+          : "Please select all required options to continue.");
       return;
     }
     if (_currentStep == 2 && _isSafe == null) {
       _showError(widget.isTaglish
-          ? "Pakisabi kung ikaw ay ligtas"
-          : "Please indicate if you are safe");
+          ? "Pakipili ang isang opsyon upang magpatuloy."
+          : "Please select an option to continue.");
       return;
     }
     if (_currentStep == 3) {
+      if (_isSafe == false && (_helpNeeded == null || _helpNeeded!.isEmpty)) {
+        _showError(widget.isTaglish
+            ? "Pakipili ang isang opsyon upang magpatuloy."
+            : "Please select an option to continue.");
+        return;
+      }
       if (!_agreedToLegal) {
-        _showError(widget.isTaglish ? "Kailangan mong sumang-ayon sa legal na babala" : "You must agree to the legal warning");
+        _showError(widget.isTaglish
+            ? "Kailangan mong sumang-ayon sa emergency notice upang magpatuloy."
+            : "Please agree to the emergency notice to continue.");
         return;
       }
     }
@@ -184,7 +192,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     if (_selectedBarangay != null) {
       final floodData = await FloodApiService.getBarangayFloodData(_selectedBarangay!);
       if (floodData != null && floodData.riskLevel >= 40) {
-        reportStatus = 'verified'; // Auto-verify if AI risk >= 40%
+        reportStatus = 'verified'; // Auto-verify if predicted flood risk >= 40%
       }
     }
 
@@ -643,7 +651,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           if (needsHelp) ...[
             const SizedBox(height: 24),
             DropdownButtonFormField<String>(
-              value: _helpNeeded,
+              initialValue: _helpNeeded,
               dropdownColor: bgColor,
               style: TextStyle(color: textColor, fontSize: 15),
               decoration: _inputDecoration(

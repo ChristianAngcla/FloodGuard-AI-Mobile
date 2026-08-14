@@ -63,6 +63,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isOtpVerified = false;
 
   String? _verificationId;
+  String? _sentPhoneNumber;
   int? _forceResendingToken;
   bool _isSendingOtp = false;
   bool _isVerifyingOtp = false;
@@ -150,6 +151,7 @@ class _SignupScreenState extends State<SignupScreen> {
     // Ensure proper +63 format regardless of whether they typed a leading 0
     if (phone.startsWith('0')) phone = phone.substring(1);
     phone = '+63$phone';
+    _sentPhoneNumber = phone;
 
     setState(() {
       _isSendingOtp = true;
@@ -355,7 +357,24 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     } else if (_currentStep == 1) {
       if (_step1Key.currentState!.validate()) {
-        _sendOtp(); // Initiates OTP Firebase Auth Flow & handles moving forward!
+        String phone = _phoneCtrl.text.trim();
+        if (phone.startsWith('0')) phone = phone.substring(1);
+        phone = '+63$phone';
+
+        if (_verificationId != null && _sentPhoneNumber == phone) {
+          // Returning to OTP step with existing valid session and unchanged phone:
+          // Proceed to Step 2 without duplicate SMS send or cooldown stall.
+          setState(() => _currentStep = 2);
+        } else {
+          // If phone number changed, invalidate old session
+          if (_sentPhoneNumber != null && _sentPhoneNumber != phone) {
+            _verificationId = null;
+            _isOtpVerified = false;
+            _forceResendingToken = null;
+            _otpCtrl.clear();
+          }
+          _sendOtp(); // Initiates OTP Firebase Auth Flow & handles moving forward!
+        }
       }
     } else if (_currentStep == 2) {
       if (_step2Key.currentState!.validate()) _handleSignup();
@@ -1187,12 +1206,16 @@ class _SignupScreenState extends State<SignupScreen> {
         isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       isDense: true,
       dropdownColor: isDark ? const Color(0xFF1A2B3C) : Colors.white,
       style: TextStyle(
           color: isDark ? Colors.white : Colors.black87, fontSize: 15),
-      validator: (val) => (val == null || val.isEmpty) ? "Required" : null,
+      validator: (val) => (val == null || val.isEmpty)
+          ? (widget.isTaglish
+              ? "Pakipili ang isang opsyon upang magpatuloy."
+              : "Please select an option to continue.")
+          : null,
       decoration: InputDecoration(
         isDense: true,
         contentPadding:

@@ -237,21 +237,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Re-subscribe FCM to the new barangay for live emergency alerts!
       NotificationService.subscribeToBarangay(barangay);
 
-      setState(() {
-        _isEditing = false;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isEditing = false;
+          _isLoading = false;
+        });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(widget.isTaglish
-              ? "Na-save ang profile!"
-              : "Profile updated successfully!"),
-          backgroundColor: Colors.green,
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.isTaglish
+                ? "Na-save ang profile!"
+                : "Profile updated successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-      _loadProfile();
+        _loadProfile();
+      }
     }
   }
 
@@ -356,118 +358,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDarkMode;
-    final bgColor = isDark ? const Color(0xFF1A2B3C) : const Color(0xFFF5F7FA);
-    final textColor = isDark ? Colors.white : const Color(0xFF1A2B3C);
-    final subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final bgColor = isDark ? const Color(0xFF1A2B3C) : const Color(0xFFF8F9FA);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subTextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
 
     return Container(
       color: bgColor,
       child: Stack(
         children: [
           WaveBackground(isDarkMode: isDark),
-          _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF3784DF)))
-              : _userProfile == null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_off_rounded,
-                              size: 80, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            widget.isTaglish
-                                ? "Mag-login upang makita ang iyong profile"
-                                : "Log in to view your profile",
-                            style: TextStyle(color: subTextColor),
-                          ),
-                          const SizedBox(height: 32),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 48),
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF3784DF),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => LoginScreen(
-                                            isTaglish: widget.isTaglish,
-                                            isDarkMode: widget.isDarkMode,
-                                          ),
-                                        ),
-                                      ).then((_) => _loadProfile());
-                                    },
-                                    child: Text(
-                                      widget.isTaglish ? "Mag-login" : "Log In",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: const Color(0xFF3784DF),
-                                      side: const BorderSide(
-                                          color: Color(0xFF3784DF), width: 2),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => SignupScreen(
-                                            isTaglish: widget.isTaglish,
-                                            isDarkMode: widget.isDarkMode,
-                                          ),
-                                        ),
-                                      ).then((_) => _loadProfile());
-                                    },
-                                    child: Text(
-                                      widget.isTaglish
-                                          ? "Gumawa ng Account"
-                                          : "Sign Up",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+          SafeArea(
+            bottom: false,
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF3784DF)))
+                : _userProfile == null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.person_off_rounded,
+                                size: 80, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              widget.isTaglish
+                                  ? "Mag-login upang makita ang iyong profile"
+                                  : "Log in to view your profile",
+                              style: TextStyle(color: subTextColor),
                             ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.only(
-                          top: 40, bottom: 140, left: 24, right: 24),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 520),
+                            const SizedBox(height: 32),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 48),
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF3784DF),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => LoginScreen(
+                                              isTaglish: widget.isTaglish,
+                                              isDarkMode: widget.isDarkMode,
+                                            ),
+                                          ),
+                                        ).then((_) => _loadProfile());
+                                      },
+                                      child: Text(
+                                        widget.isTaglish ? "Mag-login" : "Log In",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: const Color(0xFF3784DF),
+                                        side: const BorderSide(
+                                            color: Color(0xFF3784DF), width: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => SignupScreen(
+                                              isTaglish: widget.isTaglish,
+                                              isDarkMode: widget.isDarkMode,
+                                            ),
+                                          ),
+                                        ).then((_) => _loadProfile());
+                                      },
+                                      child: Text(
+                                        widget.isTaglish
+                                            ? "Gumawa ng Account"
+                                            : "Sign Up",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.only(
+                            top: 16, bottom: 140, left: 24, right: 24),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -804,6 +808,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ),
+          ),
         ],
       ),
     );
