@@ -117,7 +117,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _userProfile = profile;
             _firstNameCtrl.text = profile.firstName;
             _lastNameCtrl.text = profile.lastName;
-            _phoneCtrl.text = profile.phone;
+            String rawPhone = profile.phone.trim();
+            if (rawPhone.startsWith('+63')) {
+              rawPhone = '0${rawPhone.substring(3)}';
+            } else if (rawPhone.startsWith('63') && rawPhone.length == 12) {
+              rawPhone = '0${rawPhone.substring(2)}';
+            }
+            _phoneCtrl.text = rawPhone;
 
             final safeEmail = profile.email.trim().toLowerCase();
             _houseNoCtrl.text = profile.houseNo.isNotEmpty
@@ -157,6 +163,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final phone = _phoneCtrl.text.trim();
+    if (!RegExp(r'^09\d{9}$').hasMatch(phone)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.isTaglish
+                  ? "Maglagay ng wastong 11-digit mobile number na nagsisimula sa 09."
+                  : "Enter a valid 11-digit mobile number starting with 09.",
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
     final uid = await AuthService().getEffectiveUid() ?? _userProfile?.uid ?? 'anon_user';
@@ -172,7 +195,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final formattedFirstName = capitalize(_firstNameCtrl.text.trim());
     final formattedLastName = capitalize(_lastNameCtrl.text.trim());
     final barangay = _selectedBarangay ?? "Nangka";
-    final phone = _phoneCtrl.text.trim();
     final houseNo = _houseNoCtrl.text.trim();
     final streetName = _streetNameCtrl.text.trim();
     final city = _cityCtrl.text.trim().isEmpty ? "Marikina City" : _cityCtrl.text.trim();
@@ -605,7 +627,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       isDark: isDark,
                                       readOnly: !_isEditing,
                                       keyboardType: TextInputType.phone,
-                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                      maxLength: 11,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(11),
+                                      ],
+                                      validator: (val) {
+                                        if (val == null || val.trim().isEmpty) {
+                                          return "Required";
+                                        }
+                                        final clean = val.trim();
+                                        if (!RegExp(r'^09\d{9}$').hasMatch(clean)) {
+                                          return widget.isTaglish
+                                              ? "Maglagay ng wastong 11-digit mobile number na nagsisimula sa 09."
+                                              : "Enter a valid 11-digit mobile number starting with 09.";
+                                        }
+                                        return null;
+                                      },
                                     ),
                                     const SizedBox(height: 32),
                                     const Divider(),
@@ -822,6 +860,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool readOnly = false,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+    int? maxLength,
   }) {
     final fillColor =
         isDark ? const Color(0xFF253B50) : const Color(0xFFF4F9FF);
@@ -836,15 +876,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       readOnly: readOnly,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
+      maxLength: maxLength,
       style: TextStyle(
         color: isDark ? Colors.white : Colors.black87,
         fontSize: 15,
         fontWeight: FontWeight.w400,
         overflow: TextOverflow.ellipsis,
       ),
-      validator: (val) => (val == null || val.isEmpty) ? "Required" : null,
+      validator: validator ?? ((val) => (val == null || val.isEmpty) ? "Required" : null),
       decoration: InputDecoration(
         isDense: true,
+        counterText: "",
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         labelText: label,
@@ -866,6 +908,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2)),
+        errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+        focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 2)),
+        errorStyle: const TextStyle(
+          color: Colors.redAccent,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }

@@ -1,0 +1,11 @@
+﻿============================================================
+FLOODGUARD TRUE ANDROID 15 / API 35 ENVIRONMENT SPECIFICATION
+============================================================
+OS Build Release (ro.build.version.release): 15
+SDK API Level    (ro.build.version.sdk):     35
+Device Model     (ro.product.model):         sdk_gphone16k_x86_64
+CPU Architecture (ro.product.cpu.abi):       x86_64
+Memory Page Size (getconf PAGE_SIZE):        16384 bytes
+Navigation Mode  (navigation_mode):           (2 = Full Gesture Navigation)
+Emulator AVD Name:                           Android15_API35_16k
+Target Framework:                            Android 15.0 VanillaIceCream (16 KB Page-Size Native)

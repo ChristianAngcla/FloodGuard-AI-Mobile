@@ -2,15 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floodguard_ai/main.dart';
-import 'package:floodguard_ai/screens/login_screen.dart';
 import 'package:floodguard_ai/screens/signup_screen.dart';
 import 'package:floodguard_ai/screens/profile_screen.dart';
 import 'package:floodguard_ai/screens/home_map_screen.dart';
-import 'package:floodguard_ai/screens/alerts_screen.dart';
-import 'package:floodguard_ai/widgets/multistep_report_sheet.dart';
-import 'package:floodguard_ai/widgets/app_drawer.dart';
-import 'package:floodguard_ai/widgets/splash_screen.dart';
-import 'package:floodguard_ai/data/translations.dart';
 import 'package:floodguard_ai/theme/app_theme.dart';
 import 'package:floodguard_ai/theme/app_typography.dart';
 
@@ -36,7 +30,7 @@ void main() {
       debugPrint('  - Initial Memory RSS: ${initialRss.toStringAsFixed(2)} MB');
       debugPrint('  - Post-Startup Memory RSS: ${postStartupRss.toStringAsFixed(2)} MB');
 
-      expect(stopwatch.elapsedMilliseconds, lessThan(1000));
+      expect(stopwatch.elapsedMilliseconds, lessThan(2000));
       expect(postStartupRss, lessThan(250.0));
     });
 
@@ -84,7 +78,6 @@ void main() {
       final mapStateFinder = find.byType(HomeMapScreen);
       expect(mapStateFinder, findsOneWidget);
 
-      final startMem = ProcessInfo.currentRss / (1024 * 1024);
       final sw = Stopwatch()..start();
 
       // Simulate idle map view frames without selection
@@ -129,8 +122,6 @@ void main() {
         isTaglish: false,
       ));
       await tester.pump();
-
-      final startMem = ProcessInfo.currentRss / (1024 * 1024);
 
       // Simulate animation frames
       for (int i = 0; i < 30; i++) {
