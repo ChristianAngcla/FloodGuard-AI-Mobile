@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../utils/station_thresholds.dart';
 
 /// 🌊 Flood Data Model - One barangay's current live flood monitoring information,
 /// sourced from live sensor telemetry (/api/status.live_sensors).
@@ -278,33 +279,21 @@ class FloodApiService {
                 (liveVal is num) ? liveVal.toDouble() : null;
 
             final riverData = rivers?[sensorKey] as Map<String, dynamic>?;
-            final thresholds =
-                riverData?['thresholds'] as Map<String, dynamic>? ?? {};
-            final double maxWaterLevel =
-                (thresholds['critical'] ?? 20.0).toDouble();
+            final thr = StationThresholds.fromApiOrDefault(sensorKey, riverData);
+            final double maxWaterLevel = thr.critical;
 
             // Live status is computed strictly from liveWaterLevel vs station thresholds
             String status = 'unavailable';
             int riskLevel = 0;
 
             if (liveWaterLevel != null) {
-              final double alertThr =
-                  (thresholds['alert'] ?? (sensorKey == 'nangka' ? 16.5 : 15.0))
-                      .toDouble();
-              final double alarmThr =
-                  (thresholds['alarm'] ?? (sensorKey == 'nangka' ? 17.1 : 16.0))
-                      .toDouble();
-              final double critThr =
-                  (thresholds['critical'] ?? (sensorKey == 'nangka' ? 17.7 : 17.0))
-                      .toDouble();
-
-              if (liveWaterLevel >= critThr) {
+              if (liveWaterLevel >= thr.critical) {
                 status = 'critical';
                 riskLevel = 90;
-              } else if (liveWaterLevel >= alarmThr) {
+              } else if (liveWaterLevel >= thr.alarm) {
                 status = 'warning';
                 riskLevel = 75;
-              } else if (liveWaterLevel >= alertThr) {
+              } else if (liveWaterLevel >= thr.alert) {
                 status = 'alert';
                 riskLevel = 60;
               } else {
