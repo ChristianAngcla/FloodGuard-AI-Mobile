@@ -3,7 +3,6 @@ import 'package:latlong2/latlong.dart';
 import 'home_map_screen.dart';
 import '../widgets/weather_card.dart';
 import '../services/flood_api_service.dart';
-import '../utils/station_thresholds.dart';
 
 /// Live river-station assessment bottom sheet.
 /// Shows: barangay dropdown (associated station), predicted peak with status gauge,
@@ -31,48 +30,24 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   void initState() {
     super.initState();
     _selectedBarangay = widget.barangayName;
+    FloodApiService.fetchDailyForecasts().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
-  StationThresholds get _thr =>
-      StationThresholds.fromApiOrDefault(_sensorKey, _riverData);
-
-  Color _alarmColor(double level) {
-    final s = _thr.statusFor(level);
-    switch (s) {
-      case ColorStatus.critical:
+  Color _statusBandColor(String? statusBand) {
+    switch (statusBand?.toUpperCase()) {
+      case 'CRITICAL':
         return const Color(0xFFD32F2F);
-      case ColorStatus.warning:
+      case 'ALARM':
+      case 'WARNING':
         return const Color(0xFFFF9800);
-      case ColorStatus.alert:
+      case 'ALERT':
         return const Color(0xFFFBC02D);
-      case ColorStatus.safe:
+      case 'SAFE':
         return const Color(0xFF4CAF50);
-    }
-  }
-
-  String _alarmLabel(double level) {
-    switch (_thr.statusFor(level)) {
-      case ColorStatus.critical:
-        return 'CRITICAL';
-      case ColorStatus.warning:
-        return 'WARNING';
-      case ColorStatus.alert:
-        return 'ALERT';
-      case ColorStatus.safe:
-        return 'NORMAL — SAFE';
-    }
-  }
-
-  String _alarmShortLabel(double level) {
-    switch (_thr.statusFor(level)) {
-      case ColorStatus.critical:
-        return 'CRITICAL';
-      case ColorStatus.warning:
-        return 'WARNING';
-      case ColorStatus.alert:
-        return 'ALERT';
-      case ColorStatus.safe:
-        return 'SAFE';
+      default:
+        return const Color(0xFF64748B);
     }
   }
 
@@ -84,45 +59,16 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   String get _sensorDisplayName =>
       FloodApiService.sensorDisplayNames[_sensorKey] ?? 'Unknown River';
 
-  Map<String, dynamic>? get _riverData {
+  double? get _currentWaterLevel {
     final full = FloodApiService.getFullPredictionData();
     if (full == null) return null;
-    final rivers = full['prediction']?['rivers'] as Map<String, dynamic>?;
-    return rivers?[_sensorKey] as Map<String, dynamic>?;
-  }
-
-  List<dynamic>? get _timeline {
-    final full = FloodApiService.getFullPredictionData();
-    if (full == null) return null;
-    return full['prediction']?['timeline'] as List<dynamic>?;
-  }
-
-  double get _currentWaterLevel {
-    final full = FloodApiService.getFullPredictionData();
-    if (full == null) return 0.0;
     final sensors = full['live_sensors'] as Map<String, dynamic>?;
-    return (sensors?[_sensorKey] ?? 0.0).toDouble();
+    final val = sensors?[_sensorKey];
+    return (val is num) ? val.toDouble() : null;
   }
 
-  double get _peakLevel {
-    final insights = _riverData?['time_series_insights'];
-    if (insights == null) return _currentWaterLevel;
-    return (insights['peak_predicted_level'] ?? _currentWaterLevel).toDouble();
-  }
-
-  String get _peakTime {
-    final insights = _riverData?['time_series_insights'];
-    if (insights == null) return '--';
-    return insights['peak_expected_time']?.toString() ?? '--';
-  }
-
-  String get _peakTimeShort {
-    // Extracts time portion: "May 06, 12 PM" → "12 PM"
-    final full = _peakTime;
-    final parts = full.split(', ');
-    if (parts.length >= 2) return parts.last;
-    return full;
-  }
+  DailyForecastItem? get _dailyForecast =>
+      FloodApiService.getDailyForecastForBarangay(_selectedBarangay);
 
   // ── Build ──────────────────────────────────────────────────────
 
@@ -265,31 +211,6 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   _buildForecastCard(textColor, subColor),
                   const SizedBox(height: 28),
 
-                  // ── 24-Hour Timeline ──
-                  Text(
-                    widget.isTaglish
-                        ? '24-Oras na Landas ng Antas ng Ilog'
-                        : '24-Hour River Level Path',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.isTaglish
-                        ? 'Interpolation mula sa kasalukuyang antas patungo sa isang hakbang na OLS prediksyon (hindi 24 na hiwalay na forecast).'
-                        : 'Interpolation from current level to the one-step OLS prediction (not 24 separate forecasts).',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: widget.isDarkMode ? Colors.white60 : Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTimeline(textColor, subColor),
-                  const SizedBox(height: 28),
-
                   // ── Close button ──
                   SizedBox(
                     width: double.infinity,
@@ -329,9 +250,11 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   // ── Forecast Card ──────────────────────────────────────────────
 
   Widget _buildForecastCard(Color textColor, Color? subColor) {
-    final peak = _peakLevel;
-    final color = _alarmColor(peak);
-    final label = _alarmLabel(peak);
+    final daily = _dailyForecast;
+    final isTumana = _sensorKey == 'tumana';
+    final hasForecast = daily != null && !daily.isUnavailable;
+    final forecastLevel = daily?.predictedWaterLevel ?? 0.0;
+    final currentLevel = _currentWaterLevel;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -352,435 +275,331 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Peak + Status badge row ──
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left: projected peak
-              Expanded(
-                child: Column(
+          // ── CARD 1: CURRENT LIVE OBSERVED ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: widget.isDarkMode
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PROJECTED PEAK (@ ${_peakTimeShort.toUpperCase()})',
+                      widget.isTaglish
+                          ? 'KASALUKUYANG ANTAS (LIVE)'
+                          : 'CURRENT OBSERVED LEVEL (LIVE)',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                         color: subColor,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: peak.toStringAsFixed(2),
-                            style: TextStyle(
-                              fontSize: 38,
-                              fontWeight: FontWeight.w900,
-                              color: color,
-                              height: 1.1,
+                    const SizedBox(height: 4),
+                    if (currentLevel != null)
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: currentLevel.toStringAsFixed(2),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: textColor,
+                              ),
                             ),
-                          ),
-                          TextSpan(
-                            text: 'm',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: color.withValues(alpha: 0.7),
+                            TextSpan(
+                              text: ' m',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: subColor,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      )
+                    else
+                      Text(
+                        widget.isTaglish ? 'Walang Data' : 'Unavailable',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: subColor,
+                        ),
+                      ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _sensorDisplayName,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: subColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Live FFWS Telemetry',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: widget.isDarkMode ? Colors.white38 : Colors.grey[500],
                       ),
                     ),
                   ],
                 ),
-              ),
-              // Right: status badge + river name
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── CARD 2: DAILY FORECAST HEADER & TARGET ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
               Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: color.withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                        letterSpacing: 0.3,
-                      ),
+                  Text(
+                    widget.isTaglish
+                        ? 'ARAW-ARAW NA PAGTATAYA'
+                        : 'DAILY FORECAST',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF0369A1),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 2),
                   Text(
-                    _sensorDisplayName,
+                    daily?.forecastTargetDate != null && daily!.forecastTargetDate.isNotEmpty
+                        ? (widget.isTaglish
+                            ? 'Para sa ${daily.forecastTargetDate}'
+                            : 'For ${daily.forecastTargetDate}')
+                        : (widget.isTaglish ? 'Susunod na Araw' : 'Next Calendar Day'),
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                       color: subColor,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // ── Alarm Gauge Bar ──
-          _buildAlarmGauge(peak),
-          const SizedBox(height: 16),
-
-          // ── Legend ──
-          _buildGaugeLegend(),
-        ],
-      ),
-    );
-  }
-
-  // ── Alarm Gauge (station-specific PAGASA thresholds) ───────────
-
-  Widget _buildAlarmGauge(double currentLevel) {
-    final thr = _thr;
-    const gaugeMin = 0.0;
-    final gaugeMax = thr.gaugeMax;
-    final clamped = currentLevel.clamp(gaugeMin, gaugeMax);
-    final ratio = (clamped - gaugeMin) / (gaugeMax - gaugeMin);
-
-    final alertPos = (thr.alert - gaugeMin) / (gaugeMax - gaugeMin);
-    final alarmPos = (thr.alarm - gaugeMin) / (gaugeMax - gaugeMin);
-    final critPos = (thr.critical - gaugeMin) / (gaugeMax - gaugeMin);
-
-    String fmt(double m) =>
-        '${m.toStringAsFixed(m == m.roundToDouble() ? 0 : 2)}m';
-
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? Colors.white.withValues(alpha: 0.06)
-                : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$_sensorDisplayName thresholds (EL.m)',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: widget.isDarkMode ? Colors.white70 : Colors.grey[700],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: daily?.calculationMode == 'primary_model'
+                      ? const Color(0xFFDBEAFE)
+                      : (daily?.calculationMode == 'persistence_fallback'
+                          ? const Color(0xFFFEF3C7)
+                          : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: daily?.calculationMode == 'primary_model'
+                        ? const Color(0xFF93C5FD)
+                        : (daily?.calculationMode == 'persistence_fallback'
+                            ? const Color(0xFFFDE68A)
+                            : const Color(0xFFCBD5E1)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _thrChip('Current', currentLevel.toStringAsFixed(2),
-                      _alarmColor(currentLevel)),
-                  const SizedBox(width: 8),
-                  _thrChip('Alert', thr.alert.toStringAsFixed(2),
-                      const Color(0xFFFBC02D)),
-                  const SizedBox(width: 8),
-                  _thrChip('Warning', thr.alarm.toStringAsFixed(2),
-                      const Color(0xFFFF9800)),
-                  const SizedBox(width: 8),
-                  _thrChip('Critical', thr.critical.toStringAsFixed(2),
-                      const Color(0xFFD32F2F)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 28,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final w = constraints.maxWidth;
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    height: 14,
-                    margin: const EdgeInsets.only(top: 7),
-                    decoration: BoxDecoration(
-                      color: widget.isDarkMode
-                          ? Colors.grey[800]
-                          : Colors.grey[300],
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                  Positioned(
-                    top: 7,
-                    left: 0,
-                    child: Container(
-                      height: 14,
-                      width: (w * ratio).clamp(0.0, w),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(7),
-                        color: _alarmColor(currentLevel),
-                      ),
-                    ),
-                  ),
-                  _buildThresholdMarker(
-                      w, alertPos, const Color(0xFFFBC02D), fmt(thr.alert)),
-                  _buildThresholdMarker(
-                      w, alarmPos, const Color(0xFFFF9800), fmt(thr.alarm)),
-                  _buildThresholdMarker(
-                      w, critPos, const Color(0xFFD32F2F), fmt(thr.critical)),
-                ],
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(fmt(gaugeMin),
-                style: TextStyle(
-                    fontSize: 10,
-                    color: widget.isDarkMode
-                        ? Colors.white38
-                        : Colors.grey[500])),
-            Text(fmt(gaugeMax),
-                style: TextStyle(
-                    fontSize: 10,
-                    color: widget.isDarkMode
-                        ? Colors.white38
-                        : Colors.grey[500])),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _thrChip(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        decoration: BoxDecoration(
-          border: Border.all(color: color.withValues(alpha: 0.5)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: widget.isDarkMode
-                        ? Colors.white54
-                        : Colors.grey[600]),
-              ),
-            ),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                maxLines: 1,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w800, color: color),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThresholdMarker(
-      double totalWidth, double fraction, Color color, String label) {
-    return Positioned(
-      left: (totalWidth * fraction - 1.5).clamp(0.0, totalWidth - 3),
-      top: 4,
-      child: Container(
-        width: 3,
-        height: 20,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(1.5),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGaugeLegend() {
-    final thr = _thr;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.isTaglish
-              ? 'Tandaan: Ang prediksyon ay HINDI 100% tumpak. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
-              : 'Note: Predictions are NOT 100% accurate. Always follow official PAGASA/MDRRMO advisories.',
-          style: TextStyle(
-            fontSize: 11,
-            fontStyle: FontStyle.italic,
-            color: widget.isDarkMode ? Colors.white60 : Colors.grey[700],
-            height: 1.35,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: [
-            _legendItem(const Color(0xFFD32F2F),
-                'CRITICAL: ≥ ${thr.critical.toStringAsFixed(2)}m'),
-            _legendItem(const Color(0xFFFF9800),
-                'WARNING: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
-            _legendItem(const Color(0xFFFBC02D),
-                'ALERT: ≥ ${thr.alert.toStringAsFixed(2)}m'),
-            _legendItem(const Color(0xFF4CAF50),
-                'SAFE: < ${thr.alert.toStringAsFixed(2)}m'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _legendItem(Color color, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: widget.isDarkMode ? Colors.white60 : Colors.grey[700],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── 24-Hour Timeline ───────────────────────────────────────────
-
-  Widget _buildTimeline(Color textColor, Color? subColor) {
-    final timeline = _timeline;
-    if (timeline == null || timeline.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: widget.isDarkMode ? const Color(0xFF253B50) : Colors.grey[50],
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: Text(
-            widget.isTaglish
-                ? 'Walang datos ng timeline'
-                : 'No timeline data available',
-            style: TextStyle(color: subColor, fontSize: 14),
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 135,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: timeline.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final entry = timeline[index] as Map<String, dynamic>;
-          final time = entry['time']?.toString() ?? '';
-          final level = (entry[_sensorKey] ?? 0.0).toDouble();
-          final color = _alarmColor(level);
-          final statusText = _alarmShortLabel(level);
-
-          String shortTime = time;
-          final parts = time.split(', ');
-          if (parts.length >= 2) shortTime = parts.last;
-          if (shortTime.contains(':')) {
-            final tParts = shortTime.split(':');
-            final cleanHour = tParts[0].trim().replaceFirst(RegExp(r'^0'), '');
-            shortTime = '$cleanHour ${shortTime.split(' ').last}';
-          }
-
-          return Container(
-            width: 90,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  shortTime.toUpperCase(),
+                child: Text(
+                  daily?.modeDisplayLabel ?? 'FORECAST UNAVAILABLE',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: subColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: daily?.calculationMode == 'primary_model'
+                        ? const Color(0xFF1D4ED8)
+                        : (daily?.calculationMode == 'persistence_fallback'
+                            ? const Color(0xFFB45309)
+                            : const Color(0xFF64748B)),
                   ),
                 ),
-                const SizedBox(height: 6),
-                RichText(
-                  text: TextSpan(
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── CARD 3: FORECAST CONTENT ──
+          if (hasForecast) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextSpan(
-                        text: level.toStringAsFixed(1),
+                      Text(
+                        isTumana
+                            ? (widget.isTaglish ? 'PAGTATAYANG ANTAS SA TUMANA' : 'FORECASTED TUMANA LEVEL')
+                            : (widget.isTaglish ? 'PAGTATAYANG MAXIMUM NA ANTAS' : 'FORECASTED DAILY MAXIMUM'),
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: subColor,
                         ),
                       ),
-                      TextSpan(
-                        text: 'm',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: color.withValues(alpha: 0.7),
+                      const SizedBox(height: 4),
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: forecastLevel.toStringAsFixed(2),
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0369A1),
+                                height: 1.1,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: ' m',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0369A1),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: 0.3,
+                if (!isTumana)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _statusBandColor(daily.statusBand).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: _statusBandColor(daily.statusBand).withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          daily.statusBand,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: _statusBandColor(daily.statusBand),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Backend Status',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: subColor,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
               ],
             ),
-          );
-        },
+            const SizedBox(height: 16),
+
+            if (isTumana)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
+                child: Text(
+                  widget.isTaglish
+                      ? 'Pang-araw-araw na pagtataya (obserbasyon ng PAGASA sa Tumana). Walang forecast threshold mapping.'
+                      : 'Daily decision-support forecast (PAGASA-reported daily Tumana water-level observation). No forecast threshold mapping.',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF0369A1),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
+                child: Text(
+                  widget.isTaglish
+                      ? 'Pang-araw-araw na pagtataya para sa ${daily.forecastTargetDate.isNotEmpty ? daily.forecastTargetDate : "susunod na araw"}. Ang katayuan ay mula sa opisyal na daily model. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
+                      : 'Decision-support forecast for ${daily.forecastTargetDate.isNotEmpty ? daily.forecastTargetDate : "next calendar day"}. Status is authoritative from backend daily model. Always follow official PAGASA and MDRRMO flood advisories for emergency response.',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF0369A1),
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: widget.isDarkMode
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    widget.isTaglish
+                        ? 'HINDI MAGAGAMIT ANG PAGTATAYA'
+                        : 'FORECAST UNAVAILABLE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: subColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isTumana
+                        ? (widget.isTaglish
+                            ? 'Kailangang kumpletong obserbasyon sa Tumana ay hindi magagamit.'
+                            : 'Required completed daily Tumana observation is unavailable.')
+                        : (widget.isTaglish
+                            ? 'Kulang ang datos para sa daily model at persistence fallback.'
+                            : 'Input data incomplete for daily model and persistence fallback.'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: widget.isDarkMode ? Colors.white38 : Colors.grey[500],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
