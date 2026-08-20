@@ -75,7 +75,7 @@ class _WeatherCardState extends State<WeatherCard> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final bg = widget.isDarkMode ? const Color(0xFF253B50) : Colors.white;
     final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
-    final Color subColor = widget.isDarkMode ? Colors.white54 : const Color(0xFF757575);
+    final Color subColor = widget.isDarkMode ? Colors.white : Colors.black;
     final cardBorderColor = widget.isDarkMode ? Colors.white10 : Colors.grey.shade200;
 
     return Container(

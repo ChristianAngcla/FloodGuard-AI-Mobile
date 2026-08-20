@@ -41,6 +41,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   String? _helpNeeded;
   bool _agreedToLegal = false;
   bool _isSubmitting = false;
+  String? _validationMessage;
 
   // Theme Colors
   Color get bgColor =>
@@ -118,7 +119,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       FocusScope.of(context).unfocus();
       _pageController.nextPage(
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-      setState(() => _currentStep++);
+      setState(() {
+        _validationMessage = null;
+        _currentStep++;
+      });
     }
   }
 
@@ -127,20 +131,17 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       FocusScope.of(context).unfocus();
       _pageController.previousPage(
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-      setState(() => _currentStep--);
+      setState(() {
+        _validationMessage = null;
+        _currentStep--;
+      });
     } else {
       Navigator.pop(context);
     }
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    setState(() => _validationMessage = msg);
   }
 
   Future<void> _submitReport() async {
@@ -327,6 +328,41 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                         ],
                       ),
                     ),
+
+                    if (_validationMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.redAccent.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded,
+                                    color: Colors.redAccent),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _validationMessage!,
+                                    style: const TextStyle(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
 
                     // Bottom Controls
                     Container(

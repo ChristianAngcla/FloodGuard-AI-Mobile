@@ -865,11 +865,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final fillColor =
         isDark ? const Color(0xFF253B50) : const Color(0xFFF4F9FF);
-    final activeFillColor =
-        readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
+    final activeFillColor = readOnly
+        ? (isDark ? const Color(0xFF203449) : const Color(0xFFF8FAFC))
+        : fillColor;
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
-    final defaultBorderColor = isDark ? Colors.white10 : Colors.transparent;
+        isDark ? Colors.white70 : const Color(0xFF1769AA);
+    final defaultBorderColor =
+        isDark ? Colors.white24 : const Color(0xFFE2E8F0);
 
     return TextFormField(
       controller: controller,
@@ -878,7 +880,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       inputFormatters: inputFormatters,
       maxLength: maxLength,
       style: TextStyle(
-        color: isDark ? Colors.white : Colors.black87,
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
         fontSize: 15,
         fontWeight: FontWeight.w400,
         overflow: TextOverflow.ellipsis,
@@ -895,7 +897,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         prefixIcon: Padding(
           padding: const EdgeInsets.only(left: 12, right: 8),
           child: Icon(icon, color: iconColor, size: 22),
@@ -934,11 +936,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final fillColor =
         isDark ? const Color(0xFF253B50) : const Color(0xFFF4F9FF);
-    final activeFillColor =
-        readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
+    final activeFillColor = readOnly
+        ? (isDark ? const Color(0xFF203449) : const Color(0xFFF8FAFC))
+        : fillColor;
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
-    final defaultBorderColor = isDark ? Colors.white10 : Colors.transparent;
+        isDark ? Colors.white70 : const Color(0xFF1769AA);
+    final defaultBorderColor =
+        isDark ? Colors.white24 : const Color(0xFFE2E8F0);
+
+    if (readOnly) {
+      return InputDecorator(
+        isEmpty: value == null || value!.isEmpty,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          labelText: label,
+          labelStyle: TextStyle(
+            color: isDark ? Colors.white70 : const Color(0xFF64748B),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          filled: true,
+          fillColor: activeFillColor,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: BorderSide(color: defaultBorderColor),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 22),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                value ?? '',
+                style: TextStyle(
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return DropdownButtonFormField<String>(
       initialValue: value,
@@ -948,7 +990,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : null, // Hide dropdown arrow if read-only
       dropdownColor: isDark ? const Color(0xFF1A2B3C) : Colors.white,
       style: TextStyle(
-          color: isDark ? Colors.white : Colors.black87, fontSize: 15),
+          color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 15),
       decoration: InputDecoration(
         isDense: true,
         contentPadding:
@@ -959,7 +1001,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         prefixIcon: Padding(
           padding: const EdgeInsets.only(left: 12, right: 8),
           child: Icon(icon, color: iconColor, size: 22),

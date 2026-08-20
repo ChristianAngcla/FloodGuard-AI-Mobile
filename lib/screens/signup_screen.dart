@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/translations.dart';
 import '../services/auth_service.dart';
@@ -26,6 +27,8 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
+  static const Color _accessibleBlue = Color(0xFF1769AA);
+
   final _step0Key = GlobalKey<FormState>();
   final _step1Key = GlobalKey<FormState>();
   final _step2Key = GlobalKey<FormState>();
@@ -509,9 +512,22 @@ class _SignupScreenState extends State<SignupScreen> {
       backgroundColor: bgColor,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        // Keep the app inside the phone's status-bar boundary instead of
+        // drawing the sign-up background behind the device indicators.
+        backgroundColor: bgColor,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: bgColor,
+          statusBarIconBrightness:
+              isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: bgColor,
+          systemNavigationBarIconBrightness:
+              isDark ? Brightness.light : Brightness.dark,
+        ),
         elevation: 0,
         leading: IconButton(
+          tooltip: widget.isTaglish ? 'Bumalik' : 'Go back',
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor),
           onPressed: _prevStep,
         ),
@@ -519,7 +535,10 @@ class _SignupScreenState extends State<SignupScreen> {
       body: Stack(
         children: [
           WaveBackground(isDarkMode: isDark),
+          // The AppBar already owns the top safe area.  Avoid adding the
+          // status-bar height a second time to every sign-up step.
           SafeArea(
+            top: false,
             child: Column(
               children: [
                 Padding(
@@ -599,7 +618,9 @@ class _SignupScreenState extends State<SignupScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF3784DF).withValues(alpha: 0.1),
+              color: isDark
+                  ? Colors.white
+                  : const Color(0xFF3784DF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: stepIndex == 0
@@ -826,28 +847,20 @@ class _SignupScreenState extends State<SignupScreen> {
           onChanged: (val) => setState(() => _selectedBarangay = val),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                controller: _cityCtrl,
-                label: "City",
-                icon: Icons.location_city_rounded,
-                isDark: isDark,
-                readOnly: true,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildTextField(
-                controller: _provinceCtrl,
-                label: "Province",
-                icon: Icons.map_outlined,
-                isDark: isDark,
-                readOnly: true,
-              ),
-            ),
-          ],
+        _buildTextField(
+          controller: _cityCtrl,
+          label: "City",
+          icon: Icons.location_city_rounded,
+          isDark: isDark,
+          readOnly: true,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _provinceCtrl,
+          label: "Province",
+          icon: Icons.map_outlined,
+          isDark: isDark,
+          readOnly: true,
         ),
         const SizedBox(height: 16),
         Row(
@@ -914,7 +927,7 @@ class _SignupScreenState extends State<SignupScreen> {
           child: ElevatedButton(
             onPressed: (_isOtpVerified || _isVerifyingOtp) ? null : _verifyOtp,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3784DF),
+              backgroundColor: _accessibleBlue,
               foregroundColor: Colors.white,
               disabledBackgroundColor:
                   isDark ? Colors.white10 : Colors.grey[300],
@@ -964,7 +977,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   style: TextStyle(
                       color: (_resendCooldownSec > 0 || _isOtpVerified)
                           ? (isDark ? Colors.white54 : Colors.black45)
-                          : const Color(0xFF3784DF),
+                          : _accessibleBlue,
                       fontWeight: FontWeight.bold,
                       fontSize: 14),
                 ),
@@ -1000,11 +1013,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       child: Container(
                         height: 52,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF3784DF),
+                          color: _accessibleBlue,
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF3784DF).withValues(alpha: 0.4),
+                              color: _accessibleBlue.withValues(alpha: 0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -1078,7 +1091,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: const Text(
                             "Login",
                             style: TextStyle(
-                                color: Color(0xFF3784DF),
+                                color: _accessibleBlue,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13),
                           ),
@@ -1115,37 +1128,39 @@ class _SignupScreenState extends State<SignupScreen> {
     final fillColor = isDark
         ? const Color(0xFF253B50)
         : const Color(0xFFF4F9FF);
-    final activeFillColor =
-        readOnly ? (isDark ? Colors.black12 : Colors.grey[200]) : fillColor;
+    // City, province, ZIP code, and country are read-only values, not
+    // disabled fields. Keep their surface consistent with the rest of the
+    // form instead of giving them the grey disabled appearance.
+    final activeFillColor = fillColor;
 
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
+        isDark ? Colors.white70 : _accessibleBlue;
     final defaultBorderColor =
         isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
     return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      readOnly: readOnly,
-      keyboardType: inputType,
-      maxLines: maxLines,
-      maxLength: maxLength,
-      onChanged: onChanged,
-      textAlign: textAlign,
-      style: TextStyle(
-          color: isDark ? Colors.white : Colors.black87,
-          fontSize: 15,
-          fontWeight: FontWeight.w400,
-          overflow: TextOverflow.ellipsis),
-      validator: validator ??
-          (val) => (val == null || val.isEmpty) ? "Required" : null,
-      decoration: InputDecoration(
+        controller: controller,
+        obscureText: obscureText,
+        readOnly: readOnly,
+        keyboardType: inputType,
+        maxLines: maxLines,
+        maxLength: maxLength,
+        onChanged: onChanged,
+        textAlign: textAlign,
+        style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontSize: 15,
+            fontWeight: FontWeight.w400,
+            overflow: TextOverflow.ellipsis),
+        validator: validator ??
+            (val) => (val == null || val.isEmpty) ? "Required" : null,
+        decoration: InputDecoration(
         isDense: true,
         counterText: "",
         prefixText: prefixText,
         hintText: hintText,
         hintStyle: TextStyle(
-            color: isDark ? Colors.white30 : Colors.black38, fontSize: 14),
+            color: isDark ? Colors.white70 : const Color(0xFF475569), fontSize: 14),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         labelText: label,
@@ -1154,13 +1169,15 @@ class _SignupScreenState extends State<SignupScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         prefixIcon: Padding(
           padding: const EdgeInsets.only(left: 12, right: 8),
           child: Icon(icon, color: iconColor, size: 22),
         ),
         suffixIcon: isPassword
             ? IconButton(
+                tooltip: obscureText ? 'Show $label' : 'Hide $label',
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                 icon: Icon(
                   obscureText
                       ? Icons.visibility_outlined
@@ -1185,7 +1202,7 @@ class _SignupScreenState extends State<SignupScreen> {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
-      ),
+        ),
     );
   }
 
@@ -1201,7 +1218,7 @@ class _SignupScreenState extends State<SignupScreen> {
         ? const Color(0xFF253B50)
         : const Color(0xFFF4F9FF);
     final iconColor =
-        isDark ? Colors.white54 : const Color(0xFF3784DF).withValues(alpha: 0.7);
+        isDark ? Colors.white70 : _accessibleBlue;
     final defaultBorderColor =
         isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
@@ -1226,7 +1243,7 @@ class _SignupScreenState extends State<SignupScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         prefixIcon: Padding(
           padding: const EdgeInsets.only(left: 12, right: 8),
           child: Icon(icon, color: iconColor, size: 22),
@@ -1256,62 +1273,69 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget _buildCompactAgreement() {
     final isDark = widget.isDarkMode;
     final textColor = isDark ? Colors.white70 : Colors.black87;
-    final linkColor = const Color(0xFF3784DF);
+    final linkColor = _accessibleBlue;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        GestureDetector(
-          onTap: () {
-            if (!_agreedToTerms) {
-              _showUnifiedLegalPopup();
-            } else {
-              setState(() => _agreedToTerms = false);
-            }
-          },
+        Semantics(
+          label: 'Agree to Terms and Privacy Policy',
           child: SizedBox(
-            width: 24,
-            height: 24,
-            child: Checkbox(
-              value: _agreedToTerms,
-              onChanged: (val) {
-                if (val == true && !_agreedToTerms) {
-                  _showUnifiedLegalPopup();
-                } else {
-                  setState(() => _agreedToTerms = false);
-                }
-              },
-              activeColor: linkColor,
-              side: BorderSide(
-                  color: isDark ? Colors.white54 : Colors.grey, width: 2),
+            width: 48,
+            height: 48,
+            child: Center(
+              child: Checkbox(
+                value: _agreedToTerms,
+                onChanged: (val) {
+                  if (val == true && !_agreedToTerms) {
+                    _showUnifiedLegalPopup();
+                  } else {
+                    setState(() => _agreedToTerms = false);
+                  }
+                },
+                activeColor: linkColor,
+                side: BorderSide(
+                    color: isDark ? Colors.white70 : Colors.grey, width: 2),
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 4),
         Expanded(
-          child: GestureDetector(
-            onTap: () {
-              if (!_agreedToTerms) _showUnifiedLegalPopup();
-            },
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(fontSize: 13, color: textColor, height: 1.5),
-                children: [
-                  TextSpan(
-                      text: widget.isTaglish
-                          ? "Para makapagpatuloy, basahin at sumang-ayon sa "
-                          : "To continue, please read and agree to the "),
-                  TextSpan(
-                    text: widget.isTaglish
-                        ? "Mga Tuntunin at Patakaran"
-                        : "Terms & Privacy Policy",
-                    style: TextStyle(
-                        color: linkColor,
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline),
+          child: Semantics(
+            label: 'Open Terms and Privacy Policy',
+            button: true,
+            child: GestureDetector(
+              onTap: () {
+                if (!_agreedToTerms) _showUnifiedLegalPopup();
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                          fontSize: 13, color: textColor, height: 1.5),
+                      children: [
+                        TextSpan(
+                            text: widget.isTaglish
+                                ? "Para makapagpatuloy, basahin at sumang-ayon sa "
+                                : "To continue, please read and agree to the "),
+                        TextSpan(
+                          text: widget.isTaglish
+                              ? "Mga Tuntunin at Patakaran"
+                              : "Terms & Privacy Policy",
+                          style: TextStyle(
+                              color: linkColor,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline),
+                        ),
+                        const TextSpan(text: "."),
+                      ],
+                    ),
                   ),
-                  const TextSpan(text: "."),
-                ],
+                ),
               ),
             ),
           ),

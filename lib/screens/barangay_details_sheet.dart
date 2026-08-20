@@ -130,7 +130,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   Widget build(BuildContext context) {
     final bg = widget.isDarkMode ? const Color(0xFF1A2B3C) : Colors.white;
     final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
-    final subColor = widget.isDarkMode ? Colors.white54 : Colors.grey[600];
+    final subColor = widget.isDarkMode ? Colors.white : Colors.black;
 
     final allBarangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
@@ -139,8 +139,10 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         color: bg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: SafeArea(
-        child: Align(
+          // The sheet is intentionally below the phone status area.
+          child: SafeArea(
+            top: false,
+            child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 550),
@@ -283,7 +285,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         : 'Interpolation from current level to the one-step OLS prediction (not 24 separate forecasts).',
                     style: TextStyle(
                       fontSize: 11,
-                      color: widget.isDarkMode ? Colors.white60 : Colors.grey[600],
+                      color: widget.isDarkMode ? Colors.white : Colors.black,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -299,7 +301,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         backgroundColor: widget.isDarkMode
                             ? const Color(0xFF3784DF).withValues(alpha: 0.2)
                             : const Color(0xFFF4F9FF),
-                        foregroundColor: const Color(0xFF3784DF),
+                        foregroundColor:
+                            widget.isDarkMode ? Colors.white : const Color(0xFF3784DF),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                           side: BorderSide(
@@ -481,7 +484,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: widget.isDarkMode ? Colors.white70 : Colors.grey[700],
+                  color: widget.isDarkMode ? Colors.white : Colors.black,
                 ),
               ),
               const SizedBox(height: 8),
@@ -551,15 +554,11 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             Text(fmt(gaugeMin),
                 style: TextStyle(
                     fontSize: 10,
-                    color: widget.isDarkMode
-                        ? Colors.white38
-                        : Colors.grey[500])),
+                    color: widget.isDarkMode ? Colors.white : Colors.black)),
             Text(fmt(gaugeMax),
                 style: TextStyle(
                     fontSize: 10,
-                    color: widget.isDarkMode
-                        ? Colors.white38
-                        : Colors.grey[500])),
+                    color: widget.isDarkMode ? Colors.white : Colors.black)),
           ],
         ),
       ],
@@ -584,9 +583,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                 style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
-                    color: widget.isDarkMode
-                        ? Colors.white54
-                        : Colors.grey[600]),
+                    color: widget.isDarkMode ? Colors.white : Colors.black),
               ),
             ),
             const SizedBox(height: 2),
@@ -633,7 +630,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           style: TextStyle(
             fontSize: 11,
             fontStyle: FontStyle.italic,
-            color: widget.isDarkMode ? Colors.white60 : Colors.grey[700],
+            color: widget.isDarkMode ? Colors.white : Colors.black,
             height: 1.35,
           ),
         ),
@@ -674,7 +671,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: widget.isDarkMode ? Colors.white60 : Colors.grey[700],
+            color: widget.isDarkMode ? Colors.white : Colors.black,
           ),
         ),
       ],

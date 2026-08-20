@@ -17,9 +17,14 @@ class FloodLegendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onToggle,
-      child: AnimatedSize(
+    return Semantics(
+      button: true,
+      label: isExpanded
+          ? 'Flood level legend. Double tap to collapse.'
+          : 'Flood level legend. Double tap to expand.',
+      child: GestureDetector(
+        onTap: onToggle,
+        child: AnimatedSize(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
         child: Container(
@@ -51,6 +56,7 @@ class FloodLegendCard extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
                 width: isExpanded ? 320 : 180,
+                constraints: const BoxConstraints(minHeight: 48),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -67,6 +73,7 @@ class FloodLegendCard extends StatelessWidget {
                 ),
                 child: isExpanded ? _buildExpanded() : _buildCollapsed(),
               ),
+              ),
             ),
           ),
         ),
@@ -78,15 +85,19 @@ class FloodLegendCard extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.water, color: Colors.blue, size: 20),
+        Icon(
+          Icons.water,
+          color: isDarkMode ? Colors.white : const Color(0xFF0D47A1),
+          size: 20,
+        ),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
             isTaglish ? "Antas ng Baha" : "Flood Level",
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: Colors.blueAccent,
+              color: isDarkMode ? Colors.white : const Color(0xFF0D47A1),
             ),
             overflow: TextOverflow.ellipsis,
           ),

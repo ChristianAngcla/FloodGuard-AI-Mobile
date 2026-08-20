@@ -20,7 +20,8 @@ class WelcomePopup extends StatelessWidget {
   Widget build(BuildContext context) {
     final bgColor = isDarkMode ? const Color(0xFF1A2B3C) : Colors.white;
     final textColor = isDarkMode ? Colors.white : const Color(0xFF1A2B3C);
-    final subTextColor = isDarkMode ? Colors.white70 : Colors.grey[700];
+    // Informational copy must remain readable on the white welcome card.
+    final subTextColor = isDarkMode ? Colors.white70 : Colors.black;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -308,7 +309,7 @@ class WelcomePopup extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: isDark ? Colors.white : Colors.black87,
+                color: isDark ? Colors.white : Colors.black,
                 fontWeight: FontWeight.w700,
               ),
             ),

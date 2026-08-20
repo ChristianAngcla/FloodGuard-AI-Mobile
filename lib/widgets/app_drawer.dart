@@ -229,6 +229,7 @@ class _AppDrawerState extends State<AppDrawer> {
           Container(
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
+              color: Colors.white,
               shape: BoxShape.circle,
               border: Border.all(color: accentColor, width: 2),
             ),

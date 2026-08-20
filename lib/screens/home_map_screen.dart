@@ -49,6 +49,8 @@ class HomeMapScreen extends StatefulWidget {
 
 class _HomeMapScreenState extends State<HomeMapScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
+  static const Color _accessibleBlue = Color(0xFF1769AA);
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MapController _mapController = MapController();
   late bool _isDarkMode;
@@ -85,6 +87,26 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   bool get _isMarikinaSelected {
     return cities.isNotEmpty &&
         cities[currentCityIndex].name.toLowerCase() == "marikina";
+  }
+
+  /// Visual-only offsets for labels whose geographic centres sit at the map
+  /// edge. The polygon, flood value, tap target, and camera position stay at
+  /// the original barangay centre.
+  LatLng _labelPointFor(String name, LatLng center) {
+    switch (name) {
+      case 'Barangka':
+        // Restore the label to the centre of Barangka's actual polygon.
+        // (The source centre has an older crowding adjustment applied.)
+        return LatLng(center.latitude + 0.0045, center.longitude + 0.0010);
+      case 'Industrial Valley':
+        return center;
+      case 'Fortune':
+        return center;
+      case 'Marikina Heights':
+        return LatLng(center.latitude, center.longitude - 0.0040);
+      default:
+        return center;
+    }
   }
 
   late AnimationController _pulseController;
@@ -1061,10 +1083,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return BarangayDetailsSheet(
-          barangayName: barangayName,
-          isTaglish: _isTaglish,
-          isDarkMode: _isDarkMode,
+        return FractionallySizedBox(
+          heightFactor: 0.88,
+          alignment: Alignment.bottomCenter,
+          child: BarangayDetailsSheet(
+            barangayName: barangayName,
+            isTaglish: _isTaglish,
+            isDarkMode: _isDarkMode,
+          ),
         );
       },
     );
@@ -1310,8 +1336,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   Widget _buildMenuButton() {
     return IconButton(
+      tooltip: _isTaglish ? 'Buksan ang settings' : 'Open settings',
       icon: Icon(Icons.settings_rounded,
-          color: _isDarkMode ? Colors.white : const Color(0xFF3784DF)),
+          color: _isDarkMode ? Colors.white : _accessibleBlue),
       onPressed: () {
         _scaffoldKey.currentState?.openEndDrawer();
       },
@@ -1319,45 +1346,27 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildRefreshButton() {
-    final timeStr = _lastFetchTime != null
-        ? "${_lastFetchTime!.hour > 12 ? _lastFetchTime!.hour - 12 : (_lastFetchTime!.hour == 0 ? 12 : _lastFetchTime!.hour)}:${_lastFetchTime!.minute.toString().padLeft(2, '0')} ${_lastFetchTime!.hour >= 12 ? 'PM' : 'AM'}"
-        : "";
-
-    if (timeStr.isEmpty) {
-      return Text(
-        _isTaglish ? "Walang update" : "No update yet",
-        style: TextStyle(
-          fontSize: 11,
-          color: _isDarkMode ? Colors.white54 : Colors.black45,
-          fontWeight: FontWeight.w600,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.access_time_rounded,
-          size: 14,
-          color: _isDarkMode ? Colors.white70 : Colors.black54,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            timeStr,
+    return Semantics(
+      label: _isTaglish ? 'Bersyon 1.0.0' : 'Version 1.0.0',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 14,
+            color: _isDarkMode ? Colors.white : Colors.black,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _isTaglish ? 'Bersyon 1.0.0' : 'Version 1.0.0',
             style: TextStyle(
               fontSize: 11,
-              color: _isDarkMode ? Colors.white70 : Colors.black54,
+              color: _isDarkMode ? Colors.white : Colors.black,
               fontWeight: FontWeight.w600,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1365,6 +1374,21 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   Widget build(BuildContext context) {
     // Detect if the keyboard is currently open to prevent UI overlapping
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final systemTopInset = MediaQuery.of(context).padding.top;
+    final statusBarColor = _isDarkMode
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFFFFFFF);
+
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        // A dedicated status-bar colour gives every Home state a clear phone
+        // boundary instead of letting its screen background run behind it.
+        statusBarColor: statusBarColor,
+        statusBarIconBrightness:
+            _isDarkMode ? Brightness.light : Brightness.dark,
+        statusBarBrightness: _isDarkMode ? Brightness.dark : Brightness.light,
+      ),
+    );
 
     return Scaffold(
       key: _scaffoldKey,
@@ -1390,11 +1414,19 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             onLogout: () =>
                                 setState(() => _currentTabIndex = 1),
                           )
-                        : MouseRegion(
-                            key: const ValueKey('map_view'),
-                            onHover: (event) =>
-                                _handleMapHover(event.localPosition),
-                            child: FlutterMap(
+                        : SafeArea(
+                            top: true,
+                            bottom: false,
+                            left: false,
+                            right: false,
+                            child: MouseRegion(
+                              key: const ValueKey('map_view'),
+                              onHover: (event) =>
+                                  _handleMapHover(event.localPosition),
+                              child: Semantics(
+                              container: true,
+                              label: _isTaglish ? 'Mapa ng baha' : 'Flood map',
+                              child: FlutterMap(
                               key: ValueKey(_isDarkMode),
                               mapController: _mapController,
                               options: MapOptions(
@@ -1453,7 +1485,12 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         width: 50,
                                         height: 50,
                                         alignment: Alignment.center,
-                                        child: const PulsingLocationDot(),
+                                        child: Semantics(
+                                          label: _isTaglish
+                                              ? 'Marker ng kasalukuyang lokasyon'
+                                              : 'Current location marker',
+                                          child: const PulsingLocationDot(),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1499,12 +1536,19 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                   )
                                                 ],
                                               ),
-                                              child: Text(
-                                                _highlightedPlaceName!,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w600,
+                                              child: Semantics(
+                                                label: _isTaglish
+                                                    ? 'Napiling lokasyon: $_highlightedPlaceName'
+                                                    : 'Selected location: $_highlightedPlaceName',
+                                                child: ExcludeSemantics(
+                                                  child: Text(
+                                                    _highlightedPlaceName!,
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -1538,6 +1582,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         _barangayCenters.entries.map((entry) {
                                       final name = entry.key;
                                       final center = entry.value;
+                                      final labelPoint =
+                                          _labelPointFor(name, center);
                                       final sensorKey =
                                           FloodApiService.barangayToSensor[name] ??
                                               'sto_nino';
@@ -1605,10 +1651,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                           _currentZoom < 14.2;
 
                                       return Marker(
-                                        point: center,
+                                        point: labelPoint,
                                         width: isZoomedOut ? 160.0 : 200.0,
                                         height: isZoomedOut ? 60.0 : 110.0,
-                                        child: isZoomedOut
+                                        child: Semantics(
+                                          container: true,
+                                          label: '$name: $statusText',
+                                          child: isZoomedOut
                                             ? Column(
                                                 mainAxisAlignment:
                                                     MainAxisAlignment.center,
@@ -1660,8 +1709,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                             overflow:
                                                                 TextOverflow
                                                                     .ellipsis,
-                                                            textAlign: TextAlign
-                                                                .center,
+                                                            textAlign:
+                                                                TextAlign.center,
                                                           ),
                                                         ),
                                                       ],
@@ -1770,13 +1819,28 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                   ),
                                                 ],
                                               ),
+                                          ),
                                       );
                                     }).toList(),
                                   ),
                               ],
+                              ),
+                              ),
                             ),
                           ),
           ),
+
+          // Keep non-map screens visually below the phone status bar.
+          if (_currentTabIndex != 1)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: systemTopInset,
+              child: ColoredBox(
+                color: statusBarColor,
+              ),
+            ),
 
           // 2. Top Elements (Floating Top Bar & Search)
           if (!isKeyboardOpen &&
@@ -1786,6 +1850,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               left: 0,
               right: 0,
               child: SafeArea(
+                minimum: const EdgeInsets.only(top: 12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1810,11 +1875,18 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       child: Row(
                         children: [
                           // Left: Brand
-                          Image.asset(
-                            'assets/new_logo_nobg.png',
-                            width: 28,
-                            height: 28,
-                            fit: BoxFit.contain,
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Image.asset(
+                              'assets/new_logo_nobg.png',
+                              width: 28,
+                              height: 28,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -1847,11 +1919,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 3. Floating Bottom Navigation Bar
           if (!isKeyboardOpen)
             Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 12,
+              bottom: MediaQuery.of(context).padding.bottom,
               left: 12,
               right: 12,
               child: Container(
-                height: 64,
+                height: 72,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [
@@ -1913,7 +1985,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 4. Legend (Above Bottom Bar)
           if (_isMarikinaSelected && _currentTabIndex == 1 && !isKeyboardOpen)
             Positioned(
-              bottom: 100, // Adjusted to sit above the floating bottom bar
+              bottom: MediaQuery.of(context).padding.bottom + 88,
               left: 16,
               child: FloodLegendCard(
                 isDarkMode: _isDarkMode,
@@ -1930,9 +2002,12 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 4b. Center Me Button (Right side, above bottom bar)
           if (_currentTabIndex == 1 && !isKeyboardOpen)
             Positioned(
-              bottom: 108,
+              bottom: MediaQuery.of(context).padding.bottom + 88,
               right: 16,
-              child: GestureDetector(
+              child: Semantics(
+                button: true,
+                label: _isTaglish ? 'I-center sa kasalukuyang lokasyon' : 'Center on current location',
+                child: GestureDetector(
                 onTap: () {
                   if (_myLocation != null) {
                     _centerOnMe();
@@ -1979,6 +2054,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         : (_isDarkMode ? Colors.white38 : Colors.grey),
                     size: 24,
                   ),
+                ),
                 ),
               ),
             ),
@@ -2118,13 +2194,16 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     bool isAction = false,
   }) {
     final isSelected = !isAction && _currentTabIndex == index;
-    final activeColor = const Color(0xFF3784DF);
-    final inactiveColor = _isDarkMode ? Colors.grey[500]! : Colors.grey[400]!;
+    final navColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
 
     return Expanded(
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          label: label,
+          child: InkWell(
           onTap: () {
             if (isAction) {
             } else {
@@ -2140,8 +2219,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             }
           },
           borderRadius: BorderRadius.circular(34),
-          highlightColor: activeColor.withValues(alpha: 0.1),
-          splashColor: activeColor.withValues(alpha: 0.2),
+          highlightColor: navColor.withValues(alpha: 0.1),
+          splashColor: navColor.withValues(alpha: 0.2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
@@ -2153,14 +2232,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? activeColor.withValues(alpha: 0.15)
+                      ? navColor.withValues(alpha: 0.12)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   icon,
-                  color: isSelected ? activeColor : inactiveColor,
-                  size: 20,
+                  color: navColor,
+                  size: 24,
                 ),
               ),
               const SizedBox(height: 2),
@@ -2171,13 +2250,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                    color: isSelected ? activeColor : inactiveColor,
+                    color: navColor,
                   ),
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
@@ -2219,7 +2299,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     ? "Mag-login upang makita ang iyong dashboard"
                     : "Log in to view your dashboard",
                 style: TextStyle(
-                    color: _isDarkMode ? Colors.white70 : Colors.black54),
+                    color: _isDarkMode
+                        ? Colors.white
+                        : const Color(0xFF1A1A1A)),
               ),
             ],
           ),
@@ -2244,8 +2326,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     _dashboardSelectedBarangay ??= _userProfile!.barangay;
     final allBarangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
-    final textColor = _isDarkMode ? Colors.white : Colors.black87;
-    final subColor = _isDarkMode ? Colors.white54 : Colors.grey[600];
+    final textColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
+    final subColor = _isDarkMode ? Colors.white : Colors.black;
 
     final selectedBarangayName =
         _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
@@ -2286,8 +2368,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             style: TextStyle(
                                 fontSize: 16,
                                 color: _isDarkMode
-                                    ? Colors.white70
-                                    : Colors.grey[600]),
+                                    ? Colors.white
+                                    : Colors.black),
                           ),
                           Text(
                             _userProfile!.firstName,
@@ -2313,8 +2395,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: _isDarkMode
-                                  ? Colors.white70
-                                  : Colors.grey[800]),
+                                  ? Colors.white
+                                  : Colors.black),
                         ),
                       ),
                     ],
@@ -2443,7 +2525,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         : 'Interpolation from current level to the one-step OLS prediction (not 24 separate forecasts).',
                     style: TextStyle(
                       fontSize: 11,
-                      color: _isDarkMode ? Colors.white60 : Colors.grey[600],
+                      color: _isDarkMode
+                          ? Colors.white
+                          : const Color(0xFF1A1A1A),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -2503,8 +2587,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                       style: TextStyle(
                                           fontSize: 13,
                                           color: _isDarkMode
-                                              ? Colors.white70
-                                              : Colors.grey[600])),
+                                              ? Colors.white
+                                              : const Color(0xFF1A1A1A))),
                                 ],
                               )),
                               const Icon(Icons.chevron_right_rounded,
@@ -2732,7 +2816,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     style: TextStyle(
                       fontSize: 11,
                       fontStyle: FontStyle.italic,
-                      color: _isDarkMode ? Colors.white60 : Colors.grey[700],
+                      color: _isDarkMode
+                          ? Colors.white
+                          : const Color(0xFF1A1A1A),
                       height: 1.35,
                     ),
                   ),
@@ -2778,7 +2864,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: _isDarkMode ? Colors.white60 : Colors.grey[700],
+            color: _isDarkMode
+                ? Colors.white
+                : const Color(0xFF1A1A1A),
           ),
         ),
       ],
@@ -2837,7 +2925,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: _isDarkMode ? Colors.white70 : Colors.grey[700],
+                  color: _isDarkMode
+                      ? Colors.white
+                      : const Color(0xFF1A1A1A),
                 ),
               ),
               const SizedBox(height: 8),
@@ -2925,11 +3015,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             Text(fmt(min),
                 style: TextStyle(
                     fontSize: 10,
-                    color: _isDarkMode ? Colors.white38 : Colors.grey[500])),
+                    color: _isDarkMode
+                        ? Colors.white
+                        : const Color(0xFF1A1A1A))),
             Text(fmt(max),
                 style: TextStyle(
                     fontSize: 10,
-                    color: _isDarkMode ? Colors.white38 : Colors.grey[500])),
+                    color: _isDarkMode
+                        ? Colors.white
+                        : const Color(0xFF1A1A1A))),
           ],
         ),
       ],
@@ -2955,7 +3049,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: _isDarkMode ? Colors.white70 : Colors.grey[800]),
+                    color: _isDarkMode
+                        ? Colors.white
+                        : const Color(0xFF1A1A1A)),
               ),
             ),
             const SizedBox(height: 2),
@@ -3079,8 +3175,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     return Expanded(
       flex: 2,
       child: Container(
-        height: 40,
-        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
+        height: 56,
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFFFF6B6B), Color(0xFFD32F2F)],
@@ -3096,7 +3192,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             )
           ],
         ),
-        child: Material(
+        child: Semantics(
+          button: true,
+          label: _isTaglish ? 'Humingi ng tulong at mag-report ng baha' : 'Ask for help and report flooding',
+          child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: _showReportFloodSheet,
@@ -3119,7 +3218,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontSize: 12,
                           letterSpacing: 0.1,
                         ),
                         maxLines: 1,
@@ -3129,6 +3228,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),
