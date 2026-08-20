@@ -24,7 +24,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   static const Color _accessibleBlue = Color(0xFF1769AA);
-
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
@@ -131,15 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontSize: 15,
                         ),
                         decoration: InputDecoration(
-                          constraints: const BoxConstraints(minHeight: 56),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                          prefixIconConstraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
-                          ),
                           labelText: widget.isTaglish ? 'Rehistradong Email' : 'Registered Email',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -207,15 +197,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          constraints: const BoxConstraints(minHeight: 56),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                          prefixIconConstraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
-                          ),
                           labelText: widget.isTaglish ? '6-Digit SMS OTP' : '6-Digit SMS OTP',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -253,15 +234,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontSize: 15,
                         ),
                         decoration: InputDecoration(
-                          constraints: const BoxConstraints(minHeight: 56),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                          prefixIconConstraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
-                          ),
                           labelText: widget.isTaglish ? 'Bagong Password' : 'New Password',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -571,9 +543,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF3784DF).withValues(alpha: 0.1),
+                          color:
+                              const Color(0xFF3784DF).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Image.asset(
@@ -699,8 +670,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontSize: 13,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () {
+                                GestureDetector(
+                                  onTap: () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -711,15 +682,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     );
                                   },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: _accessibleBlue,
-                                    minimumSize: const Size(48, 48),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8),
-                                  ),
                                   child: Text(
                                     widget.isTaglish ? 'Mag-sign up' : 'Sign up',
                                     style: AppTypography.labelMedium.copyWith(
+                                      color: const Color(0xFF3784DF),
                                       fontWeight: FontWeight.w800,
                                       fontSize: 14,
                                     ),
