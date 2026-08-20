@@ -30,22 +30,6 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   String get _sensorDisplayName =>
       FloodApiService.sensorDisplayNames[_sensorKey] ?? 'Unknown River';
 
-  Map<String, dynamic>? get _riverData {
-    final full = FloodApiService.getFullPredictionData();
-    final rivers = full?['prediction']?['rivers'];
-    if (rivers is! Map) return null;
-    final river = rivers[_sensorKey];
-    return river is Map ? Map<String, dynamic>.from(river) : null;
-  }
-
-  double? get _currentWaterLevel {
-    final full = FloodApiService.getFullPredictionData();
-    final sensors = full?['live_sensors'];
-    if (sensors is! Map) return null;
-    final value = sensors[_sensorKey];
-    return value is num ? value.toDouble() : double.tryParse('$value');
-  }
-
   @override
   void initState() {
     super.initState();
@@ -195,11 +179,10 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   }
 
   Widget _buildLiveAndDailyCard(Color textColor, Color subColor) {
-    final liveLevel = _currentWaterLevel;
+    final telemetry =
+        FloodApiService.getLiveTelemetryForBarangay(_selectedBarangay);
     final daily =
         FloodApiService.getDailyForecastForBarangay(_selectedBarangay);
-    final liveStatus = _riverData?['status']?.toString().toUpperCase();
-    final hasDaily = daily != null && !daily.isUnavailable;
     final cardColor =
         widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC);
 
@@ -212,26 +195,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         const SizedBox(height: 6),
         _dataPanel(
           cardColor,
-          liveLevel == null
-              ? Text(
-                  widget.isTaglish
-                      ? 'Hindi available ang live water level.'
-                      : 'Live water level unavailable.',
-                  style: TextStyle(color: textColor))
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('${liveLevel.toStringAsFixed(2)} m',
-                        style: TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                            color: textColor)),
-                    if (liveStatus != null)
-                      Text(liveStatus,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800, color: subColor)),
-                  ],
-                ),
+          _buildCurrentObservationContent(telemetry, textColor, subColor),
         ),
         const SizedBox(height: 20),
         _sectionLabel(
@@ -242,34 +206,239 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         const SizedBox(height: 6),
         _dataPanel(
           widget.isDarkMode ? cardColor : const Color(0xFFF0F9FF),
-          hasDaily
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                        '${daily?.predictedWaterLevel?.toStringAsFixed(2) ?? '--'} m',
-                        style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0369A1))),
-                    const SizedBox(height: 6),
-                    Text('${daily?.statusBand} · ${daily?.modeDisplayLabel}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0369A1))),
-                    if (daily.forecastTargetDate.isNotEmpty)
-                      Text(daily.forecastTargetDate,
-                          style: TextStyle(color: subColor)),
-                  ],
-                )
-              : Text(
-                  widget.isTaglish
-                      ? 'Hindi available ang daily forecast.'
-                      : 'Daily forecast unavailable.',
-                  style: TextStyle(color: textColor)),
+          _buildDailyForecastContent(daily, textColor, subColor),
         ),
       ],
     );
+  }
+
+  Widget _buildCurrentObservationContent(
+      LiveTelemetryItem? telemetry, Color textColor, Color subColor) {
+    if (telemetry == null ||
+        telemetry.isUnavailable ||
+        telemetry.currentReading == null) {
+      final reason = telemetry?.unavailableReasonDisplay ??
+          'Telemetry Temporarily Unavailable';
+      final hasLkv = telemetry?.lastKnownValidReading != null;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.isTaglish ? 'Hindi Magagamit' : 'Unavailable',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: widget.isDarkMode
+                      ? Colors.orange.shade300
+                      : const Color(0xFFD97706),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  reason,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: widget.isDarkMode
+                        ? Colors.orange.shade300
+                        : const Color(0xFFD97706),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (hasLkv) ...[
+            Text(
+              widget.isTaglish
+                  ? 'Huling Wastong Datos: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m'
+                  : 'Last Known Valid Reading: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+            if (telemetry.lastKnownValidSource != null &&
+                telemetry.lastKnownValidSource!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  telemetry.lastKnownValidSource!,
+                  style: TextStyle(fontSize: 11, color: subColor),
+                ),
+              ),
+          ] else ...[
+            Text(
+              widget.isTaglish
+                  ? 'Walang nakaraang wastong datos.'
+                  : 'No valid previous reading available.',
+              style: TextStyle(fontSize: 12, color: subColor),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Valid Observation
+    final readingStr = '${telemetry.currentReading!.toStringAsFixed(2)} m';
+    final status = telemetry.liveStatus;
+    final timeStr = telemetry.sourceTimePst ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              readingStr,
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+                color: textColor,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: _statusBgColor(status),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: _statusTextColor(status),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'PAGASA FFWS',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: subColor),
+            ),
+            if (timeStr.isNotEmpty)
+              Text(
+                'Updated: $timeStr',
+                style: TextStyle(fontSize: 11, color: subColor),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDailyForecastContent(
+      DailyForecastItem? daily, Color textColor, Color subColor) {
+    if (daily == null ||
+        daily.isUnavailable ||
+        daily.predictedWaterLevel == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.isTaglish
+                ? 'Hindi available ang pagtataya'
+                : 'Forecast unavailable',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textColor,
+            ),
+          ),
+          if (daily?.fallbackReason != null &&
+              daily!.fallbackReason!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              daily.fallbackReason!,
+              style: TextStyle(
+                fontSize: 12,
+                color: subColor,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF0369A1),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${daily.statusBand} · ${daily.modeDisplayLabel}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0369A1),
+          ),
+        ),
+        if (daily.forecastTargetDate.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              daily.forecastTargetDate,
+              style: TextStyle(color: subColor, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Color _statusBgColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'CRITICAL':
+        return Colors.red.withValues(alpha: 0.15);
+      case 'ALARM':
+      case 'WARNING':
+        return Colors.orange.withValues(alpha: 0.15);
+      case 'ALERT':
+        return Colors.amber.withValues(alpha: 0.2);
+      case 'SAFE':
+      default:
+        return Colors.green.withValues(alpha: 0.15);
+    }
+  }
+
+  Color _statusTextColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'CRITICAL':
+        return Colors.red;
+      case 'ALARM':
+      case 'WARNING':
+        return const Color(0xFFD97706);
+      case 'ALERT':
+        return const Color(0xFFB45309);
+      case 'SAFE':
+      default:
+        return const Color(0xFF15803D);
+    }
   }
 
   Widget _sectionLabel(String text, Color color) => Text(text,

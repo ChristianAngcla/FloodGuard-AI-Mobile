@@ -946,7 +946,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (readOnly) {
       return InputDecorator(
-        isEmpty: value == null || value!.isEmpty,
+        isEmpty: value == null || value.isEmpty,
         decoration: InputDecoration(
           isDense: true,
           contentPadding:

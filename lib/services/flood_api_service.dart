@@ -248,6 +248,7 @@ class FloodApiService {
 
         if (decoded is Map<String, dynamic>) {
           final liveSensors = decoded['live_sensors'] as Map<String, dynamic>?;
+          final liveTelemetry = decoded['live_telemetry'] as Map<String, dynamic>?;
           final rivers =
               decoded['prediction']?['rivers'] as Map<String, dynamic>?;
           final weather = decoded['weather'] as Map<String, dynamic>? ?? {};
@@ -274,6 +275,7 @@ class FloodApiService {
 
           for (var b in allBarangays) {
             final sensorKey = barangayToSensor[b] ?? 'sto_nino';
+            final telemetry = liveTelemetry?[sensorKey] as Map<String, dynamic>?;
             final liveVal = liveSensors?[sensorKey];
             final double? liveWaterLevel =
                 (liveVal is num) ? liveVal.toDouble() : null;
@@ -282,11 +284,20 @@ class FloodApiService {
             final thr = StationThresholds.fromApiOrDefault(sensorKey, riverData);
             final double maxWaterLevel = thr.critical;
 
-            // Live status is computed strictly from liveWaterLevel vs station thresholds
+            final sensorStatus = telemetry?['sensorStatus']?.toString().toUpperCase() ??
+                (liveWaterLevel == null ? 'SUSPECT' : 'VALID');
+
+            // Live status is computed strictly from valid liveWaterLevel vs station thresholds
             String status = 'unavailable';
             int riskLevel = 0;
 
-            if (liveWaterLevel != null) {
+            final isValidReading = liveWaterLevel != null &&
+                sensorStatus != 'SUSPECT' &&
+                sensorStatus != 'STALE' &&
+                sensorStatus != 'MISSING' &&
+                sensorStatus != 'UNAVAILABLE';
+
+            if (isValidReading) {
               if (liveWaterLevel >= thr.critical) {
                 status = 'critical';
                 riskLevel = 90;
@@ -306,8 +317,8 @@ class FloodApiService {
               barangay: b,
               riskLevel: riskLevel,
               rainfall: rainfall,
-              waterLevel: liveWaterLevel,
-              peakPredictedLevel: liveWaterLevel,
+              waterLevel: isValidReading ? liveWaterLevel : null,
+              peakPredictedLevel: isValidReading ? liveWaterLevel : null,
               maxWaterLevel: maxWaterLevel,
               status: status,
               timestamp: DateTime.now(),
@@ -587,6 +598,149 @@ class FloodApiService {
   static DailyForecastItem? getDailyForecastForBarangay(String barangay) {
     final sensorKey = barangayToSensor[barangay] ?? 'sto_nino';
     return getDailyForecastForSensor(sensorKey);
+  }
+
+  static LiveTelemetryItem? getLiveTelemetryForSensor(String sensorKey) {
+    if (_cachedFullResponse == null) return null;
+    final telemetryMap =
+        _cachedFullResponse!['live_telemetry'] as Map<String, dynamic>?;
+    final data = telemetryMap?[sensorKey] as Map<String, dynamic>?;
+    if (data != null) {
+      return LiveTelemetryItem.fromJson(data);
+    }
+
+    // Fallback: build from prediction.rivers and live_sensors
+    final liveSensors =
+        _cachedFullResponse!['live_sensors'] as Map<String, dynamic>?;
+    final lkvMap =
+        _cachedFullResponse!['last_known_valid'] as Map<String, dynamic>?;
+    final rivers =
+        _cachedFullResponse!['prediction']?['rivers'] as Map<String, dynamic>?;
+    final riverData = rivers?[sensorKey] as Map<String, dynamic>?;
+
+    final rawVal = liveSensors?[sensorKey];
+    final double? reading = (rawVal is num) ? rawVal.toDouble() : null;
+    final lkvObj = lkvMap?[sensorKey];
+    double? lkvVal;
+    String? lkvSrc;
+    if (lkvObj is Map) {
+      lkvVal = (lkvObj['value'] is num)
+          ? (lkvObj['value'] as num).toDouble()
+          : null;
+      lkvSrc = lkvObj['sourceTimePst']?.toString();
+    } else if (lkvObj is num) {
+      lkvVal = lkvObj.toDouble();
+    }
+
+    return LiveTelemetryItem(
+      stationId: sensorKey,
+      stationName: sensorDisplayNames[sensorKey] ?? sensorKey,
+      currentReading: reading,
+      rawReading: reading?.toString() ?? '',
+      sensorStatus: reading == null ? 'SUSPECT' : 'VALID',
+      liveStatus: riverData?['status']?.toString().toUpperCase() ??
+          (reading == null ? 'UNAVAILABLE' : 'SAFE'),
+      sourceTimePst: riverData?['sourceTimePst']?.toString(),
+      lastKnownValidReading: lkvVal,
+      lastKnownValidSource: lkvSrc,
+    );
+  }
+
+  static LiveTelemetryItem? getLiveTelemetryForBarangay(String barangay) {
+    final sensorKey = barangayToSensor[barangay] ?? 'sto_nino';
+    return getLiveTelemetryForSensor(sensorKey);
+  }
+}
+
+/// 💧 Real-time Live Sensor Telemetry Item from GET /api/user/flood-data
+class LiveTelemetryItem {
+  final String stationId;
+  final String stationName;
+  final double? currentReading;
+  final String rawReading;
+  final String sensorStatus; // VALID, SUSPECT, STALE, MISSING, UNAVAILABLE
+  final String liveStatus; // SAFE, ALERT, ALARM, CRITICAL, UNAVAILABLE
+  final String? sourceTimePst;
+  final double? lastKnownValidReading;
+  final String? lastKnownValidSource;
+
+  LiveTelemetryItem({
+    required this.stationId,
+    required this.stationName,
+    this.currentReading,
+    required this.rawReading,
+    required this.sensorStatus,
+    required this.liveStatus,
+    this.sourceTimePst,
+    this.lastKnownValidReading,
+    this.lastKnownValidSource,
+  });
+
+  factory LiveTelemetryItem.fromJson(Map<String, dynamic> json) {
+    double? parseVal(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        if (v.contains('(') || v.contains('*')) return null;
+        return double.tryParse(v);
+      }
+      return null;
+    }
+
+    final lkv = json['lastKnownValid'];
+    double? lkvReading;
+    String? lkvSource;
+    if (lkv is Map) {
+      lkvReading = parseVal(lkv['value']);
+      lkvSource = lkv['sourceTimePst']?.toString();
+    } else if (lkv != null) {
+      lkvReading = parseVal(lkv);
+    }
+
+    final currentVal = parseVal(json['currentReading']);
+    final rawStr = json['rawReading']?.toString() ?? (currentVal?.toString() ?? '');
+    final sStatus = json['sensorStatus']?.toString().toUpperCase() ??
+        (currentVal == null ? 'SUSPECT' : 'VALID');
+    final lStatus = json['liveStatus']?.toString().toUpperCase() ??
+        (currentVal == null ? 'UNAVAILABLE' : 'SAFE');
+
+    return LiveTelemetryItem(
+      stationId: json['stationId']?.toString() ?? '',
+      stationName: json['stationName']?.toString() ?? '',
+      currentReading: currentVal,
+      rawReading: rawStr,
+      sensorStatus: sStatus,
+      liveStatus: lStatus,
+      sourceTimePst: json['sourceTimePst']?.toString(),
+      lastKnownValidReading: lkvReading,
+      lastKnownValidSource: lkvSource,
+    );
+  }
+
+  bool get isUnavailable =>
+      currentReading == null ||
+      sensorStatus == 'SUSPECT' ||
+      sensorStatus == 'STALE' ||
+      sensorStatus == 'MISSING' ||
+      sensorStatus == 'UNAVAILABLE' ||
+      liveStatus == 'UNAVAILABLE';
+
+  String get unavailableReasonDisplay {
+    switch (sensorStatus) {
+      case 'SUSPECT':
+        return 'Suspect Sensor';
+      case 'STALE':
+        return 'Stale Reading';
+      case 'MISSING':
+        return 'No Current Reading';
+      case 'UNAVAILABLE':
+        return 'Live Data Unavailable';
+      case 'NETWORK_ERROR':
+      case 'FETCH_FAILED':
+        return 'Telemetry Temporarily Unavailable';
+      default:
+        return 'Telemetry Temporarily Unavailable';
+    }
   }
 }
 
