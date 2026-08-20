@@ -49,8 +49,6 @@ class HomeMapScreen extends StatefulWidget {
 
 class _HomeMapScreenState extends State<HomeMapScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
-  static const Color _accessibleBlue = Color(0xFF1769AA);
-
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MapController _mapController = MapController();
   late bool _isDarkMode;
@@ -87,26 +85,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   bool get _isMarikinaSelected {
     return cities.isNotEmpty &&
         cities[currentCityIndex].name.toLowerCase() == "marikina";
-  }
-
-  /// Visual-only offsets for labels whose geographic centres sit at the map
-  /// edge. The polygon, flood value, tap target, and camera position stay at
-  /// the original barangay centre.
-  LatLng _labelPointFor(String name, LatLng center) {
-    switch (name) {
-      case 'Barangka':
-        // Restore the label to the centre of Barangka's actual polygon.
-        // (The source centre has an older crowding adjustment applied.)
-        return LatLng(center.latitude + 0.0045, center.longitude + 0.0010);
-      case 'Industrial Valley':
-        return center;
-      case 'Fortune':
-        return center;
-      case 'Marikina Heights':
-        return LatLng(center.latitude, center.longitude - 0.0040);
-      default:
-        return center;
-    }
   }
 
   late AnimationController _pulseController;
@@ -428,11 +406,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       final Map<String, LatLng> centers = {};
       final Map<String, FloodData> loadedData = {};
 
-      // Step 2: Fetch REAL data from FloodGuard /api/status
+      // Step 2: Fetch REAL data from FloodGuard /api/status and /api/forecasts/daily
       Map<String, FloodData> apiData = {};
       try {
-        apiData = await FloodApiService.getAllBarangayFloodData(
-            forceRefresh: forceRefresh);
+        final results = await Future.wait([
+          FloodApiService.getAllBarangayFloodData(forceRefresh: forceRefresh),
+          FloodApiService.fetchDailyForecasts(forceRefresh: forceRefresh),
+        ]);
+        apiData = results[0] as Map<String, FloodData>;
         if (apiData.isEmpty && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -507,47 +488,58 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         final thr =
             StationThresholds.fromApiOrDefault(sensorKey, riverMap);
 
-        final statusStr = (matchedData?.status ??
-                riverMap?['status'] ??
-                'safe')
+        final statusStr = (matchedData?.status ?? 'unavailable')
             .toString()
             .toLowerCase();
-        ColorStatus colorStatus;
-        switch (statusStr) {
-          case 'critical':
-            colorStatus = ColorStatus.critical;
-            break;
-          case 'warning':
-            colorStatus = ColorStatus.warning;
-            break;
-          case 'alert':
-            colorStatus = ColorStatus.alert;
-            break;
-          default:
-            // Fall back to threshold-of-predicted WL if status missing
-            colorStatus = thr.statusFor(matchedData?.waterLevel ?? 0.0);
-        }
-
         Color baseColor;
-        switch (colorStatus) {
-          case ColorStatus.critical:
-            baseColor = const Color(0xFFD32F2F);
-            break;
-          case ColorStatus.warning:
-            baseColor = const Color(0xFFFF9800);
-            break;
-          case ColorStatus.alert:
-            baseColor = const Color(0xFFFBC02D);
-            break;
-          case ColorStatus.safe:
-            baseColor = const Color(0xFF4CAF50);
-            break;
+
+        if (matchedData == null ||
+            matchedData.waterLevel == null ||
+            statusStr == 'unavailable') {
+          baseColor = const Color(0xFF94A3B8); // Neutral Slate Gray
+        } else {
+          final liveWL = matchedData.waterLevel!;
+          ColorStatus colorStatus;
+          switch (statusStr) {
+            case 'critical':
+              colorStatus = ColorStatus.critical;
+              break;
+            case 'warning':
+              colorStatus = ColorStatus.warning;
+              break;
+            case 'alert':
+              colorStatus = ColorStatus.alert;
+              break;
+            case 'safe':
+              colorStatus = ColorStatus.safe;
+              break;
+            default:
+              colorStatus = thr.statusFor(liveWL);
+          }
+
+          switch (colorStatus) {
+            case ColorStatus.critical:
+              baseColor = const Color(0xFFD32F2F);
+              break;
+            case ColorStatus.warning:
+              baseColor = const Color(0xFFFF9800);
+              break;
+            case ColorStatus.alert:
+              baseColor = const Color(0xFFFBC02D);
+              break;
+            case ColorStatus.safe:
+              baseColor = const Color(0xFF4CAF50);
+              break;
+          }
         }
 
         if (matchedData != null) {
           loadedData[name] = matchedData;
+          final wlStr = matchedData.waterLevel != null
+              ? "${matchedData.waterLevel!.toStringAsFixed(2)}m"
+              : "N/A";
           debugPrint(
-              "🌊 $name: status=$statusStr WL=${matchedData.waterLevel.toStringAsFixed(2)}m peak=${matchedData.peakPredictedLevel.toStringAsFixed(2)}m ($sensorKey)");
+              "🌊 $name: status=$statusStr WL=$wlStr ($sensorKey)");
         }
 
         // silence unused thr in color path (kept for threshold UI elsewhere)
@@ -607,10 +599,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final sensorKey =
         FloodApiService.barangayToSensor[userBarangay] ?? 'sto_nino';
 
-    double level = 0.0;
     final data =
         FloodApiService.findDataForBarangay(_barangayData, userBarangay);
-    if (data != null) level = data.waterLevel;
+    if (data == null) return;
+
+    final level = data.waterLevel;
+    if (level == null) return;
+    if (level <= 0.0) return;
 
     final riverRaw = FloodApiService.getFullPredictionData()?['prediction']
         ?['rivers']?[sensorKey];
@@ -620,24 +615,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     } else if (riverRaw is Map) {
       riverMap = Map<String, dynamic>.from(riverRaw);
     }
-    if (riverMap != null) {
-      final pred = riverMap['predicted_water_level'];
-      if (pred is num) {
-        level = pred.toDouble();
-      }
-    }
 
     final thr = StationThresholds.fromApiOrDefault(sensorKey, riverMap);
-    final statusStr =
-        (data?.status ?? riverMap?['status'] ?? 'safe').toString().toLowerCase();
-    if (statusStr == 'safe') return;
-
-    final warnStatus = switch (statusStr) {
-      'critical' => ColorStatus.critical,
-      'warning' => ColorStatus.warning,
-      'alert' => ColorStatus.alert,
-      _ => thr.statusFor(level),
-    };
+    final warnStatus = thr.statusFor(level);
     if (warnStatus == ColorStatus.safe) return;
 
     _hasShownEarlyWarning = true;
@@ -1083,14 +1063,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return FractionallySizedBox(
-          heightFactor: 0.88,
-          alignment: Alignment.bottomCenter,
-          child: BarangayDetailsSheet(
-            barangayName: barangayName,
-            isTaglish: _isTaglish,
-            isDarkMode: _isDarkMode,
-          ),
+        return BarangayDetailsSheet(
+          barangayName: barangayName,
+          isTaglish: _isTaglish,
+          isDarkMode: _isDarkMode,
         );
       },
     );
@@ -1336,9 +1312,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   Widget _buildMenuButton() {
     return IconButton(
-      tooltip: _isTaglish ? 'Buksan ang settings' : 'Open settings',
       icon: Icon(Icons.settings_rounded,
-          color: _isDarkMode ? Colors.white : _accessibleBlue),
+          color: _isDarkMode ? Colors.white : const Color(0xFF3784DF)),
       onPressed: () {
         _scaffoldKey.currentState?.openEndDrawer();
       },
@@ -1346,27 +1321,45 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildRefreshButton() {
-    return Semantics(
-      label: _isTaglish ? 'Bersyon 1.0.0' : 'Version 1.0.0',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            size: 14,
-            color: _isDarkMode ? Colors.white : Colors.black,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _isTaglish ? 'Bersyon 1.0.0' : 'Version 1.0.0',
+    final timeStr = _lastFetchTime != null
+        ? "${_lastFetchTime!.hour > 12 ? _lastFetchTime!.hour - 12 : (_lastFetchTime!.hour == 0 ? 12 : _lastFetchTime!.hour)}:${_lastFetchTime!.minute.toString().padLeft(2, '0')} ${_lastFetchTime!.hour >= 12 ? 'PM' : 'AM'}"
+        : "";
+
+    if (timeStr.isEmpty) {
+      return Text(
+        _isTaglish ? "Walang update" : "No update yet",
+        style: TextStyle(
+          fontSize: 11,
+          color: _isDarkMode ? Colors.white54 : Colors.black45,
+          fontWeight: FontWeight.w600,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.access_time_rounded,
+          size: 14,
+          color: _isDarkMode ? Colors.white70 : Colors.black54,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            timeStr,
             style: TextStyle(
               fontSize: 11,
-              color: _isDarkMode ? Colors.white : Colors.black,
+              color: _isDarkMode ? Colors.white70 : Colors.black54,
               fontWeight: FontWeight.w600,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1374,21 +1367,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   Widget build(BuildContext context) {
     // Detect if the keyboard is currently open to prevent UI overlapping
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final systemTopInset = MediaQuery.of(context).padding.top;
-    final statusBarColor = _isDarkMode
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFFFFFFF);
-
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        // A dedicated status-bar colour gives every Home state a clear phone
-        // boundary instead of letting its screen background run behind it.
-        statusBarColor: statusBarColor,
-        statusBarIconBrightness:
-            _isDarkMode ? Brightness.light : Brightness.dark,
-        statusBarBrightness: _isDarkMode ? Brightness.dark : Brightness.light,
-      ),
-    );
 
     return Scaffold(
       key: _scaffoldKey,
@@ -1414,19 +1392,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             onLogout: () =>
                                 setState(() => _currentTabIndex = 1),
                           )
-                        : SafeArea(
-                            top: true,
-                            bottom: false,
-                            left: false,
-                            right: false,
-                            child: MouseRegion(
-                              key: const ValueKey('map_view'),
-                              onHover: (event) =>
-                                  _handleMapHover(event.localPosition),
-                              child: Semantics(
-                              container: true,
-                              label: _isTaglish ? 'Mapa ng baha' : 'Flood map',
-                              child: FlutterMap(
+                        : MouseRegion(
+                            key: const ValueKey('map_view'),
+                            onHover: (event) =>
+                                _handleMapHover(event.localPosition),
+                            child: FlutterMap(
                               key: ValueKey(_isDarkMode),
                               mapController: _mapController,
                               options: MapOptions(
@@ -1485,12 +1455,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         width: 50,
                                         height: 50,
                                         alignment: Alignment.center,
-                                        child: Semantics(
-                                          label: _isTaglish
-                                              ? 'Marker ng kasalukuyang lokasyon'
-                                              : 'Current location marker',
-                                          child: const PulsingLocationDot(),
-                                        ),
+                                        child: const PulsingLocationDot(),
                                       ),
                                     ],
                                   ),
@@ -1536,19 +1501,12 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                   )
                                                 ],
                                               ),
-                                              child: Semantics(
-                                                label: _isTaglish
-                                                    ? 'Napiling lokasyon: $_highlightedPlaceName'
-                                                    : 'Selected location: $_highlightedPlaceName',
-                                                child: ExcludeSemantics(
-                                                  child: Text(
-                                                    _highlightedPlaceName!,
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
+                                              child: Text(
+                                                _highlightedPlaceName!,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
                                             ),
@@ -1582,13 +1540,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         _barangayCenters.entries.map((entry) {
                                       final name = entry.key;
                                       final center = entry.value;
-                                      final labelPoint =
-                                          _labelPointFor(name, center);
                                       final sensorKey =
                                           FloodApiService.barangayToSensor[name] ??
                                               'sto_nino';
-                                      double level =
-                                          _barangayData[name]?.waterLevel ?? 0.0;
+                                      final double? level =
+                                          _barangayData[name]?.waterLevel;
                                       final riverRaw = FloodApiService
                                               .getFullPredictionData()?[
                                           'prediction']?['rivers']?[sensorKey];
@@ -1599,50 +1555,52 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                         riverMap =
                                             Map<String, dynamic>.from(riverRaw);
                                       }
-                                      if (riverMap != null) {
-                                        final pred =
-                                            riverMap['predicted_water_level'];
-                                        if (pred is num) {
-                                          level = pred.toDouble();
-                                        }
-                                      }
-                                      final thr = StationThresholds.fromApiOrDefault(
-                                          sensorKey, riverMap);
-                                      final status = thr.statusFor(level);
                                       late Color riskColor;
                                       late String statusText;
                                       late Color textColor;
                                       late IconData statusIcon;
-                                      switch (status) {
-                                        case ColorStatus.safe:
-                                          riskColor = const Color(0xFF4CAF50);
-                                          statusText =
-                                              _isTaglish ? "Ligtas" : "Safe";
-                                          textColor = Colors.white;
-                                          statusIcon = Icons.check_circle_rounded;
-                                          break;
-                                        case ColorStatus.alert:
-                                          riskColor = const Color(0xFFFBC02D);
-                                          statusText =
-                                              _isTaglish ? "Alerto" : "Alert";
-                                          textColor = Colors.black87;
-                                          statusIcon =
-                                              Icons.warning_amber_rounded;
-                                          break;
-                                        case ColorStatus.warning:
-                                          riskColor = const Color(0xFFFF9800);
-                                          statusText =
-                                              _isTaglish ? "Babala" : "Warning";
-                                          textColor = Colors.black87;
-                                          statusIcon = Icons.warning_rounded;
-                                          break;
-                                        case ColorStatus.critical:
-                                          riskColor = const Color(0xFFD32F2F);
-                                          statusText =
-                                              _isTaglish ? "Lumikas" : "Critical";
-                                          textColor = Colors.white;
-                                          statusIcon = Icons.dangerous_rounded;
-                                          break;
+
+                                      if (level == null) {
+                                        riskColor = const Color(0xFF64748B);
+                                        statusText =
+                                            _isTaglish ? "Walang Data" : "Unavailable";
+                                        textColor = Colors.white;
+                                        statusIcon = Icons.cloud_off_rounded;
+                                      } else {
+                                        final thr = StationThresholds.fromApiOrDefault(
+                                            sensorKey, riverMap);
+                                        final status = thr.statusFor(level);
+                                        switch (status) {
+                                          case ColorStatus.safe:
+                                            riskColor = const Color(0xFF4CAF50);
+                                            statusText =
+                                                _isTaglish ? "Ligtas" : "Safe";
+                                            textColor = Colors.white;
+                                            statusIcon = Icons.check_circle_rounded;
+                                            break;
+                                          case ColorStatus.alert:
+                                            riskColor = const Color(0xFFFBC02D);
+                                            statusText =
+                                                _isTaglish ? "Alerto" : "Alert";
+                                            textColor = Colors.black87;
+                                            statusIcon =
+                                                Icons.warning_amber_rounded;
+                                            break;
+                                          case ColorStatus.warning:
+                                            riskColor = const Color(0xFFFF9800);
+                                            statusText =
+                                                _isTaglish ? "Babala" : "Warning";
+                                            textColor = Colors.black87;
+                                            statusIcon = Icons.warning_rounded;
+                                            break;
+                                          case ColorStatus.critical:
+                                            riskColor = const Color(0xFFD32F2F);
+                                            statusText =
+                                                _isTaglish ? "Lumikas" : "Critical";
+                                            textColor = Colors.white;
+                                            statusIcon = Icons.dangerous_rounded;
+                                            break;
+                                        }
                                       }
 
                                       // Dynamic Layout: Switch to compact single-pill mode when zoomed out
@@ -1651,13 +1609,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                           _currentZoom < 14.2;
 
                                       return Marker(
-                                        point: labelPoint,
+                                        point: center,
                                         width: isZoomedOut ? 160.0 : 200.0,
                                         height: isZoomedOut ? 60.0 : 110.0,
-                                        child: Semantics(
-                                          container: true,
-                                          label: '$name: $statusText',
-                                          child: isZoomedOut
+                                        child: isZoomedOut
                                             ? Column(
                                                 mainAxisAlignment:
                                                     MainAxisAlignment.center,
@@ -1709,8 +1664,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                             overflow:
                                                                 TextOverflow
                                                                     .ellipsis,
-                                                            textAlign:
-                                                                TextAlign.center,
+                                                            textAlign: TextAlign
+                                                                .center,
                                                           ),
                                                         ),
                                                       ],
@@ -1819,28 +1774,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                   ),
                                                 ],
                                               ),
-                                          ),
                                       );
                                     }).toList(),
                                   ),
                               ],
-                              ),
-                              ),
                             ),
                           ),
           ),
-
-          // Keep non-map screens visually below the phone status bar.
-          if (_currentTabIndex != 1)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: systemTopInset,
-              child: ColoredBox(
-                color: statusBarColor,
-              ),
-            ),
 
           // 2. Top Elements (Floating Top Bar & Search)
           if (!isKeyboardOpen &&
@@ -1850,7 +1790,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               left: 0,
               right: 0,
               child: SafeArea(
-                minimum: const EdgeInsets.only(top: 12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1875,18 +1814,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       child: Row(
                         children: [
                           // Left: Brand
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Image.asset(
-                              'assets/new_logo_nobg.png',
-                              width: 28,
-                              height: 28,
-                              fit: BoxFit.contain,
-                            ),
+                          Image.asset(
+                            'assets/new_logo_nobg.png',
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.contain,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -1919,11 +1851,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 3. Floating Bottom Navigation Bar
           if (!isKeyboardOpen)
             Positioned(
-              bottom: MediaQuery.of(context).padding.bottom,
+              bottom: MediaQuery.of(context).padding.bottom + 12,
               left: 12,
               right: 12,
               child: Container(
-                height: 72,
+                height: 64,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [
@@ -1985,7 +1917,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 4. Legend (Above Bottom Bar)
           if (_isMarikinaSelected && _currentTabIndex == 1 && !isKeyboardOpen)
             Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 88,
+              bottom: 100, // Adjusted to sit above the floating bottom bar
               left: 16,
               child: FloodLegendCard(
                 isDarkMode: _isDarkMode,
@@ -2002,12 +1934,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 4b. Center Me Button (Right side, above bottom bar)
           if (_currentTabIndex == 1 && !isKeyboardOpen)
             Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 88,
+              bottom: 108,
               right: 16,
-              child: Semantics(
-                button: true,
-                label: _isTaglish ? 'I-center sa kasalukuyang lokasyon' : 'Center on current location',
-                child: GestureDetector(
+              child: GestureDetector(
                 onTap: () {
                   if (_myLocation != null) {
                     _centerOnMe();
@@ -2054,7 +1983,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         : (_isDarkMode ? Colors.white38 : Colors.grey),
                     size: 24,
                   ),
-                ),
                 ),
               ),
             ),
@@ -2194,16 +2122,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     bool isAction = false,
   }) {
     final isSelected = !isAction && _currentTabIndex == index;
-    final navColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
+    final activeColor = const Color(0xFF3784DF);
+    final inactiveColor = _isDarkMode ? Colors.grey[500]! : Colors.grey[400]!;
 
     return Expanded(
       child: Material(
         color: Colors.transparent,
-        child: Semantics(
-          button: true,
-          selected: isSelected,
-          label: label,
-          child: InkWell(
+        child: InkWell(
           onTap: () {
             if (isAction) {
             } else {
@@ -2219,8 +2144,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             }
           },
           borderRadius: BorderRadius.circular(34),
-          highlightColor: navColor.withValues(alpha: 0.1),
-          splashColor: navColor.withValues(alpha: 0.2),
+          highlightColor: activeColor.withValues(alpha: 0.1),
+          splashColor: activeColor.withValues(alpha: 0.2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
@@ -2232,14 +2157,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? navColor.withValues(alpha: 0.12)
+                      ? activeColor.withValues(alpha: 0.15)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   icon,
-                  color: navColor,
-                  size: 24,
+                  color: isSelected ? activeColor : inactiveColor,
+                  size: 20,
                 ),
               ),
               const SizedBox(height: 2),
@@ -2250,14 +2175,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                    color: navColor,
+                    color: isSelected ? activeColor : inactiveColor,
                   ),
                 ),
               ),
             ],
-          ),
           ),
         ),
       ),
@@ -2299,9 +2223,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     ? "Mag-login upang makita ang iyong dashboard"
                     : "Log in to view your dashboard",
                 style: TextStyle(
-                    color: _isDarkMode
-                        ? Colors.white
-                        : const Color(0xFF1A1A1A)),
+                    color: _isDarkMode ? Colors.white70 : Colors.black54),
               ),
             ],
           ),
@@ -2326,8 +2248,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     _dashboardSelectedBarangay ??= _userProfile!.barangay;
     final allBarangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
-    final textColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
-    final subColor = _isDarkMode ? Colors.white : Colors.black;
+    final textColor = _isDarkMode ? Colors.white : Colors.black87;
+    final subColor = _isDarkMode ? Colors.white54 : Colors.grey[600];
 
     final selectedBarangayName =
         _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
@@ -2368,8 +2290,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             style: TextStyle(
                                 fontSize: 16,
                                 color: _isDarkMode
-                                    ? Colors.white
-                                    : Colors.black),
+                                    ? Colors.white70
+                                    : Colors.grey[600]),
                           ),
                           Text(
                             _userProfile!.firstName,
@@ -2395,8 +2317,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: _isDarkMode
-                                  ? Colors.white
-                                  : Colors.black),
+                                  ? Colors.white70
+                                  : Colors.grey[800]),
                         ),
                       ),
                     ],
@@ -2507,33 +2429,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 28),
 
-                  // ── 24-Hour Timeline ──
-                  Text(
-                    _isTaglish
-                        ? '24-Oras na Landas ng Antas ng Ilog'
-                        : '24-Hour River Level Path',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _isTaglish
-                        ? 'Interpolation mula sa kasalukuyang antas patungo sa isang hakbang na OLS prediksyon (hindi 24 na hiwalay na forecast).'
-                        : 'Interpolation from current level to the one-step OLS prediction (not 24 separate forecasts).',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: _isDarkMode
-                          ? Colors.white
-                          : const Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDashboardTimeline(textColor, subColor),
-                  const SizedBox(height: 28),
-
                   // Action Banner
                   Material(
                     color: Colors.transparent,
@@ -2587,8 +2482,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                       style: TextStyle(
                                           fontSize: 13,
                                           color: _isDarkMode
-                                              ? Colors.white
-                                              : const Color(0xFF1A1A1A))),
+                                              ? Colors.white70
+                                              : Colors.grey[600])),
                                 ],
                               )),
                               const Icon(Icons.chevron_right_rounded,
@@ -2617,91 +2512,41 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       FloodApiService.sensorDisplayNames[_dashboardSensorKey] ??
       'Unknown River';
 
-  Map<String, dynamic>? get _dashboardRiverData {
+  DailyForecastItem? get _dashboardDailyForecast =>
+      FloodApiService.getDailyForecastForBarangay(_dashboardSelectedBarangay ??
+          _userProfile?.barangay ??
+          'Santo Niño');
+
+  double? get _dashboardCurrentWaterLevel {
     final full = FloodApiService.getFullPredictionData();
     if (full == null) return null;
-    final rivers = full['prediction']?['rivers'] as Map<String, dynamic>?;
-    return rivers?[_dashboardSensorKey] as Map<String, dynamic>?;
-  }
-
-  List<dynamic>? get _dashboardTimeline {
-    final full = FloodApiService.getFullPredictionData();
-    if (full == null) return null;
-    return full['prediction']?['timeline'] as List<dynamic>?;
-  }
-
-  double get _dashboardCurrentWaterLevel {
-    final full = FloodApiService.getFullPredictionData();
-    if (full == null) return 0.0;
     final sensors = full['live_sensors'] as Map<String, dynamic>?;
-    return (sensors?[_dashboardSensorKey] ?? 0.0).toDouble();
+    final val = sensors?[_dashboardSensorKey];
+    return (val is num) ? val.toDouble() : null;
   }
 
-  double get _dashboardPeakLevel {
-    final insights = _dashboardRiverData?['time_series_insights'];
-    if (insights == null) return _dashboardCurrentWaterLevel;
-    return (insights['peak_predicted_level'] ?? _dashboardCurrentWaterLevel)
-        .toDouble();
-  }
-
-  String get _dashboardPeakTimeShort {
-    final insights = _dashboardRiverData?['time_series_insights'];
-    if (insights == null) return '--';
-    final full = insights['peak_expected_time']?.toString() ?? '--';
-    final parts = full.split(', ');
-    if (parts.length >= 2) return parts.last;
-    return full;
-  }
-
-  Color _dashboardAlarmColor(double level) {
-    final thr = StationThresholds.fromApiOrDefault(
-        _dashboardSensorKey, _dashboardRiverData);
-    switch (thr.statusFor(level)) {
-      case ColorStatus.critical:
+  Color _statusBandColor(String? statusBand) {
+    switch (statusBand?.toUpperCase()) {
+      case 'CRITICAL':
         return const Color(0xFFD32F2F);
-      case ColorStatus.warning:
+      case 'ALARM':
+      case 'WARNING':
         return const Color(0xFFFF9800);
-      case ColorStatus.alert:
+      case 'ALERT':
         return const Color(0xFFFBC02D);
-      case ColorStatus.safe:
+      case 'SAFE':
         return const Color(0xFF4CAF50);
-    }
-  }
-
-  String _dashboardAlarmLabel(double level) {
-    final thr = StationThresholds.fromApiOrDefault(
-        _dashboardSensorKey, _dashboardRiverData);
-    switch (thr.statusFor(level)) {
-      case ColorStatus.critical:
-        return 'CRITICAL';
-      case ColorStatus.warning:
-        return 'WARNING';
-      case ColorStatus.alert:
-        return 'ALERT';
-      case ColorStatus.safe:
-        return 'NORMAL — SAFE';
-    }
-  }
-
-  String _dashboardAlarmShortLabel(double level) {
-    final thr = StationThresholds.fromApiOrDefault(
-        _dashboardSensorKey, _dashboardRiverData);
-    switch (thr.statusFor(level)) {
-      case ColorStatus.critical:
-        return 'CRITICAL';
-      case ColorStatus.warning:
-        return 'WARNING';
-      case ColorStatus.alert:
-        return 'ALERT';
-      case ColorStatus.safe:
-        return 'SAFE';
+      default:
+        return const Color(0xFF64748B);
     }
   }
 
   Widget _buildDashboardForecastCard(Color textColor, Color? subColor) {
-    final peak = _dashboardPeakLevel;
-    final color = _dashboardAlarmColor(peak);
-    final label = _dashboardAlarmLabel(peak);
+    final daily = _dashboardDailyForecast;
+    final isTumana = _dashboardSensorKey == 'tumana';
+    final hasForecast = daily != null && !daily.isUnavailable;
+    final forecastLevel = daily?.predictedWaterLevel ?? 0.0;
+    final currentLevel = _dashboardCurrentWaterLevel;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -2722,451 +2567,331 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+          // ── CARD 1: CURRENT LIVE OBSERVED ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _isDarkMode
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PROJECTED PEAK (@ ${_dashboardPeakTimeShort.toUpperCase()})',
+                      _isTaglish
+                          ? 'KASALUKUYANG ANTAS (LIVE)'
+                          : 'CURRENT OBSERVED LEVEL (LIVE)',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                         color: subColor,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: peak.toStringAsFixed(2),
-                            style: TextStyle(
-                              fontSize: 38,
-                              fontWeight: FontWeight.w900,
-                              color: color,
-                              height: 1.1,
+                    const SizedBox(height: 4),
+                    if (currentLevel != null)
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: currentLevel.toStringAsFixed(2),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: textColor,
+                              ),
                             ),
-                          ),
-                          TextSpan(
-                            text: 'm',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: color.withValues(alpha: 0.7),
+                            TextSpan(
+                              text: ' m',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: subColor,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      )
+                    else
+                      Text(
+                        _isTaglish ? 'Walang Data' : 'Unavailable',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: subColor,
+                        ),
+                      ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _dashboardSensorDisplayName,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: subColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Live FFWS Telemetry',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: _isDarkMode ? Colors.white38 : Colors.grey[500],
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── CARD 2: DAILY FORECAST HEADER & TARGET ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
               Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: color.withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                        letterSpacing: 0.3,
-                      ),
+                  Text(
+                    _isTaglish
+                        ? 'ARAW-ARAW NA PAGTATAYA'
+                        : 'DAILY FORECAST',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF0369A1),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 2),
                   Text(
-                    _dashboardSensorDisplayName,
+                    daily?.forecastTargetDate != null && daily!.forecastTargetDate.isNotEmpty
+                        ? (_isTaglish
+                            ? 'Para sa ${daily.forecastTargetDate}'
+                            : 'For ${daily.forecastTargetDate}')
+                        : (_isTaglish ? 'Susunod na Araw' : 'Next Calendar Day'),
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                       color: subColor,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _buildDashboardAlarmGauge(peak),
-          const SizedBox(height: 16),
-          Builder(
-            builder: (context) {
-              final thr = StationThresholds.fromApiOrDefault(
-                  _dashboardSensorKey, _dashboardRiverData);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isTaglish
-                        ? 'Tandaan: Ang prediksyon ay HINDI 100% tumpak. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
-                        : 'Note: Predictions are NOT 100% accurate. Always follow official PAGASA/MDRRMO advisories.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
-                      color: _isDarkMode
-                          ? Colors.white
-                          : const Color(0xFF1A1A1A),
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 6,
-                    children: [
-                      _buildDashboardLegendItem(const Color(0xFFD32F2F),
-                          'CRITICAL: ≥ ${thr.critical.toStringAsFixed(2)}m'),
-                      _buildDashboardLegendItem(const Color(0xFFFF9800),
-                          'WARNING: ≥ ${thr.alarm.toStringAsFixed(2)}m'),
-                      _buildDashboardLegendItem(const Color(0xFFFBC02D),
-                          'ALERT: ≥ ${thr.alert.toStringAsFixed(2)}m'),
-                      _buildDashboardLegendItem(const Color(0xFF4CAF50),
-                          'SAFE: < ${thr.alert.toStringAsFixed(2)}m'),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDashboardLegendItem(Color color, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: _isDarkMode
-                ? Colors.white
-                : const Color(0xFF1A1A1A),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDashboardAlarmGauge(double currentLevel) {
-    final thr = StationThresholds.fromApiOrDefault(
-        _dashboardSensorKey, _dashboardRiverData);
-    const min = 0.0;
-    final max = thr.gaugeMax;
-    final clamped = currentLevel.clamp(min, max);
-    final ratio = (clamped - min) / (max - min);
-
-    final alertPos = (thr.alert - min) / (max - min);
-    final alarmPos = (thr.alarm - min) / (max - min);
-    final critPos = (thr.critical - min) / (max - min);
-
-    String fmt(double m) =>
-        '${m.toStringAsFixed(m == m.roundToDouble() ? 0 : 2)}m';
-
-    Color barColor;
-    final status = thr.statusFor(currentLevel);
-    switch (status) {
-      case ColorStatus.critical:
-        barColor = const Color(0xFFD32F2F);
-        break;
-      case ColorStatus.warning:
-        barColor = const Color(0xFFFF9800);
-        break;
-      case ColorStatus.alert:
-        barColor = const Color(0xFFFBC02D);
-        break;
-      case ColorStatus.safe:
-        barColor = const Color(0xFF4CAF50);
-        break;
-    }
-
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: _isDarkMode
-                ? Colors.white.withValues(alpha: 0.06)
-                : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$_dashboardSensorDisplayName thresholds (EL.m)',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: _isDarkMode
-                      ? Colors.white
-                      : const Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _dashThrChip('Current', currentLevel.toStringAsFixed(2), barColor),
-                  const SizedBox(width: 8),
-                  _dashThrChip('Alert', thr.alert.toStringAsFixed(2),
-                      const Color(0xFFFBC02D)),
-                  const SizedBox(width: 8),
-                  _dashThrChip('Warning', thr.alarm.toStringAsFixed(2),
-                      const Color(0xFFFF9800)),
-                  const SizedBox(width: 8),
-                  _dashThrChip('Critical', thr.critical.toStringAsFixed(2),
-                      const Color(0xFFD32F2F)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 28,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final w = constraints.maxWidth;
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    height: 14,
-                    margin: const EdgeInsets.only(top: 7),
-                    decoration: BoxDecoration(
-                      color: _isDarkMode ? Colors.grey[800] : Colors.grey[300],
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                  Positioned(
-                    top: 7,
-                    left: 0,
-                    child: Container(
-                      height: 14,
-                      width: (w * ratio).clamp(0.0, w),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(7),
-                        color: barColor,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                      left: (w * alertPos - 1.5).clamp(0.0, w - 3),
-                      top: 4,
-                      child: Container(
-                          width: 3,
-                          height: 20,
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFFBC02D),
-                              borderRadius: BorderRadius.circular(1.5)))),
-                  Positioned(
-                      left: (w * alarmPos - 1.5).clamp(0.0, w - 3),
-                      top: 4,
-                      child: Container(
-                          width: 3,
-                          height: 20,
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFFF9800),
-                              borderRadius: BorderRadius.circular(1.5)))),
-                  Positioned(
-                      left: (w * critPos - 1.5).clamp(0.0, w - 3),
-                      top: 4,
-                      child: Container(
-                          width: 3,
-                          height: 20,
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFD32F2F),
-                              borderRadius: BorderRadius.circular(1.5)))),
-                ],
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(fmt(min),
-                style: TextStyle(
-                    fontSize: 10,
-                    color: _isDarkMode
-                        ? Colors.white
-                        : const Color(0xFF1A1A1A))),
-            Text(fmt(max),
-                style: TextStyle(
-                    fontSize: 10,
-                    color: _isDarkMode
-                        ? Colors.white
-                        : const Color(0xFF1A1A1A))),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _dashThrChip(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: _isDarkMode ? 0.08 : 0.05),
-          border: Border.all(color: color.withValues(alpha: 0.6)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: _isDarkMode
-                        ? Colors.white
-                        : const Color(0xFF1A1A1A)),
-              ),
-            ),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                maxLines: 1,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: color),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDashboardTimeline(Color textColor, Color? subColor) {
-    final timeline = _dashboardTimeline;
-    if (timeline == null || timeline.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _isDarkMode ? const Color(0xFF253B50) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: Text(
-            _isTaglish
-                ? 'Walang datos ng timeline'
-                : 'No timeline data available',
-            style: TextStyle(color: subColor, fontSize: 14),
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 120,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: timeline.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final entry = timeline[index] as Map<String, dynamic>;
-          final time = entry['time']?.toString() ?? '';
-          final level = (entry[_dashboardSensorKey] ?? 0.0).toDouble();
-          final color = _dashboardAlarmColor(level);
-          final statusText = _dashboardAlarmShortLabel(level);
-
-          String shortTime = time;
-          final parts = time.split(', ');
-          if (parts.length >= 2) shortTime = parts.last;
-          if (shortTime.contains(':')) {
-            final tParts = shortTime.split(':');
-            shortTime = '${tParts[0]} ${shortTime.split(' ').last}';
-          }
-
-          return Container(
-            width: 90,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: _isDarkMode ? color.withValues(alpha: 0.08) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  shortTime.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: subColor,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: daily?.calculationMode == 'primary_model'
+                      ? const Color(0xFFDBEAFE)
+                      : (daily?.calculationMode == 'persistence_fallback'
+                          ? const Color(0xFFFEF3C7)
+                          : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: daily?.calculationMode == 'primary_model'
+                        ? const Color(0xFF93C5FD)
+                        : (daily?.calculationMode == 'persistence_fallback'
+                            ? const Color(0xFFFDE68A)
+                            : const Color(0xFFCBD5E1)),
                   ),
                 ),
-                const SizedBox(height: 6),
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: level.toStringAsFixed(1),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: color,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'm',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: color.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  statusText,
+                child: Text(
+                  daily?.modeDisplayLabel ?? 'FORECAST UNAVAILABLE',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: 0.3,
+                    color: daily?.calculationMode == 'primary_model'
+                        ? const Color(0xFF1D4ED8)
+                        : (daily?.calculationMode == 'persistence_fallback'
+                            ? const Color(0xFFB45309)
+                            : const Color(0xFF64748B)),
                   ),
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── CARD 3: FORECAST CONTENT ──
+          if (hasForecast) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isTumana
+                            ? (_isTaglish ? 'PAGTATAYANG ANTAS SA TUMANA' : 'FORECASTED TUMANA LEVEL')
+                            : (_isTaglish ? 'PAGTATAYANG MAXIMUM NA ANTAS' : 'FORECASTED DAILY MAXIMUM'),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: subColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: forecastLevel.toStringAsFixed(2),
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0369A1),
+                                height: 1.1,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: ' m',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0369A1),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isTumana)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _statusBandColor(daily.statusBand).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: _statusBandColor(daily.statusBand).withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          daily.statusBand,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: _statusBandColor(daily.statusBand),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Backend Status',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: subColor,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
-          );
-        },
+            const SizedBox(height: 16),
+
+            if (isTumana)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
+                child: Text(
+                  _isTaglish
+                      ? 'Pang-araw-araw na pagtataya (obserbasyon ng PAGASA sa Tumana). Walang forecast threshold mapping.'
+                      : 'Daily decision-support forecast (PAGASA-reported daily Tumana water-level observation). No forecast threshold mapping.',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF0369A1),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
+                child: Text(
+                  _isTaglish
+                      ? 'Pang-araw-araw na pagtataya para sa ${daily.forecastTargetDate.isNotEmpty ? daily.forecastTargetDate : "susunod na araw"}. Ang katayuan ay mula sa opisyal na daily model. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
+                      : 'Decision-support forecast for ${daily.forecastTargetDate.isNotEmpty ? daily.forecastTargetDate : "next calendar day"}. Status is authoritative from backend daily model. Always follow official PAGASA and MDRRMO flood advisories for emergency response.',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF0369A1),
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _isDarkMode
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _isTaglish
+                        ? 'HINDI MAGAGAMIT ANG PAGTATAYA'
+                        : 'FORECAST UNAVAILABLE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: subColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isTumana
+                        ? (_isTaglish
+                            ? 'Kailangang kumpletong obserbasyon sa Tumana ay hindi magagamit.'
+                            : 'Required completed daily Tumana observation is unavailable.')
+                        : (_isTaglish
+                            ? 'Kulang ang datos para sa daily model at persistence fallback.'
+                            : 'Input data incomplete for daily model and persistence fallback.'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _isDarkMode ? Colors.white38 : Colors.grey[500],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -3175,8 +2900,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     return Expanded(
       flex: 2,
       child: Container(
-        height: 56,
-        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+        height: 40,
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFFFF6B6B), Color(0xFFD32F2F)],
@@ -3192,10 +2917,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             )
           ],
         ),
-        child: Semantics(
-          button: true,
-          label: _isTaglish ? 'Humingi ng tulong at mag-report ng baha' : 'Ask for help and report flooding',
-          child: Material(
+        child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: _showReportFloodSheet,
@@ -3218,7 +2940,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                          fontSize: 11,
                           letterSpacing: 0.1,
                         ),
                         maxLines: 1,
@@ -3228,7 +2950,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 ],
               ),
             ),
-          ),
           ),
         ),
       ),

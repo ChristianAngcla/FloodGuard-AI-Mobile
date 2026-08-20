@@ -2,34 +2,34 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../utils/station_thresholds.dart';
 
-/// 🌊 Flood Data Model - One barangay's flood information from the
-/// FloodGuard predictive analytics engine (time-series OLS), using
-/// raw meteorological/hydrological observations as inputs.
+/// 🌊 Flood Data Model - One barangay's current live flood monitoring information,
+/// sourced from live sensor telemetry (/api/status.live_sensors).
 class FloodData {
   final String barangay;
   /// Internal status ordinal for UI gates (NOT a flood probability %).
-  /// Mapped from river-station status: SAFE≈15, ALERT≈60, WARNING≈75, CRITICAL≈90.
+  /// Mapped from river-station status: SAFE≈15, ALERT≈60, WARNING≈75, CRITICAL≈90, UNAVAILABLE≈0.
   final int riskLevel;
   final double rainfall; // mm/hour from PAGASA
-  /// One-step predicted (or live) water level in meters — NOT the 24h peak.
-  final double waterLevel;
-  /// Peak along the interpolated 24h UI timeline (presentation only).
-  final double peakPredictedLevel;
+  /// Current observed live water level in meters from live_sensors (null if unavailable).
+  final double? waterLevel;
+  /// Retained for display compatibility (mirrors live waterLevel).
+  final double? peakPredictedLevel;
   final double
       maxWaterLevel; // Critical Level (Dike Height), usually static 20.0m
-  final String status; // safe/alert/warning/critical
+  final String status; // safe/alert/warning/critical/unavailable
   final DateTime timestamp; // when data was processed
 
-  /// Alias for [waterLevel] (current/predicted, not peak).
-  double get currentWaterLevel => waterLevel;
+  /// Alias for [waterLevel] (current live observed level, null if unavailable).
+  double? get currentWaterLevel => waterLevel;
 
   FloodData({
     required this.barangay,
     required this.riskLevel,
     required this.rainfall,
-    required this.waterLevel,
-    this.peakPredictedLevel = 0.0,
+    this.waterLevel,
+    this.peakPredictedLevel,
     required this.maxWaterLevel,
     required this.status,
     required this.timestamp,
@@ -47,17 +47,19 @@ class FloodData {
       return 0.0;
     }
 
-    final wl = parseDouble(json['river_level'] ?? json['water_level']);
+    final rawWl = json['river_level'] ?? json['water_level'];
+    final wl = (rawWl != null) ? parseDouble(rawWl) : null;
+    final rawPeak = json['peak_predicted_level'] ?? json['peak_level'];
+    final peak = (rawPeak != null) ? parseDouble(rawPeak) : wl;
     return FloodData(
       barangay: json['name'] ?? json['barangay'] ?? 'Unknown',
       riskLevel:
           parseDouble(json['flood_probability'] ?? json['risk_level']).toInt(),
       rainfall: parseDouble(json['local_rain'] ?? json['rainfall']),
       waterLevel: wl,
-      peakPredictedLevel: parseDouble(
-          json['peak_predicted_level'] ?? json['peak_level'] ?? wl),
+      peakPredictedLevel: peak,
       maxWaterLevel: parseDouble(json['max_water_level'] ?? 10.0),
-      status: (json['status'] ?? 'safe').toString().toLowerCase(),
+      status: (json['status'] ?? (wl == null ? 'unavailable' : 'safe')).toString().toLowerCase(),
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
     );
   }
@@ -97,8 +99,16 @@ class FloodApiService {
   static Map<String, dynamic>? _cachedFullResponse;
 
   /// Returns the cached full API /status response.
-  /// Contains prediction.timeline, prediction.rivers, thresholds, etc.
+  /// Contains prediction.rivers, live_sensors, thresholds, etc.
   static Map<String, dynamic>? getFullPredictionData() => _cachedFullResponse;
+
+  // 💾 Daily Forecast cache from /api/forecasts/daily
+  static Map<String, dynamic>? _cachedDailyForecastResponse;
+  static DateTime? _lastDailyForecastFetchTime;
+
+  /// Returns the cached full /api/forecasts/daily response
+  static Map<String, dynamic>? getFullDailyForecastData() =>
+      _cachedDailyForecastResponse;
 
   /// Maps each barangay to its nearest river sensor key.
   /// The API provides 3 sensors: nangka, sto_nino, tumana.
@@ -236,11 +246,11 @@ class FloodApiService {
         final dynamic decoded = jsonDecode(response.body);
         final Map<String, FloodData> map = {};
 
-        if (decoded is Map<String, dynamic> &&
-            decoded.containsKey('prediction')) {
+        if (decoded is Map<String, dynamic>) {
+          final liveSensors = decoded['live_sensors'] as Map<String, dynamic>?;
           final rivers =
-              decoded['prediction']['rivers'] as Map<String, dynamic>;
-          final weather = decoded['weather'] ?? {};
+              decoded['prediction']?['rivers'] as Map<String, dynamic>?;
+          final weather = decoded['weather'] as Map<String, dynamic>? ?? {};
           final rainfall = (weather['precipitation'] ?? 0.0).toDouble();
 
           final List<String> allBarangays = [
@@ -264,66 +274,44 @@ class FloodApiService {
 
           for (var b in allBarangays) {
             final sensorKey = barangayToSensor[b] ?? 'sto_nino';
-            final riverData = rivers[sensorKey];
+            final liveVal = liveSensors?[sensorKey];
+            final double? liveWaterLevel =
+                (liveVal is num) ? liveVal.toDouble() : null;
 
-            if (riverData != null) {
-              double waterLevel = (riverData['predicted_water_level'] ??
-                      riverData['current_water_level'] ??
-                      0.0)
-                  .toDouble();
+            final riverData = rivers?[sensorKey] as Map<String, dynamic>?;
+            final thr = StationThresholds.fromApiOrDefault(sensorKey, riverData);
+            final double maxWaterLevel = thr.critical;
 
-              double peakLevel = waterLevel;
-              final insights = riverData['time_series_insights'];
-              if (insights != null &&
-                  insights['peak_predicted_level'] != null) {
-                peakLevel = insights['peak_predicted_level'].toDouble();
+            // Live status is computed strictly from liveWaterLevel vs station thresholds
+            String status = 'unavailable';
+            int riskLevel = 0;
+
+            if (liveWaterLevel != null) {
+              if (liveWaterLevel >= thr.critical) {
+                status = 'critical';
+                riskLevel = 90;
+              } else if (liveWaterLevel >= thr.alarm) {
+                status = 'warning';
+                riskLevel = 75;
+              } else if (liveWaterLevel >= thr.alert) {
+                status = 'alert';
+                riskLevel = 60;
+              } else {
+                status = 'safe';
+                riskLevel = 15;
               }
-
-              // Status ordinals for UI (not statistical probabilities)
-              String status =
-                  (riverData['status'] ?? 'safe').toString().toLowerCase();
-              int riskLevel;
-              switch (status) {
-                case 'critical':
-                  riskLevel = 90;
-                  break;
-                case 'warning':
-                  riskLevel = 75;
-                  break;
-                case 'alert':
-                  riskLevel = 60;
-                  break;
-                default:
-                  // SAFE must stay below early-warning trigger (< 50)
-                  riskLevel = 15;
-              }
-
-              final thresholds = riverData['thresholds'] ?? {};
-              double maxWaterLevel =
-                  (thresholds['critical'] ?? 20.0).toDouble();
-
-              map[b] = FloodData(
-                barangay: b,
-                riskLevel: riskLevel,
-                rainfall: rainfall,
-                waterLevel: waterLevel,
-                peakPredictedLevel: peakLevel,
-                maxWaterLevel: maxWaterLevel,
-                status: status,
-                timestamp: DateTime.now(),
-              );
-            } else {
-              map[b] = FloodData(
-                barangay: b,
-                riskLevel: 10,
-                rainfall: rainfall,
-                waterLevel: 0.0,
-                peakPredictedLevel: 0.0,
-                maxWaterLevel: 20.0,
-                status: 'safe',
-                timestamp: DateTime.now(),
-              );
             }
+
+            map[b] = FloodData(
+              barangay: b,
+              riskLevel: riskLevel,
+              rainfall: rainfall,
+              waterLevel: liveWaterLevel,
+              peakPredictedLevel: liveWaterLevel,
+              maxWaterLevel: maxWaterLevel,
+              status: status,
+              timestamp: DateTime.now(),
+            );
           }
         }
 
@@ -554,4 +542,116 @@ class FloodApiService {
       return false;
     }
   }
+
+  /// 📅 Fetch authoritative daily forecasts from GET /api/forecasts/daily
+  static Future<Map<String, dynamic>?> fetchDailyForecasts(
+      {bool forceRefresh = false}) async {
+    try {
+      if (!forceRefresh &&
+          _cachedDailyForecastResponse != null &&
+          _lastDailyForecastFetchTime != null) {
+        final age = DateTime.now().difference(_lastDailyForecastFetchTime!);
+        if (age.inMinutes < 5) {
+          return _cachedDailyForecastResponse;
+        }
+      }
+
+      debugPrint(
+          '📅 Fetching authoritative daily forecast from $baseUrl/forecasts/daily');
+      final response =
+          await http.get(Uri.parse('$baseUrl/forecasts/daily')).timeout(_timeout);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          _cachedDailyForecastResponse = decoded;
+          _lastDailyForecastFetchTime = DateTime.now();
+          return decoded;
+        }
+      }
+      return _cachedDailyForecastResponse;
+    } catch (e) {
+      debugPrint('❌ Failed to fetch daily forecasts: $e');
+      return _cachedDailyForecastResponse;
+    }
+  }
+
+  static DailyForecastItem? getDailyForecastForSensor(String sensorKey) {
+    if (_cachedDailyForecastResponse == null) return null;
+    final stations =
+        _cachedDailyForecastResponse!['stations'] as Map<String, dynamic>?;
+    final data = stations?[sensorKey] as Map<String, dynamic>?;
+    if (data == null) return null;
+    return DailyForecastItem.fromJson(data);
+  }
+
+  static DailyForecastItem? getDailyForecastForBarangay(String barangay) {
+    final sensorKey = barangayToSensor[barangay] ?? 'sto_nino';
+    return getDailyForecastForSensor(sensorKey);
+  }
 }
+
+/// 📅 Authoritative Daily Forecast Data Model from GET /api/forecasts/daily
+class DailyForecastItem {
+  final String stationId;
+  final String forecastTargetDate;
+  final String? sourceDataDate;
+  final double? predictedWaterLevel;
+  final String calculationMode; // primary_model, persistence_fallback, unavailable
+  final String statusBand; // SAFE, ALERT, ALARM, CRITICAL, UNMAPPED_DAILY_OBSERVATION
+  final String candidateId;
+  final String targetSemantics;
+  final bool thresholdMappingAllowed;
+  final String? fallbackReason;
+
+  DailyForecastItem({
+    required this.stationId,
+    required this.forecastTargetDate,
+    this.sourceDataDate,
+    this.predictedWaterLevel,
+    required this.calculationMode,
+    required this.statusBand,
+    required this.candidateId,
+    required this.targetSemantics,
+    required this.thresholdMappingAllowed,
+    this.fallbackReason,
+  });
+
+  factory DailyForecastItem.fromJson(Map<String, dynamic> json) {
+    double? parseDouble(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      if (val is String) {
+        return double.tryParse(val.replaceAll(RegExp(r'[^\d.]'), ''));
+      }
+      return null;
+    }
+
+    return DailyForecastItem(
+      stationId: json['stationId']?.toString() ?? '',
+      forecastTargetDate: json['forecastTargetDate']?.toString() ?? '',
+      sourceDataDate: json['sourceDataDate']?.toString(),
+      predictedWaterLevel: parseDouble(json['predictedWaterLevel']),
+      calculationMode: json['calculationMode']?.toString() ?? 'unavailable',
+      statusBand: json['statusBand']?.toString() ?? 'SAFE',
+      candidateId: json['candidateId']?.toString() ?? '',
+      targetSemantics: json['targetSemantics']?.toString() ?? '',
+      thresholdMappingAllowed: json['thresholdMappingAllowed'] == true,
+      fallbackReason: json['fallbackReason']?.toString(),
+    );
+  }
+
+  bool get isUnavailable =>
+      calculationMode == 'unavailable' || predictedWaterLevel == null;
+
+  String get modeDisplayLabel {
+    switch (calculationMode) {
+      case 'primary_model':
+        return 'PRIMARY MODEL';
+      case 'persistence_fallback':
+        return 'PERSISTENCE FALLBACK';
+      default:
+        return 'FORECAST UNAVAILABLE';
+    }
+  }
+}
+
