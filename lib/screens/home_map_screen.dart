@@ -429,11 +429,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       final Map<String, LatLng> centers = {};
       final Map<String, FloodData> loadedData = {};
 
-      // Step 2: Fetch REAL data from FloodGuard /api/status
+      // Step 2: Fetch REAL data from FloodGuard /api/status and /api/forecasts/daily
       Map<String, FloodData> apiData = {};
       try {
-        apiData = await FloodApiService.getAllBarangayFloodData(
-            forceRefresh: forceRefresh);
+        final results = await Future.wait([
+          FloodApiService.getAllBarangayFloodData(forceRefresh: forceRefresh),
+          FloodApiService.fetchDailyForecasts(forceRefresh: forceRefresh),
+        ]);
+        apiData = results[0] as Map<String, FloodData>;
         if (apiData.isEmpty && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -2544,8 +2547,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Forecast card ──
-                  _buildDashboardDailyForecastCard(textColor, subColor),
+                  // ── Live and Forecast cards ──
+                  _buildDashboardLiveAndForecastCard(textColor, subColor),
                   const SizedBox(height: 20),
 
                   // ── Weather Card ──
@@ -2630,59 +2633,295 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-  Widget _buildDashboardDailyForecastCard(Color textColor, Color? subColor) {
-    final daily = FloodApiService.getDailyForecastForBarangay(
-        _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño');
-    final hasForecast = daily != null && !daily.isUnavailable;
-    final panelColor = _isDarkMode ? const Color(0xFF253B50) : Colors.white;
+  Widget _buildDashboardLiveAndForecastCard(Color textColor, Color subColor) {
+    final selectedBarangay =
+        _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
+    final telemetry =
+        FloodApiService.getLiveTelemetryForBarangay(selectedBarangay);
+    final daily = FloodApiService.getDailyForecastForBarangay(selectedBarangay);
+    final cardColor =
+        _isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: panelColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isDarkMode ? Colors.white10 : Colors.grey.shade200,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _isTaglish ? 'KASALUKUYANG DATOS' : 'CURRENT OBSERVATION',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: subColor,
+          ),
         ),
-      ),
-      child: hasForecast
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _isTaglish
-                      ? 'PAGTATAYA SA SUSUNOD NA ARAW'
-                      : 'NEXT-CALENDAR-DAY FORECAST',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: subColor),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
-                  style: const TextStyle(
-                      fontSize: 38,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF0369A1)),
-                ),
-                const SizedBox(height: 6),
-                Text('${daily.statusBand} · ${daily.modeDisplayLabel}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, color: Color(0xFF0369A1))),
-                if (daily.forecastTargetDate.isNotEmpty)
-                  Text(daily.forecastTargetDate,
-                      style: TextStyle(color: subColor)),
-              ],
-            )
-          : Text(
-              _isTaglish
-                  ? 'Hindi available ang daily forecast.'
-                  : 'Daily forecast unavailable.',
-              style: TextStyle(color: textColor),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _isDarkMode ? Colors.white12 : Colors.grey.shade200,
             ),
+          ),
+          child: _buildDashboardCurrentObservationContent(
+              telemetry, textColor, subColor),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _isTaglish
+              ? 'PAGTATAYA SA SUSUNOD NA ARAW'
+              : 'NEXT-CALENDAR-DAY FORECAST',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: subColor,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _isDarkMode ? cardColor : const Color(0xFFF0F9FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _isDarkMode ? Colors.white12 : Colors.grey.shade200,
+            ),
+          ),
+          child:
+              _buildDashboardDailyForecastContent(daily, textColor, subColor),
+        ),
+      ],
     );
+  }
+
+  Widget _buildDashboardCurrentObservationContent(
+      LiveTelemetryItem? telemetry, Color textColor, Color subColor) {
+    if (telemetry == null ||
+        telemetry.isUnavailable ||
+        telemetry.currentReading == null) {
+      final reason = telemetry?.unavailableReasonDisplay ??
+          'Telemetry Temporarily Unavailable';
+      final hasLkv = telemetry?.lastKnownValidReading != null;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _isTaglish ? 'Hindi Magagamit' : 'Unavailable',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: _isDarkMode
+                      ? Colors.orange.shade300
+                      : const Color(0xFFD97706),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  reason,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _isDarkMode
+                        ? Colors.orange.shade300
+                        : const Color(0xFFD97706),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (hasLkv) ...[
+            Text(
+              _isTaglish
+                  ? 'Huling Wastong Datos: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m'
+                  : 'Last Known Valid Reading: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+            if (telemetry.lastKnownValidSource != null &&
+                telemetry.lastKnownValidSource!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  telemetry.lastKnownValidSource!,
+                  style: TextStyle(fontSize: 11, color: subColor),
+                ),
+              ),
+          ] else ...[
+            Text(
+              _isTaglish
+                  ? 'Walang nakaraang wastong datos.'
+                  : 'No valid previous reading available.',
+              style: TextStyle(fontSize: 12, color: subColor),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Valid Observation
+    final readingStr = '${telemetry.currentReading!.toStringAsFixed(2)} m';
+    final status = telemetry.liveStatus;
+    final timeStr = telemetry.sourceTimePst ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              readingStr,
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+                color: textColor,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: _statusBgColor(status),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: _statusTextColor(status),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'PAGASA FFWS',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: subColor),
+            ),
+            if (timeStr.isNotEmpty)
+              Text(
+                'Updated: $timeStr',
+                style: TextStyle(fontSize: 11, color: subColor),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDashboardDailyForecastContent(
+      DailyForecastItem? daily, Color textColor, Color subColor) {
+    if (daily == null ||
+        daily.isUnavailable ||
+        daily.predictedWaterLevel == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _isTaglish
+                ? 'Hindi available ang pagtataya'
+                : 'Forecast unavailable',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textColor,
+            ),
+          ),
+          if (daily?.fallbackReason != null &&
+              daily!.fallbackReason!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              daily.fallbackReason!,
+              style: TextStyle(
+                fontSize: 12,
+                color: subColor,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF0369A1),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${daily.statusBand} · ${daily.modeDisplayLabel}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0369A1),
+          ),
+        ),
+        if (daily.forecastTargetDate.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              daily.forecastTargetDate,
+              style: TextStyle(color: subColor, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Color _statusBgColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'CRITICAL':
+        return Colors.red.withValues(alpha: 0.15);
+      case 'ALARM':
+      case 'WARNING':
+        return Colors.orange.withValues(alpha: 0.15);
+      case 'ALERT':
+        return Colors.amber.withValues(alpha: 0.2);
+      case 'SAFE':
+      default:
+        return Colors.green.withValues(alpha: 0.15);
+    }
+  }
+
+  Color _statusTextColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'CRITICAL':
+        return Colors.red;
+      case 'ALARM':
+      case 'WARNING':
+        return const Color(0xFFD97706);
+      case 'ALERT':
+        return const Color(0xFFB45309);
+      case 'SAFE':
+      default:
+        return const Color(0xFF15803D);
+    }
   }
 
   // ── Dashboard Data Helpers ──
