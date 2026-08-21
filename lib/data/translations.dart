@@ -32,10 +32,6 @@ class Translations {
       "en": "Search for area or street",
       "tl": "Maghanap ng lugar o kalye",
     },
-    "weatherMap": {
-      "en": "Weather Map",
-      "tl": "Mapa ng Panahon",
-    },
     "floodMap": {
       "en": "Flood Map",
       "tl": "Mapa ng Baha",
@@ -164,9 +160,9 @@ class Translations {
     },
     "enterLocation": {
       "en":
-          "Enter your location to check real-time flood risk and rainfall predictions for your area",
+          "Enter your location to check PAGASA-reported river conditions and the daily flood forecast for your area",
       "tl":
-          "Ilagay ang iyong lokasyon para malaman ang real-time flood risk at rainfall predictions.",
+          "Ilagay ang iyong lokasyon para makita ang datos ng ilog mula sa PAGASA at ang pang-araw na pagtataya ng baha.",
     },
     "floodChance": {
       "en": "Possibility of Flooding",
@@ -189,8 +185,8 @@ class Translations {
       "tl": "LIGTAS KA BA?",
     },
     "currentStatus": {
-      "en": "Current weather and flood status",
-      "tl": "Kasalukuyang lagay ng panahon at baha",
+      "en": "Current PAGASA-reported river and flood status",
+      "tl": "Kasalukuyang datos ng ilog at baha mula sa PAGASA",
     },
     "recommendations": {
       "en": "Recommendations",

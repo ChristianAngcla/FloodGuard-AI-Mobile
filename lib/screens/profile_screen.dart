@@ -256,7 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await prefs.setString('avatar_seed_$safeEmail', _avatarSeed);
       }
 
-      // Re-subscribe FCM to the new barangay for live emergency alerts!
+      // Re-subscribe FCM to the new barangay for PAGASA telemetry emergency alerts
       NotificationService.subscribeToBarangay(barangay);
 
       if (mounted) {

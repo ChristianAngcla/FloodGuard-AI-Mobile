@@ -18,7 +18,6 @@ import '../widgets/app_drawer.dart';
 import '../widgets/multistep_report_sheet.dart';
 import '../widgets/flood_legend_card.dart';
 import '../widgets/pulsing_location_dot.dart';
-import '../widgets/weather_card.dart';
 import '../screens/barangay_details_sheet.dart';
 import '../services/flood_api_service.dart';
 import '../models/user_profile_model.dart';
@@ -33,8 +32,8 @@ class HomeMapScreen extends StatefulWidget {
   final bool initialDarkMode;
   final bool initialTaglish;
 
-  // Static cache of Marikina barangay centers calculated from GeoJSON.
-  // Helps widgets like WeatherCard query coordinates directly without reloading the GeoJSON.
+  // Static cache of Marikina barangay centers calculated from GeoJSON, so other widgets can
+  // query coordinates without reloading and reparsing the GeoJSON.
   static final Map<String, LatLng> barangayCenters = {};
 
   const HomeMapScreen({
@@ -2386,11 +2385,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final textColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
     final subColor = _isDarkMode ? Colors.white : Colors.black;
 
-    final selectedBarangayName =
-        _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
-    final center = HomeMapScreen.barangayCenters[selectedBarangayName] ??
-        LatLng(14.6503, 121.1020);
-
     return SizedBox(
       key: const ValueKey('home_dashboard'),
       width: double.infinity,
@@ -2457,11 +2451,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Live Risk Assessment Title ──
+                  // ── Flood Risk Assessment Title ──
                   Text(
                     _isTaglish
-                        ? 'Live na Pagsusuri ng Panganib'
-                        : 'Live Risk Assessment',
+                        ? 'Pagsusuri ng Panganib'
+                        : 'Flood Risk Assessment',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
@@ -2547,18 +2541,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Live and Forecast cards ──
-                  _buildDashboardLiveAndForecastCard(textColor, subColor),
-                  const SizedBox(height: 20),
-
-                  // ── Weather Card ──
-                  WeatherCard(
-                    latitude: center.latitude,
-                    longitude: center.longitude,
-                    locationName: selectedBarangayName,
-                    isDarkMode: _isDarkMode,
-                    isTaglish: _isTaglish,
-                  ),
+                  // ── PAGASA telemetry and daily forecast cards ──
+                  _buildDashboardTelemetryAndForecastCard(textColor, subColor),
                   const SizedBox(height: 28),
 
                   // Action Banner
@@ -2633,20 +2617,28 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-  Widget _buildDashboardLiveAndForecastCard(Color textColor, Color subColor) {
+  Widget _buildDashboardTelemetryAndForecastCard(Color textColor, Color subColor) {
     final selectedBarangay =
         _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
     final telemetry =
-        FloodApiService.getLiveTelemetryForBarangay(selectedBarangay);
+        FloodApiService.getPagasaTelemetryForBarangay(selectedBarangay);
     final daily = FloodApiService.getDailyForecastForBarangay(selectedBarangay);
     final cardColor =
         _isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC);
+
+    // DEFECT G: only claim "next calendar day" when the dates actually say so.
+    final nextDayVerified = daily?.nextCalendarDayVerified ?? false;
+    final forecastHeading = nextDayVerified
+        ? (_isTaglish
+            ? 'PAGTATAYA SA SUSUNOD NA ARAW'
+            : 'NEXT-CALENDAR-DAY FORECAST')
+        : (_isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _isTaglish ? 'KASALUKUYANG DATOS' : 'CURRENT OBSERVATION',
+          _isTaglish ? 'HULING DATOS MULA SA PAGASA' : 'LATEST PAGASA READING',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
@@ -2669,9 +2661,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         const SizedBox(height: 16),
         Text(
-          _isTaglish
-              ? 'PAGTATAYA SA SUSUNOD NA ARAW'
-              : 'NEXT-CALENDAR-DAY FORECAST',
+          forecastHeading,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
@@ -2697,7 +2687,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildDashboardCurrentObservationContent(
-      LiveTelemetryItem? telemetry, Color textColor, Color subColor) {
+      PagasaTelemetryItem? telemetry, Color textColor, Color subColor) {
     if (telemetry == null ||
         telemetry.isUnavailable ||
         telemetry.currentReading == null) {
@@ -2775,8 +2765,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
     // Valid Observation
     final readingStr = '${telemetry.currentReading!.toStringAsFixed(2)} m';
-    final status = telemetry.liveStatus;
-    final timeStr = telemetry.sourceTimePst ?? '';
+    final status = telemetry.telemetryStatus;
+    final timeStr = telemetry.sourceTimePht ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2884,9 +2874,21 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         if (daily.forecastTargetDate.isNotEmpty)
           Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _isTaglish
+                  ? 'Para sa: ${daily.forecastTargetDate}'
+                  : 'For: ${daily.forecastTargetDate}',
+              style: TextStyle(color: subColor, fontSize: 12),
+            ),
+          ),
+        if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty)
+          Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              daily.forecastTargetDate,
+              _isTaglish
+                  ? 'Batay sa datos ng: ${daily.sourceDataDate}'
+                  : 'Based on observations from: ${daily.sourceDataDate}',
               style: TextStyle(color: subColor, fontSize: 12),
             ),
           ),

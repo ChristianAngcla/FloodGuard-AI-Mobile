@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
-import 'home_map_screen.dart';
-import '../widgets/weather_card.dart';
 import '../services/flood_api_service.dart';
 
-/// Bottom sheet combining live station telemetry with the separate daily forecast.
+/// Bottom sheet combining PAGASA-reported station telemetry with the separate daily forecast.
 class BarangayDetailsSheet extends StatefulWidget {
   final String barangayName;
   final bool isTaglish;
@@ -77,8 +74,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   ),
                   Text(
                     widget.isTaglish
-                        ? 'Live na Pagsusuri ng Panganib'
-                        : 'Live Risk Assessment',
+                        ? 'Pagsusuri ng Panganib'
+                        : 'Flood Risk Assessment',
                     style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -121,21 +118,6 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Builder(
-                    builder: (context) {
-                      final center =
-                          HomeMapScreen.barangayCenters[_selectedBarangay] ??
-                              const LatLng(14.6503, 121.1020);
-                      return WeatherCard(
-                        latitude: center.latitude,
-                        longitude: center.longitude,
-                        locationName: _selectedBarangay,
-                        isDarkMode: widget.isDarkMode,
-                        isTaglish: widget.isTaglish,
-                      );
-                    },
-                  ),
                   const SizedBox(height: 24),
                   Text(
                     '${widget.isTaglish ? 'Sensor' : 'Station'}: $_sensorDisplayName',
@@ -145,7 +127,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         color: subColor),
                   ),
                   const SizedBox(height: 12),
-                  _buildLiveAndDailyCard(textColor, subColor),
+                  _buildTelemetryAndDailyCard(textColor, subColor),
                   const SizedBox(height: 28),
                   SizedBox(
                     width: double.infinity,
@@ -178,19 +160,29 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     );
   }
 
-  Widget _buildLiveAndDailyCard(Color textColor, Color subColor) {
+  Widget _buildTelemetryAndDailyCard(Color textColor, Color subColor) {
     final telemetry =
-        FloodApiService.getLiveTelemetryForBarangay(_selectedBarangay);
+        FloodApiService.getPagasaTelemetryForBarangay(_selectedBarangay);
     final daily =
         FloodApiService.getDailyForecastForBarangay(_selectedBarangay);
     final cardColor =
         widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC);
 
+    // DEFECT G: only claim "next calendar day" when the dates actually say so.
+    final nextDayVerified = daily?.nextCalendarDayVerified ?? false;
+    final forecastHeading = nextDayVerified
+        ? (widget.isTaglish
+            ? 'PAGTATAYA SA SUSUNOD NA ARAW'
+            : 'NEXT-CALENDAR-DAY FORECAST')
+        : (widget.isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel(
-            widget.isTaglish ? 'KASALUKUYANG DATOS' : 'CURRENT OBSERVATION',
+            widget.isTaglish
+                ? 'HULING DATOS MULA SA PAGASA'
+                : 'LATEST PAGASA READING',
             subColor),
         const SizedBox(height: 6),
         _dataPanel(
@@ -198,11 +190,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           _buildCurrentObservationContent(telemetry, textColor, subColor),
         ),
         const SizedBox(height: 20),
-        _sectionLabel(
-            widget.isTaglish
-                ? 'PAGTATAYA SA SUSUNOD NA ARAW'
-                : 'NEXT-CALENDAR-DAY FORECAST',
-            subColor),
+        _sectionLabel(forecastHeading, subColor),
         const SizedBox(height: 6),
         _dataPanel(
           widget.isDarkMode ? cardColor : const Color(0xFFF0F9FF),
@@ -213,7 +201,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   }
 
   Widget _buildCurrentObservationContent(
-      LiveTelemetryItem? telemetry, Color textColor, Color subColor) {
+      PagasaTelemetryItem? telemetry, Color textColor, Color subColor) {
     if (telemetry == null ||
         telemetry.isUnavailable ||
         telemetry.currentReading == null) {
@@ -290,8 +278,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
     // Valid Observation
     final readingStr = '${telemetry.currentReading!.toStringAsFixed(2)} m';
-    final status = telemetry.liveStatus;
-    final timeStr = telemetry.sourceTimePst ?? '';
+    final status = telemetry.telemetryStatus;
+    final timeStr = telemetry.sourceTimePht ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,9 +389,21 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         ),
         if (daily.forecastTargetDate.isNotEmpty)
           Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              widget.isTaglish
+                  ? 'Para sa: ${daily.forecastTargetDate}'
+                  : 'For: ${daily.forecastTargetDate}',
+              style: TextStyle(color: subColor, fontSize: 12),
+            ),
+          ),
+        if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty)
+          Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              daily.forecastTargetDate,
+              widget.isTaglish
+                  ? 'Batay sa datos ng: ${daily.sourceDataDate}'
+                  : 'Based on observations from: ${daily.sourceDataDate}',
               style: TextStyle(color: subColor, fontSize: 12),
             ),
           ),

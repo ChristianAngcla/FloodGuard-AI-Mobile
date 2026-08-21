@@ -101,8 +101,8 @@ class WelcomePopup extends StatelessWidget {
                   children: [
                     Text(
                       isTaglish
-                          ? "Ang sistema ay nagpo-forecast at nagvi-visualize ng flood hazards sa Marikina City gamit ang Ordinary Least Squares (OLS) Multiple Linear Regression batay sa telemetered rainfall mula sa 5 upstream stations, water level, at weather data. Ipinapakita ito bilang color-coded risk map (Safe, Alert, Warning, Critical) para sa preparedness at mitigation."
-                          : "The system forecasts and visualizes flood hazards in Marikina City using Ordinary Least Squares (OLS) Multiple Linear Regression based on telemetered rainfall from 5 upstream stations, real-time water levels, and weather data. It displays a color-coded risk map (Safe, Alert, Warning, Critical) to support disaster preparedness and mitigation.",
+                          ? "Ang sistema ay nagpo-forecast at nagvi-visualize ng flood hazards sa Marikina City gamit ang Ordinary Least Squares (OLS) Multiple Linear Regression batay sa PAGASA-reported telemetry: telemetered rainfall mula sa upstream stations at antas ng tubig ng ilog. Ipinapakita ito bilang color-coded risk map (Safe, Alert, Warning, Critical) para sa preparedness at mitigation."
+                          : "The system forecasts and visualizes flood hazards in Marikina City using Ordinary Least Squares (OLS) Multiple Linear Regression based on PAGASA-reported telemetry: telemetered upstream rainfall and river water levels. It displays a color-coded risk map (Safe, Alert, Warning, Critical) to support disaster preparedness and mitigation.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,

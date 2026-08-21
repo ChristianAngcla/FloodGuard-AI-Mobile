@@ -4,24 +4,26 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../utils/station_thresholds.dart';
 
-/// 🌊 Flood Data Model - One barangay's current live flood monitoring information,
-/// sourced from live sensor telemetry (/api/status.live_sensors).
+/// 🌊 Flood Data Model - One barangay's current flood monitoring information,
+/// sourced from PAGASA-reported station telemetry (/api/status.telemetry_sensors).
 class FloodData {
   final String barangay;
   /// Internal status ordinal for UI gates (NOT a flood probability %).
   /// Mapped from river-station status: SAFE≈15, ALERT≈60, WARNING≈75, CRITICAL≈90, UNAVAILABLE≈0.
   final int riskLevel;
-  final double rainfall; // mm/hour from PAGASA
-  /// Current observed live water level in meters from live_sensors (null if unavailable).
+  /// PAGASA-reported rainfall for the upstream gauge feeding this station's model, in mm
+  /// accumulated over the preceding hour. Never a cumulative day-to-date total.
+  final double rainfall;
+  /// Current PAGASA-reported water level in metres (null if unavailable).
   final double? waterLevel;
-  /// Retained for display compatibility (mirrors live waterLevel).
+  /// Retained for display compatibility (mirrors the PAGASA-reported waterLevel).
   final double? peakPredictedLevel;
   final double
       maxWaterLevel; // Critical Level (Dike Height), usually static 20.0m
   final String status; // safe/alert/warning/critical/unavailable
   final DateTime timestamp; // when data was processed
 
-  /// Alias for [waterLevel] (current live observed level, null if unavailable).
+  /// Alias for [waterLevel] (current PAGASA-reported level, null if unavailable).
   double? get currentWaterLevel => waterLevel;
 
   FloodData({
@@ -81,7 +83,7 @@ class FloodData {
 ///    - For Emulator: Use 'http://10.0.2.2:5000/api'
 ///    - For Physical Device: Use your PC's IP (e.g., 'http://192.168.1.57:5000/api')
 class FloodApiService {
-  // 🌐 Live predictive analytics + Mongo (same Render service the admin uses)
+  // 🌐 Predictive analytics + Mongo (same Render service the admin uses)
   static const String baseUrl = ApiConfig.apiBase;
 
   // 🗄️ Users / reports — must match admin Reports feed
@@ -99,7 +101,7 @@ class FloodApiService {
   static Map<String, dynamic>? _cachedFullResponse;
 
   /// Returns the cached full API /status response.
-  /// Contains prediction.rivers, live_sensors, thresholds, etc.
+  /// Contains prediction.rivers, telemetry_sensors, pagasa_telemetry, thresholds, etc.
   static Map<String, dynamic>? getFullPredictionData() => _cachedFullResponse;
 
   // 💾 Daily Forecast cache from /api/forecasts/daily
@@ -136,6 +138,13 @@ class FloodApiService {
     'nangka': 'Nangka River',
     'sto_nino': 'Sto. Niño River',
     'tumana': 'Tumana River',
+  };
+
+  /// Upstream PAGASA rain gauge that feeds each station's certified OLS model.
+  /// Sto. Niño (Candidate 13) has no rainfall predictor, so it has no gauge here.
+  static const Map<String, String> _sensorToRainGauge = {
+    'nangka': 'boso_boso',
+    'tumana': 'science_garden',
   };
 
   /// Helper to normalize names for robust comparison (matches web logic)
@@ -247,12 +256,23 @@ class FloodApiService {
         final Map<String, FloodData> map = {};
 
         if (decoded is Map<String, dynamic>) {
-          final liveSensors = decoded['live_sensors'] as Map<String, dynamic>?;
-          final liveTelemetry = decoded['live_telemetry'] as Map<String, dynamic>?;
+          final telemetrySensors =
+              decoded['telemetry_sensors'] as Map<String, dynamic>?;
+          final pagasaTelemetry =
+              decoded['pagasa_telemetry'] as Map<String, dynamic>?;
           final rivers =
               decoded['prediction']?['rivers'] as Map<String, dynamic>?;
-          final weather = decoded['weather'] as Map<String, dynamic>? ?? {};
-          final rainfall = (weather['precipitation'] ?? 0.0).toDouble();
+
+          // PAGASA-reported upstream rainfall. `rf1hr` is the hourly INCREMENT for the gauge
+          // that feeds the station's model; it is never a cumulative day-to-date total.
+          final upstreamRain =
+              decoded['upstream_rainfall'] as Map<String, dynamic>? ?? {};
+          double? gaugeRainForSensor(String sensorKey) {
+            final gauge = _sensorToRainGauge[sensorKey];
+            if (gauge == null) return null;
+            final v = upstreamRain[gauge];
+            return v is num ? v.toDouble() : null;
+          }
 
           final List<String> allBarangays = [
             "Barangka",
@@ -275,8 +295,9 @@ class FloodApiService {
 
           for (var b in allBarangays) {
             final sensorKey = barangayToSensor[b] ?? 'sto_nino';
-            final telemetry = liveTelemetry?[sensorKey] as Map<String, dynamic>?;
-            final liveVal = liveSensors?[sensorKey];
+            final telemetry =
+                pagasaTelemetry?[sensorKey] as Map<String, dynamic>?;
+            final liveVal = telemetrySensors?[sensorKey];
             final double? liveWaterLevel =
                 (liveVal is num) ? liveVal.toDouble() : null;
 
@@ -287,7 +308,7 @@ class FloodApiService {
             final sensorStatus = telemetry?['sensorStatus']?.toString().toUpperCase() ??
                 (liveWaterLevel == null ? 'SUSPECT' : 'VALID');
 
-            // Live status is computed strictly from valid liveWaterLevel vs station thresholds
+            // Status is computed strictly from a valid PAGASA reading vs station thresholds
             String status = 'unavailable';
             int riskLevel = 0;
 
@@ -316,7 +337,7 @@ class FloodApiService {
             map[b] = FloodData(
               barangay: b,
               riskLevel: riskLevel,
-              rainfall: rainfall,
+              rainfall: gaugeRainForSensor(sensorKey) ?? 0.0,
               waterLevel: isValidReading ? liveWaterLevel : null,
               peakPredictedLevel: isValidReading ? liveWaterLevel : null,
               maxWaterLevel: maxWaterLevel,
@@ -600,25 +621,25 @@ class FloodApiService {
     return getDailyForecastForSensor(sensorKey);
   }
 
-  static LiveTelemetryItem? getLiveTelemetryForSensor(String sensorKey) {
+  static PagasaTelemetryItem? getPagasaTelemetryForSensor(String sensorKey) {
     if (_cachedFullResponse == null) return null;
     final telemetryMap =
-        _cachedFullResponse!['live_telemetry'] as Map<String, dynamic>?;
+        _cachedFullResponse!['pagasa_telemetry'] as Map<String, dynamic>?;
     final data = telemetryMap?[sensorKey] as Map<String, dynamic>?;
     if (data != null) {
-      return LiveTelemetryItem.fromJson(data);
+      return PagasaTelemetryItem.fromJson(data);
     }
 
-    // Fallback: build from prediction.rivers and live_sensors
-    final liveSensors =
-        _cachedFullResponse!['live_sensors'] as Map<String, dynamic>?;
+    // Fallback: build from prediction.rivers and telemetry_sensors
+    final telemetrySensors =
+        _cachedFullResponse!['telemetry_sensors'] as Map<String, dynamic>?;
     final lkvMap =
         _cachedFullResponse!['last_known_valid'] as Map<String, dynamic>?;
     final rivers =
         _cachedFullResponse!['prediction']?['rivers'] as Map<String, dynamic>?;
     final riverData = rivers?[sensorKey] as Map<String, dynamic>?;
 
-    final rawVal = liveSensors?[sensorKey];
+    final rawVal = telemetrySensors?[sensorKey];
     final double? reading = (rawVal is num) ? rawVal.toDouble() : null;
     final lkvObj = lkvMap?[sensorKey];
     double? lkvVal;
@@ -627,56 +648,56 @@ class FloodApiService {
       lkvVal = (lkvObj['value'] is num)
           ? (lkvObj['value'] as num).toDouble()
           : null;
-      lkvSrc = lkvObj['sourceTimePst']?.toString();
+      lkvSrc = lkvObj['sourceTimePht']?.toString();
     } else if (lkvObj is num) {
       lkvVal = lkvObj.toDouble();
     }
 
-    return LiveTelemetryItem(
+    return PagasaTelemetryItem(
       stationId: sensorKey,
       stationName: sensorDisplayNames[sensorKey] ?? sensorKey,
       currentReading: reading,
       rawReading: reading?.toString() ?? '',
       sensorStatus: reading == null ? 'SUSPECT' : 'VALID',
-      liveStatus: riverData?['status']?.toString().toUpperCase() ??
+      telemetryStatus: riverData?['status']?.toString().toUpperCase() ??
           (reading == null ? 'UNAVAILABLE' : 'SAFE'),
-      sourceTimePst: riverData?['sourceTimePst']?.toString(),
+      sourceTimePht: riverData?['sourceTimePht']?.toString(),
       lastKnownValidReading: lkvVal,
       lastKnownValidSource: lkvSrc,
     );
   }
 
-  static LiveTelemetryItem? getLiveTelemetryForBarangay(String barangay) {
+  static PagasaTelemetryItem? getPagasaTelemetryForBarangay(String barangay) {
     final sensorKey = barangayToSensor[barangay] ?? 'sto_nino';
-    return getLiveTelemetryForSensor(sensorKey);
+    return getPagasaTelemetryForSensor(sensorKey);
   }
 }
 
-/// 💧 Real-time Live Sensor Telemetry Item from GET /api/user/flood-data
-class LiveTelemetryItem {
+/// 💧 Latest PAGASA-reported station reading from GET /api/status.pagasa_telemetry
+class PagasaTelemetryItem {
   final String stationId;
   final String stationName;
   final double? currentReading;
   final String rawReading;
   final String sensorStatus; // VALID, SUSPECT, STALE, MISSING, UNAVAILABLE
-  final String liveStatus; // SAFE, ALERT, ALARM, CRITICAL, UNAVAILABLE
-  final String? sourceTimePst;
+  final String telemetryStatus; // SAFE, ALERT, ALARM, CRITICAL, UNAVAILABLE
+  final String? sourceTimePht;
   final double? lastKnownValidReading;
   final String? lastKnownValidSource;
 
-  LiveTelemetryItem({
+  PagasaTelemetryItem({
     required this.stationId,
     required this.stationName,
     this.currentReading,
     required this.rawReading,
     required this.sensorStatus,
-    required this.liveStatus,
-    this.sourceTimePst,
+    required this.telemetryStatus,
+    this.sourceTimePht,
     this.lastKnownValidReading,
     this.lastKnownValidSource,
   });
 
-  factory LiveTelemetryItem.fromJson(Map<String, dynamic> json) {
+  factory PagasaTelemetryItem.fromJson(Map<String, dynamic> json) {
     double? parseVal(dynamic v) {
       if (v == null) return null;
       if (v is num) return v.toDouble();
@@ -692,7 +713,7 @@ class LiveTelemetryItem {
     String? lkvSource;
     if (lkv is Map) {
       lkvReading = parseVal(lkv['value']);
-      lkvSource = lkv['sourceTimePst']?.toString();
+      lkvSource = lkv['sourceTimePht']?.toString();
     } else if (lkv != null) {
       lkvReading = parseVal(lkv);
     }
@@ -701,17 +722,17 @@ class LiveTelemetryItem {
     final rawStr = json['rawReading']?.toString() ?? (currentVal?.toString() ?? '');
     final sStatus = json['sensorStatus']?.toString().toUpperCase() ??
         (currentVal == null ? 'SUSPECT' : 'VALID');
-    final lStatus = json['liveStatus']?.toString().toUpperCase() ??
+    final tStatus = json['telemetryStatus']?.toString().toUpperCase() ??
         (currentVal == null ? 'UNAVAILABLE' : 'SAFE');
 
-    return LiveTelemetryItem(
+    return PagasaTelemetryItem(
       stationId: json['stationId']?.toString() ?? '',
       stationName: json['stationName']?.toString() ?? '',
       currentReading: currentVal,
       rawReading: rawStr,
       sensorStatus: sStatus,
-      liveStatus: lStatus,
-      sourceTimePst: json['sourceTimePst']?.toString(),
+      telemetryStatus: tStatus,
+      sourceTimePht: json['sourceTimePht']?.toString(),
       lastKnownValidReading: lkvReading,
       lastKnownValidSource: lkvSource,
     );
@@ -723,7 +744,7 @@ class LiveTelemetryItem {
       sensorStatus == 'STALE' ||
       sensorStatus == 'MISSING' ||
       sensorStatus == 'UNAVAILABLE' ||
-      liveStatus == 'UNAVAILABLE';
+      telemetryStatus == 'UNAVAILABLE';
 
   String get unavailableReasonDisplay {
     switch (sensorStatus) {
@@ -734,7 +755,7 @@ class LiveTelemetryItem {
       case 'MISSING':
         return 'No Current Reading';
       case 'UNAVAILABLE':
-        return 'Live Data Unavailable';
+        return 'PAGASA Reading Unavailable';
       case 'NETWORK_ERROR':
       case 'FETCH_FAILED':
         return 'Telemetry Temporarily Unavailable';
@@ -757,6 +778,20 @@ class DailyForecastItem {
   final bool thresholdMappingAllowed;
   final String? fallbackReason;
 
+  /// Model that actually produced this stored snapshot (never rewritten when the active
+  /// production model changes).
+  final String? generationModelVersion;
+
+  /// Model that is active in production right now.
+  final String? activeModelVersion;
+
+  /// True when the snapshot was produced by a model that has since been superseded.
+  final bool isStaleModelSnapshot;
+
+  /// True only when [forecastTargetDate] is literally the calendar day after
+  /// [sourceDataDate]. UI copy may say "next calendar day" only while this holds.
+  final bool nextCalendarDayVerified;
+
   DailyForecastItem({
     required this.stationId,
     required this.forecastTargetDate,
@@ -768,6 +803,10 @@ class DailyForecastItem {
     required this.targetSemantics,
     required this.thresholdMappingAllowed,
     this.fallbackReason,
+    this.generationModelVersion,
+    this.activeModelVersion,
+    this.isStaleModelSnapshot = false,
+    this.nextCalendarDayVerified = false,
   });
 
   factory DailyForecastItem.fromJson(Map<String, dynamic> json) {
@@ -780,18 +819,46 @@ class DailyForecastItem {
       return null;
     }
 
+    final source = json['sourceDataDate']?.toString();
+    final target = json['forecastTargetDate']?.toString() ?? '';
+    final activeModel = json['activeModel'];
+
     return DailyForecastItem(
       stationId: json['stationId']?.toString() ?? '',
-      forecastTargetDate: json['forecastTargetDate']?.toString() ?? '',
-      sourceDataDate: json['sourceDataDate']?.toString(),
+      forecastTargetDate: target,
+      sourceDataDate: source,
       predictedWaterLevel: parseDouble(json['predictedWaterLevel']),
       calculationMode: json['calculationMode']?.toString() ?? 'unavailable',
       statusBand: json['statusBand']?.toString() ?? 'SAFE',
-      candidateId: json['candidateId']?.toString() ?? '',
+      candidateId: json['generationCandidateId']?.toString() ??
+          json['candidateId']?.toString() ??
+          '',
       targetSemantics: json['targetSemantics']?.toString() ?? '',
       thresholdMappingAllowed: json['thresholdMappingAllowed'] == true,
       fallbackReason: json['fallbackReason']?.toString(),
+      generationModelVersion: json['generationModelVersion']?.toString() ??
+          json['modelVersion']?.toString(),
+      activeModelVersion:
+          activeModel is Map ? activeModel['modelVersion']?.toString() : null,
+      isStaleModelSnapshot: json['isStaleModelSnapshot'] == true,
+      // Trust the server flag when present; otherwise verify locally so an older API
+      // response can never make the UI claim something the dates do not support.
+      nextCalendarDayVerified: json['nextCalendarDayVerified'] == true ||
+          _isNextCalendarDay(source, target),
     );
+  }
+
+  /// True when [target] is exactly one calendar day after [source] (both YYYY-MM-DD).
+  static bool _isNextCalendarDay(String? source, String? target) {
+    if (source == null || target == null) return false;
+    final s = DateTime.tryParse(source);
+    final t = DateTime.tryParse(target);
+    if (s == null || t == null) return false;
+    final expected = DateTime.utc(s.year, s.month, s.day)
+        .add(const Duration(days: 1));
+    return expected.year == t.year &&
+        expected.month == t.month &&
+        expected.day == t.day;
   }
 
   bool get isUnavailable =>

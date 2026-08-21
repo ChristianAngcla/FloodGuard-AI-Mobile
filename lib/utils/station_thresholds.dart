@@ -66,7 +66,7 @@ class StationThresholds {
     }
   }
 
-  /// Prefer live API thresholds from `/api/status` river object when complete.
+  /// Prefer API-provided thresholds from the `/api/status` river object when complete.
   static StationThresholds fromApiOrDefault(
     String sensorKey,
     Map<String, dynamic>? riverData,
