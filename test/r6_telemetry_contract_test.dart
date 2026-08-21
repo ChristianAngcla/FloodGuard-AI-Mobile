@@ -150,7 +150,7 @@ void main() {
       expect(item.telemetryStatus, isNot('SAFE'));
     });
 
-    test('unavailable copy no longer says "Live"', () {
+    test('unavailable copy does not describe the reading as live', () {
       final item = PagasaTelemetryItem.fromJson({
         'sensorStatus': 'UNAVAILABLE',
         'telemetryStatus': 'UNAVAILABLE',
