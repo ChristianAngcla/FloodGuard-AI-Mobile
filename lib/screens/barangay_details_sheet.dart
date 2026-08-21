@@ -176,14 +176,18 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             : 'NEXT-CALENDAR-DAY FORECAST')
         : (widget.isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
 
+    final presentationReading =
+        FloodApiService.presentationCurrentReadingForBarangay(_selectedBarangay);
+    final currentHeading = presentationReading != null
+        ? (widget.isTaglish ? 'KASALUKUYANG ANTAS' : 'CURRENT READING')
+        : (widget.isTaglish
+            ? 'HULING DATOS MULA SA PAGASA'
+            : 'LATEST PAGASA READING');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel(
-            widget.isTaglish
-                ? 'HULING DATOS MULA SA PAGASA'
-                : 'LATEST PAGASA READING',
-            subColor),
+        _sectionLabel(currentHeading, subColor),
         const SizedBox(height: 6),
         _dataPanel(
           cardColor,
@@ -202,6 +206,18 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
   Widget _buildCurrentObservationContent(
       PagasaTelemetryItem? telemetry, Color textColor, Color subColor) {
+    final demoReading =
+        FloodApiService.presentationCurrentReadingForBarangay(_selectedBarangay);
+    if (demoReading != null) {
+      return Text(
+        '${demoReading.toStringAsFixed(2)} m',
+        style: TextStyle(
+          fontSize: 30,
+          fontWeight: FontWeight.w900,
+          color: textColor,
+        ),
+      );
+    }
     if (telemetry == null ||
         telemetry.isUnavailable ||
         telemetry.currentReading == null) {

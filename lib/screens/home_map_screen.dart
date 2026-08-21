@@ -1973,7 +1973,32 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               child: _buildRefreshButton(),
                             ),
                           ),
-                          // Right: settings
+                          if (FloodApiService.isSimulationActive)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (_isDarkMode
+                                          ? Colors.white
+                                          : const Color(0xFF3784DF))
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'DEMO',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                    color: _isDarkMode
+                                        ? Colors.white70
+                                        : const Color(0xFF3784DF),
+                                  ),
+                                ),
+                              ),
+                            ),
                           _buildMenuButton(),
                         ],
                       ),
@@ -2649,11 +2674,17 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             : 'NEXT-CALENDAR-DAY FORECAST')
         : (_isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
 
+    final presentationReading =
+        FloodApiService.presentationCurrentReadingForBarangay(selectedBarangay);
+    final currentHeading = presentationReading != null
+        ? (_isTaglish ? 'KASALUKUYANG ANTAS' : 'CURRENT READING')
+        : (_isTaglish ? 'HULING DATOS MULA SA PAGASA' : 'LATEST PAGASA READING');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _isTaglish ? 'HULING DATOS MULA SA PAGASA' : 'LATEST PAGASA READING',
+          currentHeading,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
@@ -2672,7 +2703,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             ),
           ),
           child: _buildDashboardCurrentObservationContent(
-              telemetry, textColor, subColor),
+              telemetry, textColor, subColor, selectedBarangay),
         ),
         const SizedBox(height: 16),
         Text(
@@ -2702,7 +2733,22 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildDashboardCurrentObservationContent(
-      PagasaTelemetryItem? telemetry, Color textColor, Color subColor) {
+      PagasaTelemetryItem? telemetry,
+      Color textColor,
+      Color subColor,
+      String barangayName) {
+    final demoReading =
+        FloodApiService.presentationCurrentReadingForBarangay(barangayName);
+    if (demoReading != null) {
+      return Text(
+        '${demoReading.toStringAsFixed(2)} m',
+        style: TextStyle(
+          fontSize: 30,
+          fontWeight: FontWeight.w900,
+          color: textColor,
+        ),
+      );
+    }
     if (telemetry == null ||
         telemetry.isUnavailable ||
         telemetry.currentReading == null) {

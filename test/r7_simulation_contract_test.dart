@@ -26,7 +26,7 @@ void main() {
   });
 
   group('R7 simulation marker', () {
-    test('DailyForecastItem surfaces SIMULATION / TEST DATA', () {
+    test('DailyForecastItem keeps simulation flag without card wording', () {
       final item = DailyForecastItem.fromJson({
         'stationId': 'sto_nino',
         'sourceDataDate': '2026-08-20',
@@ -40,7 +40,9 @@ void main() {
         'modelVersion': '3.0.0-C13-RULE-B',
       });
       expect(item.isSimulation, isTrue);
-      expect(item.modeDisplayLabel, contains('SIMULATION / TEST DATA'));
+      expect(item.modeDisplayLabel, 'PRIMARY MODEL');
+      expect(item.modeDisplayLabel, isNot(contains('SIMULATION')));
+      expect(item.modeDisplayLabel, isNot(contains('TEST DATA')));
     });
 
     test('operational forecast is not marked simulation', () {
@@ -122,6 +124,64 @@ void main() {
           calculationMode: 'primary_model',
         ),
         ColorStatus.safe,
+      );
+    });
+  });
+
+  group('demo presentation current reading', () {
+    test('Nangka t-1 is read from simulation inputs without coercing missing to 0', () {
+      expect(
+        FloodApiService.t1FromSimulationInputs('nangka', {
+          'nangka_wl_t_1': 16.2,
+        }),
+        16.2,
+      );
+      expect(
+        FloodApiService.t1FromSimulationInputs('nangka', {}),
+        isNull,
+      );
+      expect(
+        FloodApiService.t1FromSimulationInputs('sto_nino', {'Sto_t_1': 12.71}),
+        12.71,
+      );
+      expect(
+        FloodApiService.t1FromSimulationInputs('tumana', {'tumana_wl_t_1': 0.0}),
+        0.0,
+      );
+    });
+
+    test('presentation current reading only appears in simulation when real telemetry is unavailable', () {
+      expect(
+        FloodApiService.presentationCurrentReading(
+          simulationActive: true,
+          realTelemetryUnavailable: true,
+          t1: 16.2,
+        ),
+        16.2,
+      );
+      expect(
+        FloodApiService.presentationCurrentReading(
+          simulationActive: false,
+          realTelemetryUnavailable: true,
+          t1: 16.2,
+        ),
+        isNull,
+      );
+      expect(
+        FloodApiService.presentationCurrentReading(
+          simulationActive: true,
+          realTelemetryUnavailable: false,
+          t1: 16.2,
+        ),
+        isNull,
+      );
+      expect(
+        FloodApiService.presentationCurrentReading(
+          simulationActive: true,
+          realTelemetryUnavailable: true,
+          t1: null,
+        ),
+        isNull,
       );
     });
   });
