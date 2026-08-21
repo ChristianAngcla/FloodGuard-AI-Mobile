@@ -509,25 +509,31 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         }
         final thr = StationThresholds.fromApiOrDefault(sensorKey, riverMap);
 
-        final statusStr =
-            (matchedData?.status ?? riverMap?['status'] ?? 'unavailable')
-                .toString()
-                .toLowerCase();
-        ColorStatus colorStatus;
-        switch (statusStr) {
-          case 'critical':
-            colorStatus = ColorStatus.critical;
-            break;
-          case 'warning':
-            colorStatus = ColorStatus.warning;
-            break;
-          case 'alert':
-            colorStatus = ColorStatus.alert;
-            break;
-          default:
-            colorStatus = matchedData?.waterLevel == null
-                ? ColorStatus.safe
-                : thr.statusFor(matchedData!.waterLevel!);
+        ColorStatus? colorStatus;
+        final simulatedStatus =
+            FloodApiService.simulatedMapStatusForBarangay(name);
+        if (FloodApiService.isSimulationActive) {
+          colorStatus = simulatedStatus;
+        } else {
+          final statusStr =
+              (matchedData?.status ?? riverMap?['status'] ?? 'unavailable')
+                  .toString()
+                  .toLowerCase();
+          switch (statusStr) {
+            case 'critical':
+              colorStatus = ColorStatus.critical;
+              break;
+            case 'warning':
+              colorStatus = ColorStatus.warning;
+              break;
+            case 'alert':
+              colorStatus = ColorStatus.alert;
+              break;
+            default:
+              colorStatus = matchedData?.waterLevel == null
+                  ? ColorStatus.safe
+                  : thr.statusFor(matchedData!.waterLevel!);
+          }
         }
 
         Color baseColor;
@@ -544,12 +550,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           case ColorStatus.safe:
             baseColor = const Color(0xFF4CAF50);
             break;
+          case null:
+            baseColor = const Color(0xFF64748B);
+            break;
         }
 
         if (matchedData != null) {
           loadedData[name] = matchedData;
           debugPrint(
-              "🌊 $name: status=$statusStr WL=${matchedData.waterLevel?.toStringAsFixed(2) ?? 'N/A'}m peak=${matchedData.peakPredictedLevel?.toStringAsFixed(2) ?? 'N/A'}m ($sensorKey)");
+              "🌊 $name: mapStatus=$colorStatus WL=${matchedData.waterLevel?.toStringAsFixed(2) ?? 'N/A'}m peak=${matchedData.peakPredictedLevel?.toStringAsFixed(2) ?? 'N/A'}m ($sensorKey)");
         }
 
         // silence unused thr in color path (kept for threshold UI elsewhere)
@@ -1600,9 +1609,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                           final thr = StationThresholds
                                               .fromApiOrDefault(
                                                   sensorKey, riverMap);
-                                          final status = observedLevel == null
-                                              ? null
-                                              : thr.statusFor(observedLevel);
+                                          final ColorStatus? status =
+                                              FloodApiService.isSimulationActive
+                                                  ? FloodApiService
+                                                      .simulatedMapStatusForBarangay(
+                                                          name)
+                                                  : (observedLevel == null
+                                                      ? null
+                                                      : thr.statusFor(
+                                                          observedLevel));
                                           late Color riskColor;
                                           late String statusText;
                                           late Color textColor;
@@ -2107,29 +2122,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           ? const Color(0xFF3784DF)
                           : (_isDarkMode ? Colors.white38 : Colors.grey),
                       size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          if (FloodApiService.isSimulationActive)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              left: 12,
-              right: 12,
-              child: Material(
-                color: const Color(0xFFF59E0B),
-                borderRadius: BorderRadius.circular(8),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  child: Text(
-                    'SIMULATION / TEST DATA',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.1,
                     ),
                   ),
                 ),

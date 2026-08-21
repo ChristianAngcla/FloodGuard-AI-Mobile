@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:floodguard_ai/services/flood_api_service.dart';
+import 'package:floodguard_ai/utils/station_thresholds.dart';
 
 void main() {
   group('R7 missing != 0', () {
@@ -53,6 +54,75 @@ void main() {
       });
       expect(item.isSimulation, isFalse);
       expect(item.modeDisplayLabel, isNot(contains('SIMULATION')));
+    });
+  });
+
+  group('simulation map display coloring', () {
+    test('Nangka, Parang, and Fortune share the existing nangka mapping', () {
+      expect(FloodApiService.barangayToSensor['Nangka'], 'nangka');
+      expect(FloodApiService.barangayToSensor['Parang'], 'nangka');
+      expect(FloodApiService.barangayToSensor['Fortune'], 'nangka');
+    });
+
+    test('simulation OFF does not override map color', () {
+      expect(
+        FloodApiService.mapColorStatusFromSimulatedStation(
+          simulationActive: false,
+          predictedWaterLevel: 18.5,
+          statusBand: 'CRITICAL',
+          calculationMode: 'primary_model',
+        ),
+        isNull,
+      );
+    });
+
+    test('valid simulated bands map to existing color statuses', () {
+      ColorStatus? color(String band) =>
+          FloodApiService.mapColorStatusFromSimulatedStation(
+            simulationActive: true,
+            predictedWaterLevel: 12.0,
+            statusBand: band,
+            calculationMode: 'primary_model',
+          );
+      expect(color('SAFE'), ColorStatus.safe);
+      expect(color('NORMAL'), ColorStatus.safe);
+      expect(color('ALERT'), ColorStatus.alert);
+      expect(color('ALARM'), ColorStatus.warning);
+      expect(color('WARNING'), ColorStatus.warning);
+      expect(color('CRITICAL'), ColorStatus.critical);
+    });
+
+    test('unavailable or missing simulated forecast stays gray', () {
+      expect(
+        FloodApiService.mapColorStatusFromSimulatedStation(
+          simulationActive: true,
+          predictedWaterLevel: null,
+          statusBand: 'CRITICAL',
+          calculationMode: 'primary_model',
+        ),
+        isNull,
+      );
+      expect(
+        FloodApiService.mapColorStatusFromSimulatedStation(
+          simulationActive: true,
+          predictedWaterLevel: 18.5,
+          statusBand: 'UNAVAILABLE',
+          calculationMode: 'unavailable',
+        ),
+        isNull,
+      );
+    });
+
+    test('explicit simulated 0.0 remains a valid SAFE reading', () {
+      expect(
+        FloodApiService.mapColorStatusFromSimulatedStation(
+          simulationActive: true,
+          predictedWaterLevel: 0.0,
+          statusBand: 'SAFE',
+          calculationMode: 'primary_model',
+        ),
+        ColorStatus.safe,
+      );
     });
   });
 }

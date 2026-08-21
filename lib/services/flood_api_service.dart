@@ -109,6 +109,87 @@ class FloodApiService {
       _cachedFullResponse?['isSimulation'] == true ||
       _cachedDailyForecastResponse?['isSimulation'] == true;
 
+  static double? _finiteNumber(dynamic value) {
+    if (value == null) return null;
+    if (value is num) {
+      final d = value.toDouble();
+      return d.isFinite ? d : null;
+    }
+    if (value is String) {
+      final d = double.tryParse(value.trim());
+      if (d != null && d.isFinite) return d;
+    }
+    return null;
+  }
+
+  /// Display-only map color from a simulated forecast. Returns null when the
+  /// simulated result is missing/unavailable so the map stays gray.
+  /// Never substitutes 0.0 for a missing prediction.
+  static ColorStatus? mapColorStatusFromSimulatedStation({
+    required bool simulationActive,
+    double? predictedWaterLevel,
+    String? statusBand,
+    String? calculationMode,
+  }) {
+    if (!simulationActive) return null;
+    if (predictedWaterLevel == null || !predictedWaterLevel.isFinite) {
+      return null;
+    }
+    final mode = (calculationMode ?? '').toLowerCase();
+    if (mode == 'unavailable') return null;
+    switch ((statusBand ?? '').trim().toUpperCase()) {
+      case 'CRITICAL':
+        return ColorStatus.critical;
+      case 'ALARM':
+      case 'WARNING':
+        return ColorStatus.warning;
+      case 'ALERT':
+        return ColorStatus.alert;
+      case 'SAFE':
+      case 'NORMAL':
+        return ColorStatus.safe;
+      default:
+        return null;
+    }
+  }
+
+  /// Simulated forecast status for map polygons/chips. Telemetry FloodData is
+  /// left unchanged. Uses the existing barangayToSensor mapping only.
+  static ColorStatus? simulatedMapStatusForBarangay(String barangayName) {
+    if (!isSimulationActive) return null;
+    final sensorKey = barangayToSensor[barangayName] ?? 'sto_nino';
+    final daily = getDailyForecastForSensor(sensorKey);
+    final fromDaily = mapColorStatusFromSimulatedStation(
+      simulationActive: true,
+      predictedWaterLevel: daily?.predictedWaterLevel,
+      statusBand: daily?.statusBand,
+      calculationMode: daily?.calculationMode,
+    );
+    if (fromDaily != null) return fromDaily;
+
+    final full = _cachedFullResponse;
+    if (full == null || full['isSimulation'] != true) return null;
+    dynamic stationRaw = (full['stations'] as Map?)?[sensorKey];
+    if (stationRaw == null) {
+      final prediction = full['prediction'];
+      if (prediction is Map) {
+        final rivers = prediction['rivers'];
+        if (rivers is Map) {
+          stationRaw = rivers[sensorKey];
+        }
+      }
+    }
+    if (stationRaw is! Map) return null;
+    return mapColorStatusFromSimulatedStation(
+      simulationActive: true,
+      predictedWaterLevel: _finiteNumber(
+        stationRaw['predictedWaterLevel'] ?? stationRaw['predicted_water_level'],
+      ),
+      statusBand: (stationRaw['statusBand'] ?? stationRaw['status'])?.toString(),
+      calculationMode: stationRaw['calculationMode']?.toString(),
+    );
+  }
+
   // 💾 Daily Forecast cache from /api/forecasts/daily
   static Map<String, dynamic>? _cachedDailyForecastResponse;
   static DateTime? _lastDailyForecastFetchTime;
