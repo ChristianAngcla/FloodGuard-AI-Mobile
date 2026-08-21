@@ -2113,6 +2113,29 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               ),
             ),
 
+          if (FloodApiService.isSimulationActive)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 12,
+              right: 12,
+              child: Material(
+                color: const Color(0xFFF59E0B),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  child: Text(
+                    'SIMULATION / TEST DATA',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // 5. Loading Indicator Overlay
           if (_isLoading)
             Positioned(

@@ -12,8 +12,8 @@ class FloodData {
   /// Mapped from river-station status: SAFE≈15, ALERT≈60, WARNING≈75, CRITICAL≈90, UNAVAILABLE≈0.
   final int riskLevel;
   /// PAGASA-reported rainfall for the upstream gauge feeding this station's model, in mm
-  /// accumulated over the preceding hour. Never a cumulative day-to-date total.
-  final double rainfall;
+  /// accumulated over the preceding hour. Null when the source did not report a number.
+  final double? rainfall;
   /// Current PAGASA-reported water level in metres (null if unavailable).
   final double? waterLevel;
   /// Retained for display compatibility (mirrors the PAGASA-reported waterLevel).
@@ -39,14 +39,15 @@ class FloodData {
 
   factory FloodData.fromJson(Map<String, dynamic> json) {
     // Helper to safely parse numbers (handles String "12.5" and num 12.5)
-    double parseDouble(dynamic value) {
-      if (value == null) return 0.0;
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
       if (value is num) return value.toDouble();
       if (value is String) {
-        // Remove non-numeric characters (except dot) and parse
-        return double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        final trimmed = value.trim();
+        if (trimmed.isEmpty || trimmed.toLowerCase() == 'nodata') return null;
+        return double.tryParse(trimmed.replaceAll(RegExp(r'[^\d.-]'), ''));
       }
-      return 0.0;
+      return null;
     }
 
     final rawWl = json['river_level'] ?? json['water_level'];
@@ -56,11 +57,12 @@ class FloodData {
     return FloodData(
       barangay: json['name'] ?? json['barangay'] ?? 'Unknown',
       riskLevel:
-          parseDouble(json['flood_probability'] ?? json['risk_level']).toInt(),
+          (parseDouble(json['flood_probability'] ?? json['risk_level']) ?? 0)
+              .toInt(),
       rainfall: parseDouble(json['local_rain'] ?? json['rainfall']),
       waterLevel: wl,
       peakPredictedLevel: peak,
-      maxWaterLevel: parseDouble(json['max_water_level'] ?? 10.0),
+      maxWaterLevel: parseDouble(json['max_water_level']) ?? 10.0,
       status: (json['status'] ?? (wl == null ? 'unavailable' : 'safe')).toString().toLowerCase(),
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
     );
@@ -73,11 +75,10 @@ class FloodData {
 
 /// 🔗 Flood API Service - Talks to the FloodGuard analytics engine.
 ///
-/// Data flow: authorized/raw observations → time-series OLS → this service → UI
-/// (Not a third-party flood algorithm; OLS coefficients are project-trained.)
+/// Data flow: PAGASA-reported telemetry → server-side OLS → this service → Flutter UI
 ///
 /// 📡 Data Flow:
-///    PAGASA → Python AI → Flask API → This Service → Flutter UI
+///    PAGASA FFWS → Node.js OLS engine → This Service → Flutter UI
 ///
 /// 🔧 Configuration:
 ///    - For Emulator: Use 'http://10.0.2.2:5000/api'
@@ -103,6 +104,10 @@ class FloodApiService {
   /// Returns the cached full API /status response.
   /// Contains prediction.rivers, telemetry_sensors, pagasa_telemetry, thresholds, etc.
   static Map<String, dynamic>? getFullPredictionData() => _cachedFullResponse;
+
+  static bool get isSimulationActive =>
+      _cachedFullResponse?['isSimulation'] == true ||
+      _cachedDailyForecastResponse?['isSimulation'] == true;
 
   // 💾 Daily Forecast cache from /api/forecasts/daily
   static Map<String, dynamic>? _cachedDailyForecastResponse;
@@ -220,8 +225,8 @@ class FloodApiService {
   /// [
   ///   {
   ///     "barangay": "Nangka",
-  ///     "risk_level": 74,           ← From ML model (0-100%)
-  ///     "rainfall": 61.0,           ← From PAGASA in mm
+  ///     "risk_level": 15,           ← status ordinal from telemetry (not a probability)
+  ///     "rainfall": 61.0,           ← PAGASA hourly increment in mm (null if missing)
   ///     "water_level": 0.6,         ← From PAGASA in meters
   ///     "max_water_level": 19.9,    ← Reference level
   ///     "status": "warning",        ← Auto-calculated: safe/warning/danger
@@ -337,7 +342,7 @@ class FloodApiService {
             map[b] = FloodData(
               barangay: b,
               riskLevel: riskLevel,
-              rainfall: gaugeRainForSensor(sensorKey) ?? 0.0,
+              rainfall: gaugeRainForSensor(sensorKey),
               waterLevel: isValidReading ? liveWaterLevel : null,
               peakPredictedLevel: isValidReading ? liveWaterLevel : null,
               maxWaterLevel: maxWaterLevel,
@@ -791,6 +796,7 @@ class DailyForecastItem {
   /// True only when [forecastTargetDate] is literally the calendar day after
   /// [sourceDataDate]. UI copy may say "next calendar day" only while this holds.
   final bool nextCalendarDayVerified;
+  final bool isSimulation;
 
   DailyForecastItem({
     required this.stationId,
@@ -807,6 +813,7 @@ class DailyForecastItem {
     this.activeModelVersion,
     this.isStaleModelSnapshot = false,
     this.nextCalendarDayVerified = false,
+    this.isSimulation = false,
   });
 
   factory DailyForecastItem.fromJson(Map<String, dynamic> json) {
@@ -845,6 +852,7 @@ class DailyForecastItem {
       // response can never make the UI claim something the dates do not support.
       nextCalendarDayVerified: json['nextCalendarDayVerified'] == true ||
           _isNextCalendarDay(source, target),
+      isSimulation: json['isSimulation'] == true || json['mode'] == 'simulation',
     );
   }
 
@@ -865,14 +873,12 @@ class DailyForecastItem {
       calculationMode == 'unavailable' || predictedWaterLevel == null;
 
   String get modeDisplayLabel {
-    switch (calculationMode) {
-      case 'primary_model':
-        return 'PRIMARY MODEL';
-      case 'persistence_fallback':
-        return 'PERSISTENCE FALLBACK';
-      default:
-        return 'FORECAST UNAVAILABLE';
-    }
+    final core = switch (calculationMode) {
+      'primary_model' => 'PRIMARY MODEL',
+      'persistence_fallback' => 'PERSISTENCE FALLBACK',
+      _ => 'FORECAST UNAVAILABLE',
+    };
+    return isSimulation ? 'SIMULATION / TEST DATA · $core' : core;
   }
 }
 
