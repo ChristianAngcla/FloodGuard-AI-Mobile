@@ -178,12 +178,12 @@ class FloodApiService {
   /// 🏥 Check if the API server is healthy and reachable
   ///
   /// Endpoint: GET /api/status
-  /// Returns: { "status": "ok", "model_loaded": true, ... }
+  /// Returns: { "status": "ok", ... }
   ///
-  /// Use this before making other requests to verify connection
-  /// and that your ML model loaded successfully
+  /// Use this before making other requests to verify the FloodGuard
+  /// Predictive Forecasting Engine is reachable.
   ///
-  /// Returns: true if API is healthy and model is loaded, false otherwise
+  /// Returns: true if the API is healthy, false otherwise
   static Future<bool> checkApiHealth() async {
     try {
       debugPrint('🔗 Checking API health at $baseUrl/status');
