@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/flood_api_service.dart';
 
-/// Bottom sheet combining PAGASA-reported station telemetry with the separate daily forecast.
+/// Bottom sheet showing FloodGuard DailyForecast for the selected barangay.
 class BarangayDetailsSheet extends StatefulWidget {
   final String barangayName;
   final bool isTaglish;
@@ -161,8 +161,6 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   }
 
   Widget _buildTelemetryAndDailyCard(Color textColor, Color subColor) {
-    final telemetry =
-        FloodApiService.getPagasaTelemetryForBarangay(_selectedBarangay);
     final daily =
         FloodApiService.getDailyForecastForBarangay(_selectedBarangay);
     final cardColor =
@@ -176,175 +174,14 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             : 'NEXT-CALENDAR-DAY FORECAST')
         : (widget.isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
 
-    final presentationReading =
-        FloodApiService.presentationCurrentReadingForBarangay(_selectedBarangay);
-    final currentHeading = presentationReading != null
-        ? (widget.isTaglish ? 'KASALUKUYANG ANTAS' : 'CURRENT READING')
-        : (widget.isTaglish
-            ? 'HULING DATOS MULA SA PAGASA'
-            : 'LATEST PAGASA READING');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel(currentHeading, subColor),
-        const SizedBox(height: 6),
-        _dataPanel(
-          cardColor,
-          _buildCurrentObservationContent(telemetry, textColor, subColor),
-        ),
-        const SizedBox(height: 20),
         _sectionLabel(forecastHeading, subColor),
         const SizedBox(height: 6),
         _dataPanel(
           widget.isDarkMode ? cardColor : const Color(0xFFF0F9FF),
           _buildDailyForecastContent(daily, textColor, subColor),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCurrentObservationContent(
-      PagasaTelemetryItem? telemetry, Color textColor, Color subColor) {
-    final demoReading =
-        FloodApiService.presentationCurrentReadingForBarangay(_selectedBarangay);
-    if (demoReading != null) {
-      return Text(
-        '${demoReading.toStringAsFixed(2)} m',
-        style: TextStyle(
-          fontSize: 30,
-          fontWeight: FontWeight.w900,
-          color: textColor,
-        ),
-      );
-    }
-    if (telemetry == null ||
-        telemetry.isUnavailable ||
-        telemetry.currentReading == null) {
-      final reason = telemetry?.unavailableReasonDisplay ??
-          'Telemetry Temporarily Unavailable';
-      final hasLkv = telemetry?.lastKnownValidReading != null;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                widget.isTaglish ? 'Hindi Magagamit' : 'Unavailable',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: widget.isDarkMode
-                      ? Colors.orange.shade300
-                      : const Color(0xFFD97706),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  reason,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: widget.isDarkMode
-                        ? Colors.orange.shade300
-                        : const Color(0xFFD97706),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (hasLkv) ...[
-            Text(
-              widget.isTaglish
-                  ? 'Huling Wastong Datos: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m'
-                  : 'Last Known Valid Reading: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-            if (telemetry.lastKnownValidSource != null &&
-                telemetry.lastKnownValidSource!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  telemetry.lastKnownValidSource!,
-                  style: TextStyle(fontSize: 11, color: subColor),
-                ),
-              ),
-          ] else ...[
-            Text(
-              widget.isTaglish
-                  ? 'Walang nakaraang wastong datos.'
-                  : 'No valid previous reading available.',
-              style: TextStyle(fontSize: 12, color: subColor),
-            ),
-          ],
-        ],
-      );
-    }
-
-    // Valid Observation
-    final readingStr = '${telemetry.currentReading!.toStringAsFixed(2)} m';
-    final status = telemetry.telemetryStatus;
-    final timeStr = telemetry.sourceTimePht ?? '';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              readingStr,
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w900,
-                color: textColor,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: _statusBgColor(status),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                status,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: _statusTextColor(status),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'PAGASA FFWS',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: subColor),
-            ),
-            if (timeStr.isNotEmpty)
-              Text(
-                'Updated: $timeStr',
-                style: TextStyle(fontSize: 11, color: subColor),
-              ),
-          ],
         ),
       ],
     );
@@ -425,36 +262,6 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           ),
       ],
     );
-  }
-
-  Color _statusBgColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'CRITICAL':
-        return Colors.red.withValues(alpha: 0.15);
-      case 'ALARM':
-      case 'WARNING':
-        return Colors.orange.withValues(alpha: 0.15);
-      case 'ALERT':
-        return Colors.amber.withValues(alpha: 0.2);
-      case 'SAFE':
-      default:
-        return Colors.green.withValues(alpha: 0.15);
-    }
-  }
-
-  Color _statusTextColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'CRITICAL':
-        return Colors.red;
-      case 'ALARM':
-      case 'WARNING':
-        return const Color(0xFFD97706);
-      case 'ALERT':
-        return const Color(0xFFB45309);
-      case 'SAFE':
-      default:
-        return const Color(0xFF15803D);
-    }
   }
 
   Widget _sectionLabel(String text, Color color) => Text(text,

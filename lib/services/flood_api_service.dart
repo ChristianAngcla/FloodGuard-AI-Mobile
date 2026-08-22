@@ -107,7 +107,11 @@ class FloodApiService {
 
   static bool get isSimulationActive =>
       _cachedFullResponse?['isSimulation'] == true ||
-      _cachedDailyForecastResponse?['isSimulation'] == true;
+      _cachedFullResponse?['isHistoricalReplay'] == true ||
+      _cachedFullResponse?['mode'] == 'historical_replay' ||
+      _cachedDailyForecastResponse?['isSimulation'] == true ||
+      _cachedDailyForecastResponse?['isHistoricalReplay'] == true ||
+      _cachedDailyForecastResponse?['mode'] == 'historical_replay';
 
   static double? _finiteNumber(dynamic value) {
     if (value == null) return null;
@@ -122,16 +126,14 @@ class FloodApiService {
     return null;
   }
 
-  /// Display-only map color from a simulated forecast. Returns null when the
-  /// simulated result is missing/unavailable so the map stays gray.
+  /// Display-only map color from a DailyForecast station row. Returns null when
+  /// the result is missing/unavailable so the map stays gray.
   /// Never substitutes 0.0 for a missing prediction.
-  static ColorStatus? mapColorStatusFromSimulatedStation({
-    required bool simulationActive,
+  static ColorStatus? mapColorStatusFromForecastStation({
     double? predictedWaterLevel,
     String? statusBand,
     String? calculationMode,
   }) {
-    if (!simulationActive) return null;
     if (predictedWaterLevel == null || !predictedWaterLevel.isFinite) {
       return null;
     }
@@ -151,6 +153,23 @@ class FloodApiService {
       default:
         return null;
     }
+  }
+
+  /// Display-only map color from a simulated forecast. Returns null when the
+  /// simulated result is missing/unavailable so the map stays gray.
+  /// Never substitutes 0.0 for a missing prediction.
+  static ColorStatus? mapColorStatusFromSimulatedStation({
+    required bool simulationActive,
+    double? predictedWaterLevel,
+    String? statusBand,
+    String? calculationMode,
+  }) {
+    if (!simulationActive) return null;
+    return mapColorStatusFromForecastStation(
+      predictedWaterLevel: predictedWaterLevel,
+      statusBand: statusBand,
+      calculationMode: calculationMode,
+    );
   }
 
   /// Simulated forecast status for map polygons/chips. Telemetry FloodData is
@@ -190,64 +209,22 @@ class FloodApiService {
     );
   }
 
-  /// t-1 water-level input from a simulation inputs map. Missing stays null.
-  static double? t1FromSimulationInputs(String sensorKey, Map? inputs) {
-    if (inputs == null) return null;
-    switch (sensorKey) {
-      case 'sto_nino':
-        return _finiteNumber(inputs['sto_t_1'] ?? inputs['Sto_t_1']);
-      case 'nangka':
-        return _finiteNumber(inputs['nangka_wl_t_1'] ?? inputs['Nangka_WL_t_1']);
-      case 'tumana':
-        return _finiteNumber(inputs['tumana_wl_t_1'] ?? inputs['Tumana_WL_t_1']);
-      default:
-        return null;
+  /// Operational polygon/chip color from DailyForecast status. Simulation uses
+  /// the simulated forecast; telemetry never colors the user map.
+  static ColorStatus? operationalMapStatusForBarangay(String barangayName) {
+    if (isSimulationActive) {
+      return simulatedMapStatusForBarangay(barangayName);
     }
-  }
-
-  /// Display-only current reading for demo/video. Never mutates telemetry cache.
-  static double? presentationCurrentReading({
-    required bool simulationActive,
-    required bool realTelemetryUnavailable,
-    double? t1,
-  }) {
-    if (!simulationActive || !realTelemetryUnavailable) return null;
-    if (t1 == null || !t1.isFinite) return null;
-    return t1;
-  }
-
-  static Map? _cachedSimulationInputs() {
-    final sim = _cachedFullResponse?['simulation'];
-    if (sim is Map && sim['inputsUsed'] is Map) {
-      return sim['inputsUsed'] as Map;
-    }
-    return null;
-  }
-
-  static double? presentationCurrentReadingForBarangay(String barangayName) {
-    if (!isSimulationActive) return null;
     final sensorKey = barangayToSensor[barangayName] ?? 'sto_nino';
-    final telemetry = getPagasaTelemetryForSensor(sensorKey);
-    final realUnavailable =
-        telemetry == null || telemetry.isUnavailable || telemetry.currentReading == null;
-    var t1 = t1FromSimulationInputs(sensorKey, _cachedSimulationInputs());
-    if (t1 == null) {
-      final stations = _cachedDailyForecastResponse?['stations'];
-      if (stations is Map) {
-        final st = stations[sensorKey];
-        if (st is Map && st['inputsUsed'] is Map) {
-          t1 = t1FromSimulationInputs(sensorKey, st['inputsUsed'] as Map);
-        }
-      }
-    }
-    return presentationCurrentReading(
-      simulationActive: true,
-      realTelemetryUnavailable: realUnavailable,
-      t1: t1,
+    final daily = getDailyForecastForSensor(sensorKey);
+    return mapColorStatusFromForecastStation(
+      predictedWaterLevel: daily?.predictedWaterLevel,
+      statusBand: daily?.statusBand,
+      calculationMode: daily?.calculationMode,
     );
   }
 
-  // 💾 Daily Forecast cache from /api/forecasts/daily
+  // 💾 Daily Forecast cache from GET /api/forecasts/daily
   static Map<String, dynamic>? _cachedDailyForecastResponse;
   static DateTime? _lastDailyForecastFetchTime;
 
@@ -990,7 +967,10 @@ class DailyForecastItem {
       // response can never make the UI claim something the dates do not support.
       nextCalendarDayVerified: json['nextCalendarDayVerified'] == true ||
           _isNextCalendarDay(source, target),
-      isSimulation: json['isSimulation'] == true || json['mode'] == 'simulation',
+      isSimulation: json['isSimulation'] == true ||
+          json['isHistoricalReplay'] == true ||
+          json['mode'] == 'simulation' ||
+          json['mode'] == 'historical_replay',
     );
   }
 

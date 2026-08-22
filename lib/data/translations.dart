@@ -160,9 +160,9 @@ class Translations {
     },
     "enterLocation": {
       "en":
-          "Enter your location to check PAGASA-reported river conditions and the daily flood forecast for your area",
+          "Enter your location to check the FloodGuard daily flood forecast for your area",
       "tl":
-          "Ilagay ang iyong lokasyon para makita ang datos ng ilog mula sa PAGASA at ang pang-araw na pagtataya ng baha.",
+          "Ilagay ang iyong lokasyon para makita ang pang-araw na pagtataya ng baha ng FloodGuard.",
     },
     "floodChance": {
       "en": "Possibility of Flooding",
@@ -185,8 +185,8 @@ class Translations {
       "tl": "LIGTAS KA BA?",
     },
     "currentStatus": {
-      "en": "Current PAGASA-reported river and flood status",
-      "tl": "Kasalukuyang datos ng ilog at baha mula sa PAGASA",
+      "en": "FloodGuard next-day river forecast status",
+      "tl": "Pagtataya ng FloodGuard para sa susunod na araw",
     },
     "recommendations": {
       "en": "Recommendations",

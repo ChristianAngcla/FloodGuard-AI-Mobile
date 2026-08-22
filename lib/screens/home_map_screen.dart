@@ -57,7 +57,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   List<Barangay> marikinaBarangays = [];
   List<Polygon> _cachedStaticPolygons = [];
   Map<String, LatLng> _barangayCenters = {};
-  Map<String, FloodData> _barangayData = {};
   String? _hoveredBarangayName;
   String? _selectedBarangayName;
   int _currentBarangayIndex = 0;
@@ -426,7 +425,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
       final List<Barangay> loaded = [];
       final Map<String, LatLng> centers = {};
-      final Map<String, FloodData> loadedData = {};
 
       // Step 2: Fetch REAL data from FloodGuard /api/status and /api/forecasts/daily
       Map<String, FloodData> apiData = {};
@@ -496,45 +494,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
         centers[name] = center;
 
-        // Color by associated river station STATUS (not peak WL)
-        final matchedData = FloodApiService.findDataForBarangay(apiData, name);
         final sensorKey = FloodApiService.barangayToSensor[name] ?? 'sto_nino';
-        final full = FloodApiService.getFullPredictionData();
-        final riverRaw = full?['prediction']?['rivers']?[sensorKey];
-        Map<String, dynamic>? riverMap;
-        if (riverRaw is Map<String, dynamic>) {
-          riverMap = riverRaw;
-        } else if (riverRaw is Map) {
-          riverMap = Map<String, dynamic>.from(riverRaw);
-        }
-        final thr = StationThresholds.fromApiOrDefault(sensorKey, riverMap);
-
-        ColorStatus? colorStatus;
-        final simulatedStatus =
-            FloodApiService.simulatedMapStatusForBarangay(name);
-        if (FloodApiService.isSimulationActive) {
-          colorStatus = simulatedStatus;
-        } else {
-          final statusStr =
-              (matchedData?.status ?? riverMap?['status'] ?? 'unavailable')
-                  .toString()
-                  .toLowerCase();
-          switch (statusStr) {
-            case 'critical':
-              colorStatus = ColorStatus.critical;
-              break;
-            case 'warning':
-              colorStatus = ColorStatus.warning;
-              break;
-            case 'alert':
-              colorStatus = ColorStatus.alert;
-              break;
-            default:
-              colorStatus = matchedData?.waterLevel == null
-                  ? ColorStatus.safe
-                  : thr.statusFor(matchedData!.waterLevel!);
-          }
-        }
+        ColorStatus? colorStatus =
+            FloodApiService.operationalMapStatusForBarangay(name);
 
         Color baseColor;
         switch (colorStatus) {
@@ -555,14 +517,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             break;
         }
 
-        if (matchedData != null) {
-          loadedData[name] = matchedData;
-          debugPrint(
-              "🌊 $name: mapStatus=$colorStatus WL=${matchedData.waterLevel?.toStringAsFixed(2) ?? 'N/A'}m peak=${matchedData.peakPredictedLevel?.toStringAsFixed(2) ?? 'N/A'}m ($sensorKey)");
-        }
-
-        // silence unused thr in color path (kept for threshold UI elsewhere)
-        thr;
+        debugPrint("🌊 $name: mapStatus=$colorStatus ($sensorKey)");
 
         loaded.add(
           Barangay(
@@ -596,7 +551,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         _barangayCenters = centers;
         HomeMapScreen.barangayCenters.clear();
         HomeMapScreen.barangayCenters.addAll(centers);
-        _barangayData = loadedData;
       });
 
       // Check for early warning based on user location
@@ -618,12 +572,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final userBarangay = _userProfile!.barangay;
     final sensorKey =
         FloodApiService.barangayToSensor[userBarangay] ?? 'sto_nino';
+    final daily = FloodApiService.getDailyForecastForBarangay(userBarangay);
+    final warnStatus =
+        FloodApiService.operationalMapStatusForBarangay(userBarangay);
+    if (warnStatus == null || warnStatus == ColorStatus.safe) return;
 
-    final data =
-        FloodApiService.findDataForBarangay(_barangayData, userBarangay);
-    final initialLevel = data?.waterLevel;
-    if (initialLevel == null) return;
-    var level = initialLevel;
+    final level = daily?.predictedWaterLevel;
+    if (level == null || !level.isFinite) return;
 
     final riverRaw = FloodApiService.getFullPredictionData()?['prediction']
         ?['rivers']?[sensorKey];
@@ -633,26 +588,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     } else if (riverRaw is Map) {
       riverMap = Map<String, dynamic>.from(riverRaw);
     }
-    if (riverMap != null) {
-      final pred = riverMap['predicted_water_level'];
-      if (pred is num) {
-        level = pred.toDouble();
-      }
-    }
-
     final thr = StationThresholds.fromApiOrDefault(sensorKey, riverMap);
-    final statusStr = (data?.status ?? riverMap?['status'] ?? 'unavailable')
-        .toString()
-        .toLowerCase();
-    if (statusStr == 'safe') return;
-
-    final warnStatus = switch (statusStr) {
-      'critical' => ColorStatus.critical,
-      'warning' => ColorStatus.warning,
-      'alert' => ColorStatus.alert,
-      _ => thr.statusFor(level),
-    };
-    if (warnStatus == ColorStatus.safe) return;
 
     _hasShownEarlyWarning = true;
     Future.delayed(const Duration(seconds: 1), () {
@@ -694,12 +630,12 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           children: [
             Text(
               _isTaglish
-                  ? 'Babala ($statusLabel): ${level.toStringAsFixed(2)} m sa $location.\n'
-                      'Alert ${thr.alert.toStringAsFixed(2)} · Warning ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
-                      'Sundin ang opisyal na babala ng PAGASA/MDRRMO. Ang prediksyon ay hindi 100% tumpak.'
-                  : 'Warning ($statusLabel): ${level.toStringAsFixed(2)} m at $location.\n'
-                      'Alert ${thr.alert.toStringAsFixed(2)} · Warning ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
-                      'Follow official PAGASA/MDRRMO advisories. Predictions are not 100% accurate.',
+                  ? 'Pagtataya ng FloodGuard ($statusLabel): ${level.toStringAsFixed(2)} m para sa $location.\n'
+                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
+                      'Ito ay pagtataya para sa susunod na araw, hindi kasalukuyang reading ng PAGASA. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
+                  : 'FloodGuard forecast ($statusLabel): ${level.toStringAsFixed(2)} m for $location.\n'
+                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
+                      'This is a next-day FloodGuard forecast, not a current PAGASA reading. Follow official PAGASA/MDRRMO advisories.',
               style: const TextStyle(fontSize: 16, height: 1.5),
             ),
             const SizedBox(height: 16),
@@ -1588,36 +1524,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                           final center = entry.value;
                                           final labelPoint =
                                               _labelPointFor(name, center);
-                                          final sensorKey = FloodApiService
-                                                  .barangayToSensor[name] ??
-                                              'sto_nino';
-                                          final observedLevel =
-                                              _barangayData[name]?.waterLevel;
-                                          final riverRaw = FloodApiService
-                                                      .getFullPredictionData()?[
-                                                  'prediction']?['rivers']
-                                              ?[sensorKey];
-                                          Map<String, dynamic>? riverMap;
-                                          if (riverRaw
-                                              is Map<String, dynamic>) {
-                                            riverMap = riverRaw;
-                                          } else if (riverRaw is Map) {
-                                            riverMap =
-                                                Map<String, dynamic>.from(
-                                                    riverRaw);
-                                          }
-                                          final thr = StationThresholds
-                                              .fromApiOrDefault(
-                                                  sensorKey, riverMap);
                                           final ColorStatus? status =
-                                              FloodApiService.isSimulationActive
-                                                  ? FloodApiService
-                                                      .simulatedMapStatusForBarangay(
-                                                          name)
-                                                  : (observedLevel == null
-                                                      ? null
-                                                      : thr.statusFor(
-                                                          observedLevel));
+                                              FloodApiService
+                                                  .operationalMapStatusForBarangay(
+                                                      name);
                                           late Color riskColor;
                                           late String statusText;
                                           late Color textColor;
@@ -1973,32 +1883,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               child: _buildRefreshButton(),
                             ),
                           ),
-                          if (FloodApiService.isSimulationActive)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: (_isDarkMode
-                                          ? Colors.white
-                                          : const Color(0xFF3784DF))
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  'DEMO',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                    color: _isDarkMode
-                                        ? Colors.white70
-                                        : const Color(0xFF3784DF),
-                                  ),
-                                ),
-                              ),
-                            ),
                           _buildMenuButton(),
                         ],
                       ),
@@ -2581,7 +2465,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 12),
 
-                  // ── PAGASA telemetry and daily forecast cards ──
+                  // ── Daily forecast card ──
                   _buildDashboardTelemetryAndForecastCard(textColor, subColor),
                   const SizedBox(height: 28),
 
@@ -2660,8 +2544,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   Widget _buildDashboardTelemetryAndForecastCard(Color textColor, Color subColor) {
     final selectedBarangay =
         _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
-    final telemetry =
-        FloodApiService.getPagasaTelemetryForBarangay(selectedBarangay);
     final daily = FloodApiService.getDailyForecastForBarangay(selectedBarangay);
     final cardColor =
         _isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC);
@@ -2674,38 +2556,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             : 'NEXT-CALENDAR-DAY FORECAST')
         : (_isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
 
-    final presentationReading =
-        FloodApiService.presentationCurrentReadingForBarangay(selectedBarangay);
-    final currentHeading = presentationReading != null
-        ? (_isTaglish ? 'KASALUKUYANG ANTAS' : 'CURRENT READING')
-        : (_isTaglish ? 'HULING DATOS MULA SA PAGASA' : 'LATEST PAGASA READING');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          currentHeading,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            color: subColor,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _isDarkMode ? Colors.white12 : Colors.grey.shade200,
-            ),
-          ),
-          child: _buildDashboardCurrentObservationContent(
-              telemetry, textColor, subColor, selectedBarangay),
-        ),
-        const SizedBox(height: 16),
         Text(
           forecastHeading,
           style: TextStyle(
@@ -2727,154 +2580,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           ),
           child:
               _buildDashboardDailyForecastContent(daily, textColor, subColor),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDashboardCurrentObservationContent(
-      PagasaTelemetryItem? telemetry,
-      Color textColor,
-      Color subColor,
-      String barangayName) {
-    final demoReading =
-        FloodApiService.presentationCurrentReadingForBarangay(barangayName);
-    if (demoReading != null) {
-      return Text(
-        '${demoReading.toStringAsFixed(2)} m',
-        style: TextStyle(
-          fontSize: 30,
-          fontWeight: FontWeight.w900,
-          color: textColor,
-        ),
-      );
-    }
-    if (telemetry == null ||
-        telemetry.isUnavailable ||
-        telemetry.currentReading == null) {
-      final reason = telemetry?.unavailableReasonDisplay ??
-          'Telemetry Temporarily Unavailable';
-      final hasLkv = telemetry?.lastKnownValidReading != null;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _isTaglish ? 'Hindi Magagamit' : 'Unavailable',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: _isDarkMode
-                      ? Colors.orange.shade300
-                      : const Color(0xFFD97706),
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  reason,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: _isDarkMode
-                        ? Colors.orange.shade300
-                        : const Color(0xFFD97706),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (hasLkv) ...[
-            Text(
-              _isTaglish
-                  ? 'Huling Wastong Datos: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m'
-                  : 'Last Known Valid Reading: ${telemetry!.lastKnownValidReading!.toStringAsFixed(2)} m',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-            if (telemetry.lastKnownValidSource != null &&
-                telemetry.lastKnownValidSource!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  telemetry.lastKnownValidSource!,
-                  style: TextStyle(fontSize: 11, color: subColor),
-                ),
-              ),
-          ] else ...[
-            Text(
-              _isTaglish
-                  ? 'Walang nakaraang wastong datos.'
-                  : 'No valid previous reading available.',
-              style: TextStyle(fontSize: 12, color: subColor),
-            ),
-          ],
-        ],
-      );
-    }
-
-    // Valid Observation
-    final readingStr = '${telemetry.currentReading!.toStringAsFixed(2)} m';
-    final status = telemetry.telemetryStatus;
-    final timeStr = telemetry.sourceTimePht ?? '';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              readingStr,
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w900,
-                color: textColor,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: _statusBgColor(status),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                status,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: _statusTextColor(status),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'PAGASA FFWS',
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: subColor),
-            ),
-            if (timeStr.isNotEmpty)
-              Text(
-                'Updated: $timeStr',
-                style: TextStyle(fontSize: 11, color: subColor),
-              ),
-          ],
         ),
       ],
     );
@@ -2955,36 +2660,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           ),
       ],
     );
-  }
-
-  Color _statusBgColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'CRITICAL':
-        return Colors.red.withValues(alpha: 0.15);
-      case 'ALARM':
-      case 'WARNING':
-        return Colors.orange.withValues(alpha: 0.15);
-      case 'ALERT':
-        return Colors.amber.withValues(alpha: 0.2);
-      case 'SAFE':
-      default:
-        return Colors.green.withValues(alpha: 0.15);
-    }
-  }
-
-  Color _statusTextColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'CRITICAL':
-        return Colors.red;
-      case 'ALARM':
-      case 'WARNING':
-        return const Color(0xFFD97706);
-      case 'ALERT':
-        return const Color(0xFFB45309);
-      case 'SAFE':
-      default:
-        return const Color(0xFF15803D);
-    }
   }
 
   // ── Dashboard Data Helpers ──

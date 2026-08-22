@@ -25,17 +25,18 @@ void main() {
     });
   });
 
-  group('R7 simulation marker', () {
-    test('DailyForecastItem keeps simulation flag without card wording', () {
+  group('R7 historical replay marker', () {
+    test('DailyForecastItem keeps replay flag without public badge wording', () {
       final item = DailyForecastItem.fromJson({
         'stationId': 'sto_nino',
-        'sourceDataDate': '2026-08-20',
-        'forecastTargetDate': '2026-08-21',
+        'sourceDataDate': '2023-07-24',
+        'forecastTargetDate': '2023-07-25',
         'predictedWaterLevel': 13.85,
         'calculationMode': 'primary_model',
         'statusBand': 'SAFE',
         'isSimulation': true,
-        'mode': 'simulation',
+        'isHistoricalReplay': true,
+        'mode': 'historical_replay',
         'candidateId': 'Candidate 13',
         'modelVersion': '3.0.0-C13-RULE-B',
       });
@@ -43,6 +44,10 @@ void main() {
       expect(item.modeDisplayLabel, 'PRIMARY MODEL');
       expect(item.modeDisplayLabel, isNot(contains('SIMULATION')));
       expect(item.modeDisplayLabel, isNot(contains('TEST DATA')));
+      expect(item.modeDisplayLabel, isNot(contains('DEMO')));
+      expect(item.modeDisplayLabel, isNot(contains('HISTORICAL REPLAY')));
+      expect(item.forecastTargetDate, '2023-07-25');
+      expect(item.sourceDataDate, '2023-07-24');
     });
 
     test('operational forecast is not marked simulation', () {
@@ -59,14 +64,14 @@ void main() {
     });
   });
 
-  group('simulation map display coloring', () {
+  group('replay map display coloring', () {
     test('Nangka, Parang, and Fortune share the existing nangka mapping', () {
       expect(FloodApiService.barangayToSensor['Nangka'], 'nangka');
       expect(FloodApiService.barangayToSensor['Parang'], 'nangka');
       expect(FloodApiService.barangayToSensor['Fortune'], 'nangka');
     });
 
-    test('simulation OFF does not override map color', () {
+    test('replay overlay OFF does not override map color', () {
       expect(
         FloodApiService.mapColorStatusFromSimulatedStation(
           simulationActive: false,
@@ -78,7 +83,7 @@ void main() {
       );
     });
 
-    test('valid simulated bands map to existing color statuses', () {
+    test('valid replayed bands map to existing color statuses', () {
       ColorStatus? color(String band) =>
           FloodApiService.mapColorStatusFromSimulatedStation(
             simulationActive: true,
@@ -94,7 +99,7 @@ void main() {
       expect(color('CRITICAL'), ColorStatus.critical);
     });
 
-    test('unavailable or missing simulated forecast stays gray', () {
+    test('unavailable or missing replayed forecast stays gray', () {
       expect(
         FloodApiService.mapColorStatusFromSimulatedStation(
           simulationActive: true,
@@ -115,7 +120,7 @@ void main() {
       );
     });
 
-    test('explicit simulated 0.0 remains a valid SAFE reading', () {
+    test('explicit replayed 0.0 remains a valid SAFE reading', () {
       expect(
         FloodApiService.mapColorStatusFromSimulatedStation(
           simulationActive: true,
@@ -128,58 +133,29 @@ void main() {
     });
   });
 
-  group('demo presentation current reading', () {
-    test('Nangka t-1 is read from simulation inputs without coercing missing to 0', () {
+  group('operational forecast map colors', () {
+    test('DailyForecast status colors the map without telemetry', () {
       expect(
-        FloodApiService.t1FromSimulationInputs('nangka', {
-          'nangka_wl_t_1': 16.2,
-        }),
-        16.2,
-      );
-      expect(
-        FloodApiService.t1FromSimulationInputs('nangka', {}),
-        isNull,
-      );
-      expect(
-        FloodApiService.t1FromSimulationInputs('sto_nino', {'Sto_t_1': 12.71}),
-        12.71,
-      );
-      expect(
-        FloodApiService.t1FromSimulationInputs('tumana', {'tumana_wl_t_1': 0.0}),
-        0.0,
-      );
-    });
-
-    test('presentation current reading only appears in simulation when real telemetry is unavailable', () {
-      expect(
-        FloodApiService.presentationCurrentReading(
-          simulationActive: true,
-          realTelemetryUnavailable: true,
-          t1: 16.2,
+        FloodApiService.mapColorStatusFromForecastStation(
+          predictedWaterLevel: 15.2,
+          statusBand: 'ALERT',
+          calculationMode: 'primary_model',
         ),
-        16.2,
+        ColorStatus.alert,
       );
       expect(
-        FloodApiService.presentationCurrentReading(
-          simulationActive: false,
-          realTelemetryUnavailable: true,
-          t1: 16.2,
+        FloodApiService.mapColorStatusFromForecastStation(
+          predictedWaterLevel: 16.4,
+          statusBand: 'ALARM',
+          calculationMode: 'primary_model',
         ),
-        isNull,
+        ColorStatus.warning,
       );
       expect(
-        FloodApiService.presentationCurrentReading(
-          simulationActive: true,
-          realTelemetryUnavailable: false,
-          t1: 16.2,
-        ),
-        isNull,
-      );
-      expect(
-        FloodApiService.presentationCurrentReading(
-          simulationActive: true,
-          realTelemetryUnavailable: true,
-          t1: null,
+        FloodApiService.mapColorStatusFromForecastStation(
+          predictedWaterLevel: null,
+          statusBand: 'SAFE',
+          calculationMode: 'unavailable',
         ),
         isNull,
       );
