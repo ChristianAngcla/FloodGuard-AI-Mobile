@@ -1031,9 +1031,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return FractionallySizedBox(
-          heightFactor: 0.88,
-          alignment: Alignment.bottomCenter,
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: BarangayDetailsSheet(
             barangayName: barangayName,
             isTaglish: _isTaglish,
@@ -2541,7 +2542,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-  Widget _buildDashboardTelemetryAndForecastCard(Color textColor, Color subColor) {
+  Widget _buildDashboardTelemetryAndForecastCard(
+      Color textColor, Color subColor) {
     final selectedBarangay =
         _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
     final daily = FloodApiService.getDailyForecastForBarangay(selectedBarangay);

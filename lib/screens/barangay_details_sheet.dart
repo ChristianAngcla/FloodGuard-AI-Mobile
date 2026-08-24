@@ -43,115 +43,122 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     final subColor = widget.isDarkMode ? Colors.white70 : Colors.black54;
     final barangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return Align(
+      alignment: Alignment.bottomCenter,
+      heightFactor: 1,
       child: SafeArea(
         top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 550),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 550,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          child: Material(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            clipBehavior: Clip.antiAlias,
+            child: SizedBox(
+              width: double.infinity,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: widget.isDarkMode
+                              ? Colors.grey[600]
+                              : Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      widget.isTaglish
+                          ? 'Pagsusuri ng Panganib'
+                          : 'Flood Risk Assessment',
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: textColor),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
                         color: widget.isDarkMode
-                            ? Colors.grey[600]
-                            : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    widget.isTaglish
-                        ? 'Pagsusuri ng Panganib'
-                        : 'Flood Risk Assessment',
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: textColor),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: widget.isDarkMode
-                          ? const Color(0xFF253B50)
-                          : Colors.white,
-                      border: Border.all(
-                          color: widget.isDarkMode
-                              ? Colors.white12
-                              : Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _selectedBarangay,
-                        dropdownColor: widget.isDarkMode
                             ? const Color(0xFF253B50)
                             : Colors.white,
-                        icon: Icon(Icons.keyboard_arrow_down_rounded,
-                            color: subColor),
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: textColor),
-                        items: barangays
-                            .map((name) => DropdownMenuItem(
-                                value: name, child: Text(name)))
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _selectedBarangay = value);
-                          }
-                        },
+                        border: Border.all(
+                            color: widget.isDarkMode
+                                ? Colors.white12
+                                : Colors.grey.shade300),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: _selectedBarangay,
+                          dropdownColor: widget.isDarkMode
+                              ? const Color(0xFF253B50)
+                              : Colors.white,
+                          icon: Icon(Icons.keyboard_arrow_down_rounded,
+                              color: subColor),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: textColor),
+                          items: barangays
+                              .map((name) => DropdownMenuItem(
+                                  value: name, child: Text(name)))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedBarangay = value);
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    '${widget.isTaglish ? 'Sensor' : 'Station'}: $_sensorDisplayName',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: subColor),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTelemetryAndDailyCard(textColor, subColor),
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.close_rounded),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: widget.isDarkMode
-                            ? const Color(0xFF3784DF)
-                            : const Color(0xFFF4F9FF),
-                        foregroundColor: widget.isDarkMode
-                            ? Colors.white
-                            : const Color(0xFF1769AA),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      label: Text(widget.isTaglish ? 'Isara' : 'Close',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 24),
+                    Text(
+                      '${widget.isTaglish ? 'Sensor' : 'Station'}: $_sensorDisplayName',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: subColor),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    _buildTelemetryAndDailyCard(textColor, subColor),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.close_rounded),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: widget.isDarkMode
+                              ? const Color(0xFF3784DF)
+                              : const Color(0xFFF4F9FF),
+                          foregroundColor: widget.isDarkMode
+                              ? Colors.white
+                              : const Color(0xFF1769AA),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                        label: Text(widget.isTaglish ? 'Isara' : 'Close',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -175,6 +182,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         : (widget.isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel(forecastHeading, subColor),
@@ -193,6 +201,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         daily.isUnavailable ||
         daily.predictedWaterLevel == null) {
       return Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -222,6 +231,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     }
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
