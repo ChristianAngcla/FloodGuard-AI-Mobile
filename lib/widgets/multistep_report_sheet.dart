@@ -4,8 +4,23 @@ import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/flood_api_service.dart';
 import '../services/auth_service.dart';
+import '../services/location_service.dart';
 import '../theme/app_spacing.dart';
-import 'package:geolocator/geolocator.dart';
+
+typedef HelpRequestSubmitHook = Future<bool> Function({
+  required String location,
+  required bool isRaining,
+  required bool isSafe,
+  required String uid,
+  double? floodDepth,
+  String? floodLevel,
+  String? reporterName,
+  String? reporterPhone,
+  required double latitude,
+  required double longitude,
+  String? status,
+  String? helpNeeded,
+});
 
 class MultistepReportSheet extends StatefulWidget {
   final bool isTaglish;
@@ -13,6 +28,8 @@ class MultistepReportSheet extends StatefulWidget {
   final VoidCallback onSuccess;
   final VoidCallback onSafe;
   final VoidCallback onUnsafe;
+  final HelpRequestLocationResolver? locationResolver;
+  final HelpRequestSubmitHook? submitFloodReport;
 
   const MultistepReportSheet({
     super.key,
@@ -21,6 +38,8 @@ class MultistepReportSheet extends StatefulWidget {
     required this.onSuccess,
     required this.onSafe,
     required this.onUnsafe,
+    this.locationResolver,
+    this.submitFloodReport,
   });
 
   @override
@@ -42,6 +61,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   bool _agreedToLegal = false;
   bool _isSubmitting = false;
   String? _validationMessage;
+  bool _needsOpenSettings = false;
+  late final HelpRequestLocationResolver _locationResolver;
 
   // Theme Colors
   Color get bgColor =>
@@ -72,6 +93,13 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     "Tanong",
     "Tumana"
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _locationResolver =
+        widget.locationResolver ?? HelpRequestLocationResolver.geolocator();
+  }
 
   @override
   void dispose() {
@@ -121,6 +149,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       setState(() {
         _validationMessage = null;
+        _needsOpenSettings = false;
         _currentStep++;
       });
     }
@@ -133,6 +162,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       setState(() {
         _validationMessage = null;
+        _needsOpenSettings = false;
         _currentStep--;
       });
     } else {
@@ -140,12 +170,40 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     }
   }
 
-  void _showError(String msg) {
-    setState(() => _validationMessage = msg);
+  void _showError(String msg, {bool needsOpenSettings = false}) {
+    setState(() {
+      _validationMessage = msg;
+      _needsOpenSettings = needsOpenSettings;
+    });
   }
 
   Future<void> _submitReport() async {
-    setState(() => _isSubmitting = true);
+    if (_isSubmitting) return;
+    setState(() {
+      _isSubmitting = true;
+      _validationMessage = null;
+      _needsOpenSettings = false;
+    });
+
+    final locationOutcome = await _locationResolver.resolveForSubmit();
+    if (!mounted) return;
+    if (!locationOutcome.canSubmit) {
+      final failure =
+          locationOutcome.failure ?? HelpRequestLocationFailure.unavailable;
+      _showError(
+        helpRequestLocationMessage(
+          failure: failure,
+          isTaglish: widget.isTaglish,
+        ),
+        needsOpenSettings: locationOutcome.needsOpenSettings,
+      );
+      setState(() => _isSubmitting = false);
+      return;
+    }
+
+    final lat = locationOutcome.coordinates!.latitude;
+    final lng = locationOutcome.coordinates!.longitude;
+
     final uid = await AuthService().getEffectiveUid();
     final userUid = uid ?? "anonymous";
     final location = "${_streetCtrl.text.trim()}, $_selectedBarangay";
@@ -155,7 +213,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     String reporterPhone = '';
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // RATE LIMITING disabled for functional testing
       // final lastReportStr = prefs.getString('last_report_time');
       // if (lastReportStr != null) {
@@ -176,47 +234,64 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         if (reporterName.isEmpty) reporterName = 'Unknown Reporter';
         reporterPhone = formatPhMobileNumber(userData['phone'] ?? '');
       }
-      
+
       // PHONE VERIFICATION CHECK
       if (reporterPhone.isEmpty) {
         setState(() => _isSubmitting = false);
-        _showError(widget.isTaglish ? "Kailangan ng verified na numero ng telepono sa profile para makapag-ulat." : "A verified phone number in your profile is required to ask for help.");
+        _showError(widget.isTaglish
+            ? "Kailangan ng verified na numero ng telepono sa profile para makapag-ulat."
+            : "A verified phone number in your profile is required to ask for help.");
         return;
       }
-
     } catch (e) {
       debugPrint('Could not load user profile for report: $e');
     }
 
     // SENSOR CROSS-CHECKING (LOCALIZED)
     String reportStatus = 'pending';
-    if (_selectedBarangay != null) {
-      final floodData = await FloodApiService.getBarangayFloodData(_selectedBarangay!);
-      if (floodData != null && floodData.riskLevel >= 40) {
-        reportStatus = 'verified'; // Auto-verify if predicted flood risk >= 40%
-      }
+    if (_selectedBarangay != null && widget.submitFloodReport == null) {
+      try {
+        final floodData =
+            await FloodApiService.getBarangayFloodData(_selectedBarangay!);
+        if (floodData != null && floodData.riskLevel >= 40) {
+          reportStatus =
+              'verified'; // Auto-verify if predicted flood risk >= 40%
+        }
+      } catch (_) {}
     }
 
-    double? lat;
-    double? lng;
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (serviceEnabled) {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
-        if (permission != LocationPermission.denied && permission != LocationPermission.deniedForever) {
-          final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-          lat = position.latitude;
-          lng = position.longitude;
-        }
-      }
-    } catch (e) {
-      debugPrint("Could not fetch location for report: $e");
-    }
+    final submit = widget.submitFloodReport ??
+        ({
+          required String location,
+          required bool isRaining,
+          required bool isSafe,
+          required String uid,
+          double? floodDepth,
+          String? floodLevel,
+          String? reporterName,
+          String? reporterPhone,
+          required double latitude,
+          required double longitude,
+          String? status,
+          String? helpNeeded,
+        }) {
+          return FloodApiService.submitFloodReport(
+            location: location,
+            isRaining: isRaining,
+            isSafe: isSafe,
+            uid: uid,
+            floodDepth: floodDepth,
+            floodLevel: floodLevel,
+            reporterName: reporterName,
+            reporterPhone: reporterPhone,
+            latitude: latitude,
+            longitude: longitude,
+            status: status,
+            helpNeeded: helpNeeded,
+          );
+        };
 
-    final success = await FloodApiService.submitFloodReport(
+    final success = await submit(
       location: location,
       isRaining: _isRaining ?? false,
       isSafe: _isSafe ?? true,
@@ -233,9 +308,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
 
     if (mounted) {
       setState(() => _isSubmitting = false);
-      Navigator.pop(context); // Close the sheet
       if (success) {
-        SharedPreferences.getInstance().then((p) => p.setString('last_report_time', DateTime.now().toIso8601String()));
+        Navigator.pop(context);
+        SharedPreferences.getInstance().then((p) =>
+            p.setString('last_report_time', DateTime.now().toIso8601String()));
         widget.onSuccess();
         if (_isSafe == false) {
           widget.onUnsafe();
@@ -282,14 +358,16 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       height: AppSpacing.s2,
                       decoration: BoxDecoration(
                         color: Colors.grey[400],
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusSm),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.s8),
 
                     // Progress Indicator
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s11),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s11),
                       child: Row(
                         children: List.generate(_totalSteps, (index) {
                           final isActive = _currentStep >= index;
@@ -344,20 +422,42 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                                 color: Colors.redAccent.withValues(alpha: 0.7),
                               ),
                             ),
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.error_outline_rounded,
-                                    color: Colors.redAccent),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _validationMessage!,
-                                    style: const TextStyle(
-                                      color: Colors.redAccent,
-                                      fontWeight: FontWeight.w600,
+                                Row(
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded,
+                                        color: Colors.redAccent),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _validationMessage!,
+                                        style: const TextStyle(
+                                          color: Colors.redAccent,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_needsOpenSettings)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          _locationResolver.openAppSettings(),
+                                      child: Text(
+                                        widget.isTaglish
+                                            ? 'Buksan ang Settings'
+                                            : 'Open Settings',
+                                        style: const TextStyle(
+                                          color: Colors.redAccent,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
@@ -368,7 +468,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: bgColor.withValues(alpha: 0.0), // Transparent here
+                        color:
+                            bgColor.withValues(alpha: 0.0), // Transparent here
                       ),
                       child: Row(
                         children: [
@@ -660,78 +761,81 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   Widget _buildStep3Evidence() {
     final needsHelp = _isSafe == false;
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-              needsHelp
-                  ? (widget.isTaglish
-                      ? "Uri ng Tulong (Opsyonal)"
-                      : "Kind of Help Needed")
-                  : (widget.isTaglish
-                      ? "Kumpirmasyon"
-                      : "Confirmation"),
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
-          const SizedBox(height: 8),
-          Text(
-              needsHelp
-                  ? (widget.isTaglish
-                      ? "Anong klaseng tulong ang kailangan ninyo?"
-                      : "What kind of assistance do you require?")
-                  : (widget.isTaglish
-                      ? "Dahil ligtas ka, hindi kailangan pumili ng tulong. Pakisuri ang babala sa ibaba."
-                      : "Since you are safe, no help type is needed. Please review the notice below."),
-              style: TextStyle(fontSize: 14, color: subTextColor)),
-          if (needsHelp) ...[
-            const SizedBox(height: 24),
-            DropdownButtonFormField<String>(
-              initialValue: _helpNeeded,
-              dropdownColor: bgColor,
-              style: TextStyle(color: textColor, fontSize: 15),
-              decoration: _inputDecoration(
-                  widget.isTaglish ? "Pumili ng tulong" : "Select help needed",
-                  Icons.medical_services_outlined),
-              items: [
-                "Immediate Rescue / Evacuation",
-                "Medical Assistance",
-                "Food and Water",
-                "Relief Goods"
-              ]
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (val) => setState(() => _helpNeeded = val),
-            ),
-          ],
-          const SizedBox(height: 32),
-          // Legal Warning
-          Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.5))
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                needsHelp
+                    ? (widget.isTaglish
+                        ? "Uri ng Tulong (Opsyonal)"
+                        : "Kind of Help Needed")
+                    : (widget.isTaglish ? "Kumpirmasyon" : "Confirmation"),
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: textColor)),
+            const SizedBox(height: 8),
+            Text(
+                needsHelp
+                    ? (widget.isTaglish
+                        ? "Anong klaseng tulong ang kailangan ninyo?"
+                        : "What kind of assistance do you require?")
+                    : (widget.isTaglish
+                        ? "Dahil ligtas ka, hindi kailangan pumili ng tulong. Pakisuri ang babala sa ibaba."
+                        : "Since you are safe, no help type is needed. Please review the notice below."),
+                style: TextStyle(fontSize: 14, color: subTextColor)),
+            if (needsHelp) ...[
+              const SizedBox(height: 24),
+              DropdownButtonFormField<String>(
+                initialValue: _helpNeeded,
+                dropdownColor: bgColor,
+                style: TextStyle(color: textColor, fontSize: 15),
+                decoration: _inputDecoration(
+                    widget.isTaglish
+                        ? "Pumili ng tulong"
+                        : "Select help needed",
+                    Icons.medical_services_outlined),
+                items: [
+                  "Immediate Rescue / Evacuation",
+                  "Medical Assistance",
+                  "Food and Water",
+                  "Relief Goods"
+                ]
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (val) => setState(() => _helpNeeded = val),
               ),
-              child: Row(
-                  children: [
-                      Checkbox(
-                          value: _agreedToLegal,
-                          activeColor: Colors.red,
-                          onChanged: (val) => setState(() => _agreedToLegal = val ?? false)
-                      ),
-                      Expanded(
-                          child: Text(
-                              widget.isTaglish ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas." : "I confirm this is a real emergency. False reports delay rescue operations and are punishable under Philippine Law.",
-                              style: TextStyle(color: widget.isDarkMode ? Colors.red.shade300 : Colors.red.shade900, fontSize: 12, fontWeight: FontWeight.w600)
-                          )
-                      )
-                  ]
-              )
-          )
-        ],
-      )
-    );
+            ],
+            const SizedBox(height: 32),
+            // Legal Warning
+            Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: Colors.red.withValues(alpha: 0.5))),
+                child: Row(children: [
+                  Checkbox(
+                      value: _agreedToLegal,
+                      activeColor: Colors.red,
+                      onChanged: (val) =>
+                          setState(() => _agreedToLegal = val ?? false)),
+                  Expanded(
+                      child: Text(
+                          widget.isTaglish
+                              ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas."
+                              : "I confirm this is a real emergency. False reports delay rescue operations and are punishable under Philippine Law.",
+                          style: TextStyle(
+                              color: widget.isDarkMode
+                                  ? Colors.red.shade300
+                                  : Colors.red.shade900,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600)))
+                ]))
+          ],
+        ));
   }
 
   Widget _buildStep4Summary() {
@@ -802,7 +906,9 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       Icons.medical_services_outlined,
                       widget.isTaglish ? "Uri ng Tulong" : "Help Needed",
                       _helpNeeded ??
-                          (widget.isTaglish ? "Hindi tinukoy" : "Not specified"),
+                          (widget.isTaglish
+                              ? "Hindi tinukoy"
+                              : "Not specified"),
                       valueColor: const Color(0xFF9A3412)),
                 ],
               ],
@@ -934,7 +1040,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                         fontWeight: FontWeight.w600,
                         color: isSelected ? color : textColor,
                         fontSize: 14))),
-            if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 20)
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: color, size: 20)
           ],
         ),
       ),
