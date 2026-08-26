@@ -66,7 +66,7 @@ void main() {
         'Map',
         'Ask for Help',
         'Alerts',
-        'My Requests',
+        'Requests',
       ]) {
         expectBottomLabelOnScreen(tester, label, width);
       }

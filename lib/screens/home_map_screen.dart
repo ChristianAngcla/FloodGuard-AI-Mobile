@@ -1927,33 +1927,30 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           width: 1,
                         ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Row(
-                          children: [
-                            _buildNavItem(
-                              icon: Icons.home_rounded,
-                              label: _isTaglish ? "Tahanan" : "Home",
-                              index: 0,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.map_rounded,
-                              label: _isTaglish ? "Mapa" : "Map",
-                              index: 1,
-                            ),
-                            _buildReportButton(),
-                            _buildNavItem(
-                              icon: Icons.notifications_active_rounded,
-                              label: _isTaglish ? "Abiso" : "Alerts",
-                              index: 3,
-                            ),
-                            _buildNavItem(
-                              icon: Icons.support_agent_rounded,
-                              label: t("myRequests"),
-                              index: 2,
-                            ),
-                          ],
-                        ),
+                      child: Row(
+                        children: [
+                          _buildNavItem(
+                            icon: Icons.home_rounded,
+                            label: _isTaglish ? "Tahanan" : "Home",
+                            index: 0,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.map_rounded,
+                            label: _isTaglish ? "Mapa" : "Map",
+                            index: 1,
+                          ),
+                          _buildReportButton(),
+                          _buildNavItem(
+                            icon: Icons.notifications_active_rounded,
+                            label: _isTaglish ? "Abiso" : "Alerts",
+                            index: 3,
+                          ),
+                          _buildNavItem(
+                            icon: Icons.support_agent_rounded,
+                            label: t("myRequests"),
+                            index: 2,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2204,50 +2201,43 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             borderRadius: BorderRadius.circular(34),
             highlightColor: navColor.withValues(alpha: 0.1),
             splashColor: navColor.withValues(alpha: 0.2),
-            child: SizedBox.expand(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? navColor.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      icon,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? navColor.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: navColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w600,
                       color: navColor,
-                      size: 24,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.center,
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight:
-                                isSelected ? FontWeight.bold : FontWeight.w600,
-                            color: navColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -2686,7 +2676,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   Widget _buildReportButton() {
     return Expanded(
-      flex: 1,
+      flex: 2,
       child: Container(
         height: 56,
         margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),

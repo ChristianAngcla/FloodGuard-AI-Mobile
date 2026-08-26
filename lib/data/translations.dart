@@ -395,8 +395,8 @@ class Translations {
       "tl": "Aking Help Requests",
     },
     "myRequests": {
-      "en": "My Requests",
-      "tl": "Aking Request",
+      "en": "Requests",
+      "tl": "Request",
     },
   };
 }
