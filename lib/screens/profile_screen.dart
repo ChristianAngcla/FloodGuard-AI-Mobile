@@ -16,12 +16,14 @@ class ProfileScreen extends StatefulWidget {
   final bool isTaglish;
   final bool isDarkMode;
   final VoidCallback onLogout;
+  final bool showBackButton;
 
   const ProfileScreen({
     super.key,
     required this.isTaglish,
     required this.isDarkMode,
     required this.onLogout,
+    this.showBackButton = false,
   });
 
   @override
@@ -406,104 +408,124 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ? const Center(
                     child: CircularProgressIndicator(color: Color(0xFF3784DF)))
                 : _userProfile == null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.person_off_rounded,
-                                size: 80, color: Colors.grey[400]),
-                            const SizedBox(height: 16),
-                            Text(
-                              widget.isTaglish
-                                  ? "Mag-login upang makita ang iyong profile"
-                                  : "Log in to view your profile",
-                              style: TextStyle(color: subTextColor),
+                    ? Column(
+                        children: [
+                          if (widget.showBackButton)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IconButton(
+                                icon: Icon(Icons.arrow_back_rounded,
+                                    color: textColor),
+                                onPressed: () => Navigator.pop(context),
+                              ),
                             ),
-                            const SizedBox(height: 32),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 48),
+                          Expanded(
+                            child: Center(
                               child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFF3784DF),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 16),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => LoginScreen(
-                                              isTaglish: widget.isTaglish,
-                                              isDarkMode: widget.isDarkMode,
-                                            ),
-                                          ),
-                                        ).then((_) => _loadProfile());
-                                      },
-                                      child: Text(
-                                        widget.isTaglish
-                                            ? "Mag-login"
-                                            : "Log In",
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  Icon(Icons.person_off_rounded,
+                                      size: 80, color: Colors.grey[400]),
                                   const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor:
-                                            const Color(0xFF3784DF),
-                                        side: const BorderSide(
-                                            color: Color(0xFF3784DF), width: 2),
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 16),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => SignupScreen(
-                                              isTaglish: widget.isTaglish,
-                                              isDarkMode: widget.isDarkMode,
+                                  Text(
+                                    widget.isTaglish
+                                        ? "Mag-login upang makita ang iyong profile"
+                                        : "Log in to view your profile",
+                                    style: TextStyle(color: subTextColor),
+                                  ),
+                                  const SizedBox(height: 32),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 48),
+                                    child: Column(
+                                      children: [
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xFF3784DF),
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 16),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => LoginScreen(
+                                                    isTaglish: widget.isTaglish,
+                                                    isDarkMode:
+                                                        widget.isDarkMode,
+                                                  ),
+                                                ),
+                                              ).then((_) => _loadProfile());
+                                            },
+                                            child: Text(
+                                              widget.isTaglish
+                                                  ? "Mag-login"
+                                                  : "Log In",
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
-                                        ).then((_) => _loadProfile());
-                                      },
-                                      child: Text(
-                                        widget.isTaglish
-                                            ? "Gumawa ng Account"
-                                            : "Sign Up",
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
                                         ),
-                                      ),
+                                        const SizedBox(height: 16),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor:
+                                                  const Color(0xFF3784DF),
+                                              side: const BorderSide(
+                                                  color: Color(0xFF3784DF),
+                                                  width: 2),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 16),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => SignupScreen(
+                                                    isTaglish: widget.isTaglish,
+                                                    isDarkMode:
+                                                        widget.isDarkMode,
+                                                  ),
+                                                ),
+                                              ).then((_) => _loadProfile());
+                                            },
+                                            child: Text(
+                                              widget.isTaglish
+                                                  ? "Gumawa ng Account"
+                                                  : "Sign Up",
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       )
                     : SingleChildScrollView(
                         padding: const EdgeInsets.only(
@@ -520,8 +542,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const SizedBox(
-                                        width: 48), // Balance for centering
+                                    widget.showBackButton
+                                        ? IconButton(
+                                            icon: Icon(Icons.arrow_back_rounded,
+                                                color: textColor),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                          )
+                                        : const SizedBox(width: 48),
                                     Text(
                                       _t("profile"),
                                       style: TextStyle(

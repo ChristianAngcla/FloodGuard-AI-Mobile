@@ -25,7 +25,7 @@ import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../utils/station_thresholds.dart';
 import 'alerts_screen.dart';
-import 'profile_screen.dart';
+import 'help_requests_screen.dart';
 import '../widgets/wave_background.dart';
 
 class HomeMapScreen extends StatefulWidget {
@@ -1327,7 +1327,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           : const Color(0xFFF5F7FA),
       body: Stack(
         children: [
-          // 1. Main Content (Map, Home, or Profile)
+          // 1. Main Content (Map, Home, or My Requests)
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 400),
             child: _currentTabIndex == 0
@@ -1338,11 +1338,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         isDarkMode: _isDarkMode,
                       )
                     : _currentTabIndex == 2
-                        ? ProfileScreen(
+                        ? HelpRequestsScreen(
                             isTaglish: _isTaglish,
                             isDarkMode: _isDarkMode,
-                            onLogout: () =>
-                                setState(() => _currentTabIndex = 1),
+                            embeddedInNavigation: true,
                           )
                         : SafeArea(
                             top: true,
@@ -1947,8 +1946,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             index: 3,
                           ),
                           _buildNavItem(
-                            icon: Icons.person_rounded,
-                            label: "Profile",
+                            icon: Icons.support_agent_rounded,
+                            label: t("myRequests"),
                             index: 2,
                           ),
                         ],

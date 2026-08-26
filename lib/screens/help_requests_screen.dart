@@ -7,11 +7,13 @@ import '../widgets/wave_background.dart';
 class HelpRequestsScreen extends StatefulWidget {
   final bool isTaglish;
   final bool isDarkMode;
+  final bool embeddedInNavigation;
 
   const HelpRequestsScreen({
     super.key,
     required this.isTaglish,
     required this.isDarkMode,
+    this.embeddedInNavigation = false,
   });
 
   @override
@@ -116,52 +118,60 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
     final bgColor = isDark ? const Color(0xFF1A2B3C) : const Color(0xFFF5F7FA);
     final textColor = isDark ? Colors.white : const Color(0xFF1A2B3C);
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          WaveBackground(isDarkMode: isDark),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 550),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 16, 16),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.arrow_back_rounded,
-                                color: textColor),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          Expanded(
-                            child: Text(
-                              widget.isTaglish
-                                  ? 'Aking Help Requests'
-                                  : 'My Help Requests',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: textColor,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+    final body = Stack(
+      children: [
+        WaveBackground(isDarkMode: isDark),
+        SafeArea(
+          bottom: widget.embeddedInNavigation ? false : true,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 550),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 16),
+                    child: Row(
+                      children: [
+                        widget.embeddedInNavigation
+                            ? const SizedBox(width: 48)
+                            : IconButton(
+                                icon: Icon(Icons.arrow_back_rounded,
+                                    color: textColor),
+                                onPressed: () => Navigator.pop(context),
                               ),
+                        Expanded(
+                          child: Text(
+                            widget.isTaglish
+                                ? 'Aking Help Requests'
+                                : 'My Help Requests',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(width: 48),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
                     ),
-                    Expanded(child: _buildBody(isDark, textColor)),
-                  ],
-                ),
+                  ),
+                  Expanded(child: _buildBody(isDark, textColor)),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+
+    if (widget.embeddedInNavigation) {
+      return Container(color: bgColor, child: body);
+    }
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: body,
     );
   }
 
@@ -190,7 +200,11 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
     return RefreshIndicator(
       onRefresh: _loadRequests,
       child: ListView.builder(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 32),
+        padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: widget.embeddedInNavigation ? 140 : 32),
         itemCount: _requests.length,
         itemBuilder: (context, index) {
           return _buildRequestCard(_requests[index], isDark, textColor);
@@ -207,7 +221,8 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
   }) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.fromLTRB(
+            32, 32, 32, widget.embeddedInNavigation ? 140 : 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

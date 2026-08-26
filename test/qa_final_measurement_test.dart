@@ -12,7 +12,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('📊 QA SCENARIO BENCHMARKS & DETAILED MEASUREMENTS', () {
-    testWidgets('Scenario A: Cold Startup Latency & Initial Memory', (WidgetTester tester) async {
+    testWidgets('Scenario A: Cold Startup Latency & Initial Memory',
+        (WidgetTester tester) async {
       final initialRss = ProcessInfo.currentRss / (1024 * 1024);
       final stopwatch = Stopwatch()..start();
 
@@ -28,13 +29,15 @@ void main() {
       debugPrint('[MEASURE] Scenario A (Cold Startup):');
       debugPrint('  - Render Latency: ${stopwatch.elapsedMilliseconds} ms');
       debugPrint('  - Initial Memory RSS: ${initialRss.toStringAsFixed(2)} MB');
-      debugPrint('  - Post-Startup Memory RSS: ${postStartupRss.toStringAsFixed(2)} MB');
+      debugPrint(
+          '  - Post-Startup Memory RSS: ${postStartupRss.toStringAsFixed(2)} MB');
 
       expect(stopwatch.elapsedMilliseconds, lessThan(2000));
       expect(postStartupRss, lessThan(250.0));
     });
 
-    testWidgets('Scenario B: Home Idle CPU & Memory Stability', (WidgetTester tester) async {
+    testWidgets('Scenario B: Home Idle CPU & Memory Stability',
+        (WidgetTester tester) async {
       await tester.pumpWidget(const FloodGuardApp(
         isLoggedIn: false,
         isDarkMode: false,
@@ -61,12 +64,14 @@ void main() {
       final endMem = ProcessInfo.currentRss / (1024 * 1024);
       debugPrint('[MEASURE] Scenario B (Home Idle):');
       debugPrint('  - Test Duration: ${sw.elapsedMilliseconds} ms');
-      debugPrint('  - Memory: ${endMem.toStringAsFixed(2)} MB (Delta: ${(endMem - startMem).toStringAsFixed(2)} MB)');
+      debugPrint(
+          '  - Memory: ${endMem.toStringAsFixed(2)} MB (Delta: ${(endMem - startMem).toStringAsFixed(2)} MB)');
 
       expect(endMem, lessThan(250.0));
     });
 
-    testWidgets('Scenario C: Map Idle Zero-Rebuild Verification', (WidgetTester tester) async {
+    testWidgets('Scenario C: Map Idle Zero-Rebuild Verification',
+        (WidgetTester tester) async {
       await tester.pumpWidget(const FloodGuardApp(
         isLoggedIn: false,
         isDarkMode: false,
@@ -94,7 +99,8 @@ void main() {
       expect(endMem, lessThan(250.0));
     });
 
-    testWidgets('Scenario D: Map with GPS Stream Configuration', (WidgetTester tester) async {
+    testWidgets('Scenario D: Map with GPS Stream Configuration',
+        (WidgetTester tester) async {
       await tester.pumpWidget(const FloodGuardApp(
         isLoggedIn: false,
         isDarkMode: false,
@@ -115,7 +121,9 @@ void main() {
       expect(mem, lessThan(250.0));
     });
 
-    testWidgets('Scenario E & F: Barangay Selection Animation and Return to Idle', (WidgetTester tester) async {
+    testWidgets(
+        'Scenario E & F: Barangay Selection Animation and Return to Idle',
+        (WidgetTester tester) async {
       await tester.pumpWidget(const FloodGuardApp(
         isLoggedIn: false,
         isDarkMode: false,
@@ -144,7 +152,8 @@ void main() {
       expect(idleMem, lessThan(250.0));
     });
 
-    testWidgets('Scenario G: Profile Screen Memory & Layout', (WidgetTester tester) async {
+    testWidgets('Scenario G: Profile Screen Memory & Layout',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightTheme(),
@@ -166,7 +175,9 @@ void main() {
       expect(find.byType(SafeArea), findsWidgets);
     });
 
-    testWidgets('Scenario H: Repeated Home -> Map -> Profile -> Home Cycles 1-5', (WidgetTester tester) async {
+    testWidgets(
+        'Scenario H: Repeated Home -> Map -> My Requests -> Home Cycles 1-5',
+        (WidgetTester tester) async {
       final List<double> cycleMemory = [];
 
       for (int cycle = 1; cycle <= 5; cycle++) {
@@ -184,10 +195,10 @@ void main() {
           await tester.pump();
         }
 
-        // Navigate to Profile
-        final profileFinder = find.byIcon(Icons.person_rounded);
-        if (profileFinder.evaluate().isNotEmpty) {
-          await tester.tap(profileFinder.first, warnIfMissed: false);
+        // Navigate to My Requests
+        final requestsFinder = find.byIcon(Icons.support_agent_rounded);
+        if (requestsFinder.evaluate().isNotEmpty) {
+          await tester.tap(requestsFinder.first, warnIfMissed: false);
           await tester.pump();
         }
 
@@ -200,7 +211,8 @@ void main() {
 
         final currentMem = ProcessInfo.currentRss / (1024 * 1024);
         cycleMemory.add(currentMem);
-        debugPrint('  - Cycle $cycle Memory: ${currentMem.toStringAsFixed(2)} MB');
+        debugPrint(
+            '  - Cycle $cycle Memory: ${currentMem.toStringAsFixed(2)} MB');
 
         // Cleanly unmount before next cycle
         await tester.pumpWidget(const SizedBox.shrink());
@@ -209,19 +221,23 @@ void main() {
 
       debugPrint('[MEASURE] Scenario H (5 Repeated Navigation Cycles):');
       for (int i = 0; i < cycleMemory.length; i++) {
-        debugPrint('    Cycle ${i + 1}: ${cycleMemory[i].toStringAsFixed(2)} MB');
+        debugPrint(
+            '    Cycle ${i + 1}: ${cycleMemory[i].toStringAsFixed(2)} MB');
       }
 
       final maxCycle = cycleMemory.reduce((a, b) => a > b ? a : b);
       final minCycle = cycleMemory.reduce((a, b) => a < b ? a : b);
       final delta = maxCycle - minCycle;
 
-      debugPrint('    Memory Stabilization Check: Delta across 5 cycles = ${delta.toStringAsFixed(2)} MB (STABLE, No Accumulation)');
+      debugPrint(
+          '    Memory Stabilization Check: Delta across 5 cycles = ${delta.toStringAsFixed(2)} MB (STABLE, No Accumulation)');
       expect(maxCycle, lessThan(250.0));
-      expect(delta, lessThan(50.0), reason: 'Memory must stabilize rather than accumulate');
+      expect(delta, lessThan(50.0),
+          reason: 'Memory must stabilize rather than accumulate');
     });
 
-    testWidgets('Scenario I & J: Background & Resume App Lifecycle', (WidgetTester tester) async {
+    testWidgets('Scenario I & J: Background & Resume App Lifecycle',
+        (WidgetTester tester) async {
       await tester.pumpWidget(const FloodGuardApp(
         isLoggedIn: false,
         isDarkMode: false,
@@ -233,18 +249,21 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
       final bgMem = ProcessInfo.currentRss / (1024 * 1024);
-      debugPrint('[MEASURE] Scenario I (Backgrounded): Memory = ${bgMem.toStringAsFixed(2)} MB');
+      debugPrint(
+          '[MEASURE] Scenario I (Backgrounded): Memory = ${bgMem.toStringAsFixed(2)} MB');
 
       // Simulate App Resumed (Foregrounded)
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       final resumeMem = ProcessInfo.currentRss / (1024 * 1024);
-      debugPrint('[MEASURE] Scenario J (Resumed): Memory = ${resumeMem.toStringAsFixed(2)} MB');
+      debugPrint(
+          '[MEASURE] Scenario J (Resumed): Memory = ${resumeMem.toStringAsFixed(2)} MB');
 
       expect(resumeMem, lessThan(250.0));
     });
 
-    testWidgets('Scenario K: Normal Usage Multi-Screen Simulation', (WidgetTester tester) async {
+    testWidgets('Scenario K: Normal Usage Multi-Screen Simulation',
+        (WidgetTester tester) async {
       await tester.pumpWidget(const FloodGuardApp(
         isLoggedIn: false,
         isDarkMode: false,
@@ -268,7 +287,9 @@ void main() {
   });
 
   group('📱 OTP FLOW & FUNCTIONAL REGRESSION AUDIT', () {
-    testWidgets('OTP Flow A & B: Unchanged phone stays on OTP session; Changed phone invalidates', (WidgetTester tester) async {
+    testWidgets(
+        'OTP Flow A & B: Unchanged phone stays on OTP session; Changed phone invalidates',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: SignupScreen(isTaglish: false, isDarkMode: false),
@@ -279,7 +300,8 @@ void main() {
       expect(find.byType(SignupScreen), findsOneWidget);
     });
 
-    testWidgets('Accessibility & Contrast check: Colors & Typography', (WidgetTester tester) async {
+    testWidgets('Accessibility & Contrast check: Colors & Typography',
+        (WidgetTester tester) async {
       expect(AppTypography.bodyLarge.fontSize, greaterThanOrEqualTo(15.0));
       expect(AppTypography.bodyMedium.fontSize, greaterThanOrEqualTo(15.0));
       expect(AppTypography.labelLarge.fontSize, greaterThanOrEqualTo(15.0));
