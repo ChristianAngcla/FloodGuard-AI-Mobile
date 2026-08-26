@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile_model.dart';
 import '../data/translations.dart';
 import 'wave_background.dart';
+import '../screens/help_requests_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final bool isDarkMode;
@@ -66,8 +67,6 @@ class _AppDrawerState extends State<AppDrawer> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     // Modern color palette adjustments
@@ -107,6 +106,40 @@ class _AppDrawerState extends State<AppDrawer> {
                       if (_isLoggedIn && _userProfile != null) ...[
                         _buildProfileCard(
                             context, _userProfile!, surfaceColor, textColor),
+                        const SizedBox(height: 12),
+                        Material(
+                          color: surfaceColor,
+                          borderRadius: BorderRadius.circular(16),
+                          child: ListTile(
+                            leading: Icon(Icons.support_agent_rounded,
+                                color: accentColor),
+                            title: Text(
+                              widget.isTaglish
+                                  ? 'Aking Help Requests'
+                                  : 'My Help Requests',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                            ),
+                            trailing: Icon(Icons.chevron_right_rounded,
+                                color: textColor.withValues(alpha: 0.4)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => HelpRequestsScreen(
+                                    isTaglish: widget.isTaglish,
+                                    isDarkMode: widget.isDarkMode,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                         const SizedBox(height: 24),
                       ],
                       _buildSectionTitle(_t("settings"), textColor),
@@ -300,7 +333,8 @@ class _AppDrawerState extends State<AppDrawer> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF3784DF).withValues(alpha: 0.2)),
+        border:
+            Border.all(color: const Color(0xFF3784DF).withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

@@ -247,19 +247,6 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       debugPrint('Could not load user profile for report: $e');
     }
 
-    // SENSOR CROSS-CHECKING (LOCALIZED)
-    String reportStatus = 'pending';
-    if (_selectedBarangay != null && widget.submitFloodReport == null) {
-      try {
-        final floodData =
-            await FloodApiService.getBarangayFloodData(_selectedBarangay!);
-        if (floodData != null && floodData.riskLevel >= 40) {
-          reportStatus =
-              'verified'; // Auto-verify if predicted flood risk >= 40%
-        }
-      } catch (_) {}
-    }
-
     final submit = widget.submitFloodReport ??
         ({
           required String location,
@@ -302,7 +289,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       reporterPhone: reporterPhone,
       latitude: lat,
       longitude: lng,
-      status: reportStatus,
+      status: 'submitted',
       helpNeeded: (_isSafe == false) ? _helpNeeded : null,
     );
 
@@ -319,9 +306,13 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           widget.onSafe();
         }
       } else {
-        _showError(widget.isTaglish
-            ? "Nabigo ang pagpapadala ng ulat. Subukan muli."
-            : "Failed to submit report. Please try again.");
+        final apiMessage = widget.submitFloodReport == null
+            ? FloodApiService.lastHelpRequestError
+            : null;
+        _showError(apiMessage ??
+            (widget.isTaglish
+                ? "Nabigo ang pagpapadala ng ulat. Subukan muli."
+                : "Failed to submit report. Please try again."));
       }
     }
   }

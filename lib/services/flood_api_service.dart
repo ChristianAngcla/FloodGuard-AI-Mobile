@@ -2,20 +2,25 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../services/auth_service.dart';
 import '../utils/station_thresholds.dart';
 
 /// 🌊 Flood Data Model - One barangay's current flood monitoring information,
 /// sourced from PAGASA-reported station telemetry (/api/status.telemetry_sensors).
 class FloodData {
   final String barangay;
+
   /// Internal status ordinal for UI gates (NOT a flood probability %).
   /// Mapped from river-station status: SAFE≈15, ALERT≈60, WARNING≈75, CRITICAL≈90, UNAVAILABLE≈0.
   final int riskLevel;
+
   /// PAGASA-reported rainfall for the upstream gauge feeding this station's model, in mm
   /// accumulated over the preceding hour. Null when the source did not report a number.
   final double? rainfall;
+
   /// Current PAGASA-reported water level in metres (null if unavailable).
   final double? waterLevel;
+
   /// Retained for display compatibility (mirrors the PAGASA-reported waterLevel).
   final double? peakPredictedLevel;
   final double
@@ -63,7 +68,9 @@ class FloodData {
       waterLevel: wl,
       peakPredictedLevel: peak,
       maxWaterLevel: parseDouble(json['max_water_level']) ?? 10.0,
-      status: (json['status'] ?? (wl == null ? 'unavailable' : 'safe')).toString().toLowerCase(),
+      status: (json['status'] ?? (wl == null ? 'unavailable' : 'safe'))
+          .toString()
+          .toLowerCase(),
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
     );
   }
@@ -93,6 +100,9 @@ class FloodApiService {
   // Timeout duration for API calls (don't wait forever)
   static const Duration _timeout =
       Duration(seconds: 60); // 🚀 Increased to 60s for Render cold-starts
+
+  static String? lastHelpRequestError;
+  static int? lastHelpRequestRetryAfterSeconds;
 
   // 💾 CACHE: Store data here so we don't fetch different random numbers
   static Map<String, FloodData>? _cachedData;
@@ -202,9 +212,11 @@ class FloodApiService {
     return mapColorStatusFromSimulatedStation(
       simulationActive: true,
       predictedWaterLevel: _finiteNumber(
-        stationRaw['predictedWaterLevel'] ?? stationRaw['predicted_water_level'],
+        stationRaw['predictedWaterLevel'] ??
+            stationRaw['predicted_water_level'],
       ),
-      statusBand: (stationRaw['statusBand'] ?? stationRaw['status'])?.toString(),
+      statusBand:
+          (stationRaw['statusBand'] ?? stationRaw['status'])?.toString(),
       calculationMode: stationRaw['calculationMode']?.toString(),
     );
   }
@@ -239,7 +251,8 @@ class FloodApiService {
     'Malanday': 'tumana',
     'Marikina Heights': 'tumana',
     'Concepcion Dos': 'tumana',
-    'Industrial Valley': 'sto_nino', // Southern Marikina — Sto. Niño, not Tumana
+    'Industrial Valley':
+        'sto_nino', // Southern Marikina — Sto. Niño, not Tumana
     'Santo Niño': 'sto_nino',
     'Concepcion Uno': 'tumana',
     'San Roque': 'sto_nino',
@@ -422,11 +435,13 @@ class FloodApiService {
                 (liveVal is num) ? liveVal.toDouble() : null;
 
             final riverData = rivers?[sensorKey] as Map<String, dynamic>?;
-            final thr = StationThresholds.fromApiOrDefault(sensorKey, riverData);
+            final thr =
+                StationThresholds.fromApiOrDefault(sensorKey, riverData);
             final double maxWaterLevel = thr.critical;
 
-            final sensorStatus = telemetry?['sensorStatus']?.toString().toUpperCase() ??
-                (liveWaterLevel == null ? 'SUSPECT' : 'VALID');
+            final sensorStatus =
+                telemetry?['sensorStatus']?.toString().toUpperCase() ??
+                    (liveWaterLevel == null ? 'SUSPECT' : 'VALID');
 
             // Status is computed strictly from a valid PAGASA reading vs station thresholds
             String status = 'unavailable';
@@ -608,18 +623,33 @@ class FloodApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 400) {
-        debugPrint('✅ User profile saved (registered/synced locally & remote).');
+      if (response.statusCode == 200 ||
+          response.statusCode == 201 ||
+          response.statusCode == 400) {
+        debugPrint(
+            '✅ User profile saved (registered/synced locally & remote).');
         return true;
       }
 
-      debugPrint(
-          '⚠️ User profile save failed (HTTP ${response.statusCode}).');
+      debugPrint('⚠️ User profile save failed (HTTP ${response.statusCode}).');
       return true; // Return true so user changes in local profile are never lost
     } catch (e) {
-      debugPrint('⚠️ Network error saving profile to remote: $e (using local profile cache)');
+      debugPrint(
+          '⚠️ Network error saving profile to remote: $e (using local profile cache)');
       return true; // Return true so user updates locally regardless of remote network status
     }
+  }
+
+  static Future<Map<String, String>> _jsonHeaders(
+      {bool withAuth = false}) async {
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (withAuth) {
+      final token = await AuthService().getAuthToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    return headers;
   }
 
   /// 📢 Submit a user-generated flood report to the backend
@@ -640,6 +670,8 @@ class FloodApiService {
     String? status,
     String? helpNeeded,
   }) async {
+    lastHelpRequestError = null;
+    lastHelpRequestRetryAfterSeconds = null;
     try {
       debugPrint('🔗 Submitting flood report to database...');
       debugPrint('   📝 Reporter: $reporterName, Phone: $reporterPhone');
@@ -648,7 +680,7 @@ class FloodApiService {
       final response = await http
           .post(
             Uri.parse('$dbBaseUrl/reports'),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _jsonHeaders(withAuth: true),
             body: jsonEncode({
               'location': location,
               'is_raining': isRaining,
@@ -666,7 +698,6 @@ class FloodApiService {
               'helpNeeded': helpNeeded,
               'latitude': latitude,
               'longitude': longitude,
-              'status': status ?? 'pending',
             }),
           )
           .timeout(_timeout);
@@ -675,10 +706,18 @@ class FloodApiService {
           response.body.trim().startsWith('<html')) {
         debugPrint(
             '⚠️ Server returned HTML. Please ensure you have DEPLOYED the new backend code to Render.');
+        lastHelpRequestError =
+            'Could not reach the help request service. Please try again.';
         return false;
       }
 
       final data = jsonDecode(response.body);
+      if (response.statusCode == 429) {
+        lastHelpRequestRetryAfterSeconds =
+            int.tryParse('${data['retryAfterSeconds'] ?? ''}');
+        lastHelpRequestError = data['message']?.toString();
+        return false;
+      }
       if (response.statusCode == 201 ||
           (response.statusCode == 200 && data['success'] == true)) {
         debugPrint('✅ Flood report submitted successfully.');
@@ -687,12 +726,44 @@ class FloodApiService {
         debugPrint(
             '⚠️ Flood report submission failed: HTTP ${response.statusCode}');
         debugPrint('   Response: ${response.body}');
+        lastHelpRequestError = data['message']?.toString();
         return false;
       }
     } catch (e) {
       debugPrint('❌ Error submitting flood report: $e');
+      lastHelpRequestError =
+          'Could not send your help request. Please try again.';
       return false;
     }
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchMyHelpRequests() async {
+    final token = await AuthService().getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('not_authenticated');
+    }
+    final response = await http.get(
+      Uri.parse('$dbBaseUrl/reports/mine'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    ).timeout(_timeout);
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw Exception('not_authenticated');
+    }
+    if (response.statusCode != 200) {
+      throw Exception('load_failed');
+    }
+    final data = jsonDecode(response.body);
+    if (data is! Map || data['success'] != true) {
+      throw Exception('load_failed');
+    }
+    final list = data['data'];
+    if (list is! List) return [];
+    return list
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
   }
 
   /// 📅 Fetch authoritative daily forecasts from GET /api/forecasts/daily
@@ -710,8 +781,9 @@ class FloodApiService {
 
       debugPrint(
           '📅 Fetching authoritative daily forecast from $baseUrl/forecasts/daily');
-      final response =
-          await http.get(Uri.parse('$baseUrl/forecasts/daily')).timeout(_timeout);
+      final response = await http
+          .get(Uri.parse('$baseUrl/forecasts/daily'))
+          .timeout(_timeout);
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
@@ -765,9 +837,8 @@ class FloodApiService {
     double? lkvVal;
     String? lkvSrc;
     if (lkvObj is Map) {
-      lkvVal = (lkvObj['value'] is num)
-          ? (lkvObj['value'] as num).toDouble()
-          : null;
+      lkvVal =
+          (lkvObj['value'] is num) ? (lkvObj['value'] as num).toDouble() : null;
       lkvSrc = lkvObj['sourceTimePht']?.toString();
     } else if (lkvObj is num) {
       lkvVal = lkvObj.toDouble();
@@ -839,7 +910,8 @@ class PagasaTelemetryItem {
     }
 
     final currentVal = parseVal(json['currentReading']);
-    final rawStr = json['rawReading']?.toString() ?? (currentVal?.toString() ?? '');
+    final rawStr =
+        json['rawReading']?.toString() ?? (currentVal?.toString() ?? '');
     final sStatus = json['sensorStatus']?.toString().toUpperCase() ??
         (currentVal == null ? 'SUSPECT' : 'VALID');
     final tStatus = json['telemetryStatus']?.toString().toUpperCase() ??
@@ -891,8 +963,10 @@ class DailyForecastItem {
   final String forecastTargetDate;
   final String? sourceDataDate;
   final double? predictedWaterLevel;
-  final String calculationMode; // primary_model, persistence_fallback, unavailable
-  final String statusBand; // SAFE, ALERT, ALARM, CRITICAL, UNMAPPED_DAILY_OBSERVATION
+  final String
+      calculationMode; // primary_model, persistence_fallback, unavailable
+  final String
+      statusBand; // SAFE, ALERT, ALARM, CRITICAL, UNMAPPED_DAILY_OBSERVATION
   final String candidateId;
   final String targetSemantics;
   final bool thresholdMappingAllowed;
@@ -980,8 +1054,8 @@ class DailyForecastItem {
     final s = DateTime.tryParse(source);
     final t = DateTime.tryParse(target);
     if (s == null || t == null) return false;
-    final expected = DateTime.utc(s.year, s.month, s.day)
-        .add(const Duration(days: 1));
+    final expected =
+        DateTime.utc(s.year, s.month, s.day).add(const Duration(days: 1));
     return expected.year == t.year &&
         expected.month == t.month &&
         expected.day == t.day;
@@ -998,4 +1072,3 @@ class DailyForecastItem {
     };
   }
 }
-

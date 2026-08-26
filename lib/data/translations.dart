@@ -390,5 +390,9 @@ class Translations {
       "en": "Ask for Help",
       "tl": "Humingi ng Tulong",
     },
+    "myHelpRequests": {
+      "en": "My Help Requests",
+      "tl": "Aking Help Requests",
+    },
   };
 }

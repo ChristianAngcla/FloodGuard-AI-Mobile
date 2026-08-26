@@ -37,6 +37,11 @@ class AuthService {
     }
   }
 
+  Future<String?> getAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('auth_token');
+  }
+
   String _capitalize(String s) {
     if (s.isEmpty) return s;
     return s.split(' ').map((word) {
@@ -136,7 +141,8 @@ class AuthService {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) data = decoded;
       } catch (_) {
-        debugPrint('AuthService.signUp: non-JSON body status=${response.statusCode}');
+        debugPrint(
+            'AuthService.signUp: non-JSON body status=${response.statusCode}');
       }
 
       final ok = response.statusCode >= 200 &&
@@ -148,13 +154,15 @@ class AuthService {
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('temp_house_no_$safeEmail', houseNo.trim());
-          await prefs.setString('temp_street_name_$safeEmail', streetName.trim());
+          await prefs.setString(
+              'temp_street_name_$safeEmail', streetName.trim());
         } catch (prefsErr) {
           debugPrint('AuthService.signUp prefs warning: $prefsErr');
         }
         return {
           'success': true,
-          'message': data['message']?.toString() ?? 'User registered successfully',
+          'message':
+              data['message']?.toString() ?? 'User registered successfully',
         };
       }
 
@@ -224,17 +232,25 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       final userDataString = prefs.getString('user_data');
       if (userDataString != null) {
-        final userData = Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
-        final cachedEmail = (userData['email'] ?? '').toString().trim().toLowerCase();
+        final userData =
+            Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
+        final cachedEmail =
+            (userData['email'] ?? '').toString().trim().toLowerCase();
         if (cachedEmail == cleanEmail || cleanEmail.isEmpty) {
           String rawPhone = (userData['phone'] ?? '').toString().trim();
           if (rawPhone.isNotEmpty) {
             String formattedPhone = rawPhone;
-            if (formattedPhone.startsWith('0')) formattedPhone = '+63${formattedPhone.substring(1)}';
-            if (!formattedPhone.startsWith('+')) formattedPhone = '+63$formattedPhone';
+            if (formattedPhone.startsWith('0')) {
+              formattedPhone = '+63${formattedPhone.substring(1)}';
+            }
+            if (!formattedPhone.startsWith('+')) {
+              formattedPhone = '+63$formattedPhone';
+            }
 
             final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
-            final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '****';
+            final last4 = digits.length >= 4
+                ? digits.substring(digits.length - 4)
+                : '****';
             return {
               'success': true,
               'email': cachedEmail,
@@ -248,7 +264,8 @@ class AuthService {
 
     return {
       'success': false,
-      'message': 'No registered account found with that email. Please check the email spelling or register first.'
+      'message':
+          'No registered account found with that email. Please check the email spelling or register first.'
     };
   }
 
@@ -282,7 +299,8 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       final userDataString = prefs.getString('user_data');
       if (userDataString != null) {
-        final userData = Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
+        final userData =
+            Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
         userData['password'] = newPassword;
         await prefs.setString('user_data', jsonEncode(userData));
       }
@@ -292,7 +310,10 @@ class AuthService {
       };
     } catch (_) {}
 
-    return {'success': false, 'message': 'Could not update password. Please try again.'};
+    return {
+      'success': false,
+      'message': 'Could not update password. Please try again.'
+    };
   }
 
   Future<Map<String, dynamic>> requestPasswordReset(String identifier) async {
