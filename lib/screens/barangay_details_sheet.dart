@@ -40,7 +40,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   Widget build(BuildContext context) {
     final bg = widget.isDarkMode ? const Color(0xFF1A2B3C) : Colors.white;
     final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
-    final subColor = widget.isDarkMode ? Colors.white70 : Colors.black54;
+    // Secondary details still need strong contrast for older users.
+    final subColor = widget.isDarkMode ? Colors.white : const Color(0xFF374151);
     final barangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
     return Align(
@@ -128,7 +129,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                     Text(
                       '${widget.isTaglish ? 'Sensor' : 'Station'}: $_sensorDisplayName',
                       style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: subColor),
                     ),
@@ -138,8 +139,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                     SizedBox(
                       width: double.infinity,
                       height: 52,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.close_rounded),
+                      child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: widget.isDarkMode
                               ? const Color(0xFF3784DF)
@@ -152,7 +152,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                           elevation: 0,
                         ),
                         onPressed: () => Navigator.pop(context),
-                        label: Text(widget.isTaglish ? 'Isara' : 'Close',
+                        child: Text(widget.isTaglish ? 'Isara' : 'Close',
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 16)),
                       ),
@@ -220,7 +220,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             Text(
               daily.fallbackReason!,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 15,
                 color: subColor,
                 height: 1.3,
               ),
@@ -230,24 +230,40 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
       );
     }
 
+    final status = daily.statusBand.trim().toUpperCase();
+    final levelColor = widget.isDarkMode
+        ? const Color(0xFF7DD3FC)
+        : const Color(0xFF0369A1);
+    final statusColor = switch (status) {
+      'SAFE' || 'NORMAL' =>
+        widget.isDarkMode ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
+      'ALERT' =>
+        widget.isDarkMode ? const Color(0xFFFDE047) : const Color(0xFFB8860B),
+      'ALARM' || 'WARNING' =>
+        widget.isDarkMode ? const Color(0xFFFBBF24) : const Color(0xFFC2410C),
+      'CRITICAL' =>
+        widget.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+      _ => levelColor,
+    };
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF0369A1),
+            color: levelColor,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           '${daily.statusBand} · ${daily.modeDisplayLabel}',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w800,
-            color: Color(0xFF0369A1),
+            color: statusColor,
           ),
         ),
         if (daily.forecastTargetDate.isNotEmpty)
@@ -257,7 +273,11 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               widget.isTaglish
                   ? 'Para sa: ${daily.forecastTargetDate}'
                   : 'For: ${daily.forecastTargetDate}',
-              style: TextStyle(color: subColor, fontSize: 12),
+              style: TextStyle(
+                color: subColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty)
@@ -267,7 +287,11 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               widget.isTaglish
                   ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                   : 'Based on observations from: ${daily.sourceDataDate}',
-              style: TextStyle(color: subColor, fontSize: 12),
+              style: TextStyle(
+                color: subColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
       ],
@@ -276,7 +300,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
   Widget _sectionLabel(String text, Color color) => Text(text,
       style:
-          TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color));
+          TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color));
 
   Widget _dataPanel(Color color, Widget child) => Container(
         width: double.infinity,

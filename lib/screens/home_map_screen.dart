@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/welcome_popup.dart';
 import 'login_screen.dart';
+import 'signup_screen.dart';
 import '../models/city.dart';
 import '../models/barangay.dart';
 import '../data/translations.dart';
@@ -951,7 +952,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         number,
                         style: TextStyle(
                             color: numColor,
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -1001,11 +1002,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     return Translations.texts[key]?[_isTaglish ? "tl" : "en"] ?? key;
   }
 
-  final String _lightMapUrl =
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
-
-  final String _darkMapUrl =
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+  // Use the keyless OpenStreetMap raster service. CARTO's hosted basemaps now
+  // return "API KEY REQUIRED" tiles for apps without an eligible account.
+  final String _mapUrl =
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
   List<City> cities = [];
   int currentCityIndex = 0; // start with the first city
@@ -1180,40 +1180,89 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         builder: (context) => AlertDialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              // const Icon(Icons.lock_rounded, color: Color(0xFF3784DF)),
-              const SizedBox(width: 10),
-              Text(t("loginRequired")),
-            ],
+          title: Text(
+            t("loginRequired"),
+            textAlign: TextAlign.center,
           ),
-          content: Text(t("loginToReport")),
+          content: Text(
+            t("loginToReport"),
+            textAlign: TextAlign.center,
+          ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child:
-                  Text(t("close"), style: TextStyle(color: Colors.grey[600])),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3784DF),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => LoginScreen(
-                      isTaglish: _isTaglish,
-                      isDarkMode: _isDarkMode,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3784DF),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LoginScreen(
+                            isTaglish: _isTaglish,
+                            isDarkMode: _isDarkMode,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      _isTaglish ? 'Mag-sign In' : 'Sign In',
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                );
-              },
-              child: Text(t("signInUp")),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1769AA),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(52),
+                      side: const BorderSide(
+                        color: Color(0xFF1769AA),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SignupScreen(
+                            isTaglish: _isTaglish,
+                            isDarkMode: _isDarkMode,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      _isTaglish ? 'Mag-sign Up' : 'Sign Up',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: _isDarkMode
+                          ? Colors.white
+                          : const Color(0xFF475569),
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(t("close")),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1266,10 +1315,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildMenuButton() {
+    final actionColor =
+        _isDarkMode ? const Color(0xFF93C5FD) : _accessibleBlue;
     return IconButton(
       tooltip: _isTaglish ? 'Buksan ang settings' : 'Open settings',
-      icon: Icon(Icons.settings_rounded,
-          color: _isDarkMode ? Colors.white : _accessibleBlue),
+      style: IconButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        foregroundColor: actionColor,
+      ),
+      icon: const Icon(Icons.settings_rounded, size: 22),
       onPressed: () {
         _scaffoldKey.currentState?.openEndDrawer();
       },
@@ -1277,26 +1331,29 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Widget _buildRefreshButton() {
+    final actionColor =
+        _isDarkMode ? const Color(0xFF93C5FD) : _accessibleBlue;
     return Semantics(
-      label: _isTaglish ? 'Bersyon 1.0.0' : 'Version 1.0.0',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            size: 14,
-            color: _isDarkMode ? Colors.white : Colors.black,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _isTaglish ? 'Bersyon 1.0.0' : 'Version 1.0.0',
-            style: TextStyle(
-              fontSize: 11,
-              color: _isDarkMode ? Colors.white : Colors.black,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      button: true,
+      excludeSemantics: true,
+      label: _isTaglish ? 'I-refresh ang status ng mapa' : 'Refresh map status',
+      child: IconButton(
+        tooltip: _isTaglish ? 'I-refresh ang status ng mapa' : 'Refresh map status',
+        onPressed: _isLoading ? null : () => _refreshData(),
+        style: IconButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: actionColor,
+        ),
+        icon: _isLoading
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: actionColor,
+                ),
+              )
+            : const Icon(Icons.refresh_rounded, size: 22),
       ),
     );
   }
@@ -1403,10 +1460,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                   ),
                                   children: [
                                     TileLayer(
-                                      urlTemplate: _isDarkMode
-                                          ? _darkMapUrl
-                                          : _lightMapUrl,
-                                      subdomains: ['a', 'b', 'c', 'd'],
+                                      urlTemplate: _mapUrl,
                                       userAgentPackageName:
                                           'com.example.floodguard_ai',
                                     ),
@@ -1840,7 +1894,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         color: _isDarkMode
                             ? const Color(0xFF1A2B3C)
                             : Colors.white,
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.1),
@@ -1877,12 +1931,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               letterSpacing: -0.5,
                             ),
                           ),
-                          // Middle: last updated
-                          Expanded(
-                            child: Center(
-                              child: _buildRefreshButton(),
-                            ),
-                          ),
+                          const Spacer(),
+                          _buildRefreshButton(),
+                          const SizedBox(width: 4),
                           _buildMenuButton(),
                         ],
                       ),
@@ -1895,31 +1946,29 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           // 3. Floating Bottom Navigation Bar
           if (!isKeyboardOpen)
             Positioned(
-              bottom: MediaQuery.of(context).padding.bottom,
-              left: 12,
-              right: 12,
+              bottom: 0,
+              left: 0,
+              right: 0,
               child: Container(
-                height: 72,
+                height: 72 + MediaQuery.of(context).padding.bottom,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      blurRadius: 12,
+                      offset: const Offset(0, -2),
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                    child: Container(
+                child: Container(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).padding.bottom,
+                      ),
                       decoration: BoxDecoration(
                         color: (_isDarkMode
                                 ? const Color(0xFF253B50)
                                 : Colors.white)
-                            .withValues(alpha: 0.85),
+                            .withValues(alpha: 0.95),
                         border: Border.all(
                           color: _isDarkMode
                               ? Colors.white10
@@ -1952,8 +2001,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           ),
                         ],
                       ),
-                    ),
-                  ),
                 ),
               ),
             ),
@@ -2176,68 +2223,71 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     final navColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
 
     return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: Semantics(
-          button: true,
-          selected: isSelected,
-          label: label,
-          child: InkWell(
-            onTap: () {
-              if (isAction) {
-              } else {
-                setState(() => _currentTabIndex = index);
-                if (index == 1) {
-                  if ((_selectedBarangayName != null ||
-                          _hoveredBarangayName != null) &&
-                      !_pulseController.isAnimating) {
-                    _pulseController.repeat(reverse: true);
+      child: SizedBox(
+        height: double.infinity,
+        child: Material(
+          color: Colors.transparent,
+          child: Semantics(
+            button: true,
+            selected: isSelected,
+            label: label,
+            child: InkWell(
+              onTap: () {
+                if (isAction) {
+                } else {
+                  setState(() => _currentTabIndex = index);
+                  if (index == 1) {
+                    if ((_selectedBarangayName != null ||
+                            _hoveredBarangayName != null) &&
+                        !_pulseController.isAnimating) {
+                      _pulseController.repeat(reverse: true);
+                    }
+                  } else if (_pulseController.isAnimating) {
+                    _pulseController.stop();
                   }
-                } else if (_pulseController.isAnimating) {
-                  _pulseController.stop();
                 }
-              }
-            },
-            borderRadius: BorderRadius.circular(34),
-            highlightColor: navColor.withValues(alpha: 0.1),
-            splashColor: navColor.withValues(alpha: 0.2),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? navColor.withValues(alpha: 0.12)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: navColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w600,
+              },
+              borderRadius: BorderRadius.circular(34),
+              highlightColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? navColor.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      icon,
                       color: navColor,
+                      size: 30,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 1),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.w600,
+                        color: navColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2435,8 +2485,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         flex: 6,
                         child: Text(
                           _isTaglish
-                              ? 'Pagtataya para sa $_dashboardSelectedBarangay'
-                              : 'Forecast for $_dashboardSelectedBarangay',
+                              ? 'Pagtataya: $_dashboardSelectedBarangay'
+                              : 'Forecast: $_dashboardSelectedBarangay',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -2455,8 +2505,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.end,
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: subColor,
                           ),
                         ),
@@ -2520,7 +2570,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                           ? "Mga dapat gawin bago bumaha."
                                           : "What to do before a flood.",
                                       style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 15,
                                           color: _isDarkMode
                                               ? Colors.white
                                               : const Color(0xFF1A1A1A))),
@@ -2563,7 +2613,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         Text(
           forecastHeading,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: FontWeight.w800,
             color: subColor,
           ),
@@ -2610,7 +2660,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             Text(
               daily.fallbackReason!,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 15,
                 color: subColor,
                 height: 1.3,
               ),
@@ -2620,23 +2670,39 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       );
     }
 
+    final status = daily.statusBand.trim().toUpperCase();
+    final levelColor = _isDarkMode
+        ? const Color(0xFF7DD3FC)
+        : const Color(0xFF0369A1);
+    final statusColor = switch (status) {
+      'SAFE' || 'NORMAL' =>
+        _isDarkMode ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
+      'ALERT' =>
+        _isDarkMode ? const Color(0xFFFDE047) : const Color(0xFFB8860B),
+      'ALARM' || 'WARNING' =>
+        _isDarkMode ? const Color(0xFFFBBF24) : const Color(0xFFC2410C),
+      'CRITICAL' =>
+        _isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+      _ => levelColor,
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF0369A1),
+            color: levelColor,
           ),
         ),
         const SizedBox(height: 6),
         Text(
           '${daily.statusBand} · ${daily.modeDisplayLabel}',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w800,
-            color: Color(0xFF0369A1),
+            color: statusColor,
           ),
         ),
         if (daily.forecastTargetDate.isNotEmpty)
@@ -2646,7 +2712,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               _isTaglish
                   ? 'Para sa: ${daily.forecastTargetDate}'
                   : 'For: ${daily.forecastTargetDate}',
-              style: TextStyle(color: subColor, fontSize: 12),
+              style: TextStyle(
+                color: subColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty)
@@ -2656,7 +2726,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               _isTaglish
                   ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                   : 'Based on observations from: ${daily.sourceDataDate}',
-              style: TextStyle(color: subColor, fontSize: 12),
+              style: TextStyle(
+                color: subColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
       ],

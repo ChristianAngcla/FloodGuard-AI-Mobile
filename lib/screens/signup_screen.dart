@@ -496,6 +496,8 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     final isDark = widget.isDarkMode;
     final bgColor = isDark ? const Color(0xFF1A2B3C) : Colors.white;
+    final topBarColor =
+        isDark ? bgColor : const Color(0xFFF5F7FA);
     final textColor = isDark ? Colors.white : const Color(0xFF1A2B3C);
 
     if (_isSuccess) {
@@ -514,10 +516,11 @@ class _SignupScreenState extends State<SignupScreen> {
       appBar: AppBar(
         // Keep the app inside the phone's status-bar boundary instead of
         // drawing the sign-up background behind the device indicators.
-        backgroundColor: bgColor,
+        backgroundColor: topBarColor,
         surfaceTintColor: Colors.transparent,
+        toolbarHeight: 0,
         systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: bgColor,
+          statusBarColor: topBarColor,
           statusBarIconBrightness:
               isDark ? Brightness.light : Brightness.dark,
           statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
@@ -526,11 +529,6 @@ class _SignupScreenState extends State<SignupScreen> {
               isDark ? Brightness.light : Brightness.dark,
         ),
         elevation: 0,
-        leading: IconButton(
-          tooltip: widget.isTaglish ? 'Bumalik' : 'Go back',
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor),
-          onPressed: _prevStep,
-        ),
       ),
       body: Stack(
         children: [
@@ -541,9 +539,25 @@ class _SignupScreenState extends State<SignupScreen> {
             top: false,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  child: _buildProgressIndicator(),
+                SizedBox(
+                  height: 48,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          tooltip: widget.isTaglish ? 'Bumalik' : 'Go back',
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: textColor,
+                          ),
+                          onPressed: _prevStep,
+                        ),
+                      ),
+                      _buildProgressIndicator(),
+                    ],
+                  ),
                 ),
                 _buildStepHeader(_currentStep),
                 Expanded(
@@ -673,7 +687,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
               ),
             ),
-          ),
+              ),
         );
       },
     );
@@ -1088,6 +1102,14 @@ class _SignupScreenState extends State<SignupScreen> {
                               ),
                             );
                           },
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 12,
+                            ),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                          ),
                           child: const Text(
                             "Login",
                             style: TextStyle(
@@ -1280,6 +1302,7 @@ class _SignupScreenState extends State<SignupScreen> {
       children: [
         Semantics(
           label: 'Agree to Terms and Privacy Policy',
+          checked: _agreedToTerms,
           child: SizedBox(
             width: 48,
             height: 48,
@@ -1306,8 +1329,9 @@ class _SignupScreenState extends State<SignupScreen> {
             label: 'Open Terms and Privacy Policy',
             button: true,
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
-                if (!_agreedToTerms) _showUnifiedLegalPopup();
+                _showUnifiedLegalPopup();
               },
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 48),
@@ -1426,13 +1450,6 @@ class _SignupScreenState extends State<SignupScreen> {
                                 ? const Color(0xFF3784DF).withValues(alpha: 0.15)
                                 : Colors.blue.shade50,
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF3784DF).withValues(alpha: 0.3),
-                                blurRadius: 24,
-                                spreadRadius: 4,
-                              ),
-                            ],
                           ),
                           child: const Icon(
                             Icons.gavel_rounded,
@@ -1477,9 +1494,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                       : "Please scroll to the bottom to agree.",
                                   style: TextStyle(
                                       color: isDark
-                                          ? Colors.orangeAccent
-                                          : Colors.orange.shade900,
-                                      fontSize: 13,
+                                          ? const Color(0xFFFFE0B2)
+                                          : const Color(0xFF7C2D12),
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w800),
                                 ),
                               ),
@@ -1494,7 +1511,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             decoration: BoxDecoration(
                               color: isDark
                                   ? Colors.white.withValues(alpha: 0.05)
-                                  : Colors.black.withValues(alpha: 0.03),
+                                  : const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: isDark
@@ -1509,10 +1526,10 @@ class _SignupScreenState extends State<SignupScreen> {
                                 "${_getTermsOfServiceContent()}\n\n${_getPrivacyPolicyContent()}",
                                 style: TextStyle(
                                     color: isDark
-                                        ? Colors.white70
-                                        : Colors.black87,
-                                    fontSize: 13,
-                                    height: 1.6),
+                                        ? Colors.white
+                                        : const Color(0xFF1A1A1A),
+                                    fontSize: 14,
+                                    height: 1.55),
                               ),
                             ),
                           ),
@@ -1520,31 +1537,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
                         const SizedBox(height: 24),
 
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () => Navigator.pop(dialogContext),
-                                style: TextButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                child: Text(
-                                    widget.isTaglish ? "Kanselahin" : "Cancel",
-                                    style: TextStyle(
-                                        color: isDark
-                                            ? Colors.white54
-                                            : Colors.black54,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16)),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Container(
+                            Container(
                                 decoration: BoxDecoration(
                                   gradient: hasScrolledToBottom
                                       ? const LinearGradient(
@@ -1606,6 +1602,22 @@ class _SignupScreenState extends State<SignupScreen> {
                                           fontSize: 16)),
                                 ),
                               ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                  widget.isTaglish ? "Kanselahin" : "Cancel",
+                                  style: TextStyle(
+                                      color: isDark ? Colors.white : Colors.black87,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16)),
                             ),
                           ],
                         ),
@@ -1613,8 +1625,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   ),
                 ),
-              ),
-            );
+              ));
           },
         );
       },

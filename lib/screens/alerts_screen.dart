@@ -362,8 +362,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
               Text(
                 _formatDate(alert['timestamp'] ?? ""),
                 style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
+                    fontSize: 14,
+                    color: isDark
+                        ? const Color(0xFFE2E8F0)
+                        : const Color(0xFF475569),
                     fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 32),
@@ -395,7 +397,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     final isRead = alert['isRead'] ?? false;
     final cardColor = isDark ? const Color(0xFF253B50) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
-    final subColor = isDark ? Colors.white60 : Colors.grey[600];
+    final subColor = isDark ? Colors.white : const Color(0xFF4B5563);
 
     return Dismissible(
       key: Key(alert['id']),
@@ -501,8 +503,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     Text(
                       _formatDate(alert['timestamp'] ?? ""),
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[500],
+                        fontSize: 13,
+                        color: isDark
+                            ? const Color(0xFFE2E8F0)
+                            : const Color(0xFF475569),
                         fontWeight: FontWeight.w600,
                       ),
                     ),

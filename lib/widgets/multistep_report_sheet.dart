@@ -70,7 +70,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   Color get textColor =>
       widget.isDarkMode ? Colors.white : const Color(0xFF1A2B3C);
   Color get subTextColor =>
-      widget.isDarkMode ? Colors.white70 : Colors.grey[600]!;
+      widget.isDarkMode ? Colors.white : const Color(0xFF4B5563);
   Color get cardColor =>
       widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8F9FA);
   Color get accentColor => const Color(0xFF3784DF);
@@ -873,7 +873,9 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                 _buildSummaryRow(
                     Icons.water_drop_outlined,
                     widget.isTaglish ? "Umuulan" : "Raining",
-                    _isRaining == true ? "Yes" : "No"),
+                    _isRaining == true
+                        ? (widget.isTaglish ? "Oo" : "Yes")
+                        : (widget.isTaglish ? "Hindi" : "No")),
                 const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Divider(height: 1)),
@@ -887,8 +889,18 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                 _buildSummaryRow(
                     Icons.health_and_safety_outlined,
                     widget.isTaglish ? "Ligtas" : "Safety",
-                    _isSafe == true ? "Safe" : "Needs Assistance",
-                    valueColor: _isSafe == true ? Colors.green : Colors.red),
+                    _isSafe == true
+                        ? (widget.isTaglish ? "Ligtas" : "Safe")
+                        : (widget.isTaglish
+                            ? "Kailangan ng Tulong"
+                            : "Needs Assistance"),
+                    valueColor: _isSafe == true
+                        ? (widget.isDarkMode
+                            ? const Color(0xFF86EFAC)
+                            : const Color(0xFF15803D))
+                        : (widget.isDarkMode
+                            ? const Color(0xFFFCA5A5)
+                            : const Color(0xFFB91C1C))),
                 if (_isSafe == false) ...[
                   const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
@@ -896,11 +908,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                   _buildSummaryRow(
                       Icons.medical_services_outlined,
                       widget.isTaglish ? "Uri ng Tulong" : "Help Needed",
-                      _helpNeeded ??
-                          (widget.isTaglish
-                              ? "Hindi tinukoy"
-                              : "Not specified"),
-                      valueColor: const Color(0xFF9A3412)),
+                      _displayHelpNeeded(_helpNeeded),
+                      valueColor: widget.isDarkMode
+                          ? const Color(0xFFFDBA74)
+                          : const Color(0xFF9A3412)),
                 ],
               ],
             ),
@@ -967,15 +978,28 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     }
   }
 
+  String _displayHelpNeeded(String? helpNeeded) {
+    if (helpNeeded == null || helpNeeded.isEmpty) {
+      return widget.isTaglish ? 'Hindi tinukoy' : 'Not specified';
+    }
+    if (!widget.isTaglish) return helpNeeded;
+    return switch (helpNeeded) {
+      'Food and Water' => 'Pagkain at Tubig',
+      'Medical Assistance' => 'Tulong Medikal',
+      'Rescue / Evacuation' => 'Pagsagip / Paglikas',
+      _ => helpNeeded,
+    };
+  }
+
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       labelText: label,
       labelStyle: TextStyle(
-        color: widget.isDarkMode ? Colors.white70 : const Color(0xFF64748B),
+        color: widget.isDarkMode ? Colors.white : const Color(0xFF475569),
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
       ),
       prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       prefixIcon: Padding(

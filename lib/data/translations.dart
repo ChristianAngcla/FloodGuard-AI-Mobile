@@ -392,7 +392,7 @@ class Translations {
     },
     "myHelpRequests": {
       "en": "My Help Requests",
-      "tl": "Aking Help Requests",
+      "tl": "Mga Hiling Kong Tulong",
     },
     "myRequests": {
       "en": "Requests",

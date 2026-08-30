@@ -442,25 +442,34 @@ class _AppDrawerState extends State<AppDrawer> {
     required Color activeColor,
     required Color textColor,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? activeColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? activeColor : textColor.withValues(alpha: 0.1),
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? activeColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  isSelected ? activeColor : textColor.withValues(alpha: 0.1),
+            ),
           ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : textColor.withValues(alpha: 0.7),
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color:
+                  isSelected ? Colors.white : textColor.withValues(alpha: 0.7),
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
         ),
       ),

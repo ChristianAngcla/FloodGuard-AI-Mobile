@@ -397,7 +397,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final subTextColor =
         isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
 
-    return Container(
+    return Material(
       color: bgColor,
       child: Stack(
         children: [
@@ -875,7 +875,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         color: Colors.white),
                                     label: Text(
                                       widget.isTaglish
-                                          ? "Aking Help Requests"
+                                          ? "Mga Hiling Kong Tulong"
                                           : "My Help Requests",
                                       style: const TextStyle(
                                           fontSize: 16,

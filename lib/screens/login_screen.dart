@@ -130,6 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontSize: 15,
                         ),
                         decoration: InputDecoration(
+                          constraints: const BoxConstraints(minHeight: 56),
                           labelText: widget.isTaglish ? 'Rehistradong Email' : 'Registered Email',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -197,6 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
+                          constraints: const BoxConstraints(minHeight: 56),
                           labelText: widget.isTaglish ? '6-Digit SMS OTP' : '6-Digit SMS OTP',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -234,6 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontSize: 15,
                         ),
                         decoration: InputDecoration(
+                          constraints: const BoxConstraints(minHeight: 56),
                           labelText: widget.isTaglish ? 'Bagong Password' : 'New Password',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -277,6 +280,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 if (currentStep == 0)
                   ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3784DF),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          const Color(0xFF3784DF).withValues(alpha: 0.45),
+                      disabledForegroundColor: Colors.white70,
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                     onPressed: busy
                         ? null
                         : () async {
@@ -670,8 +685,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontSize: 13,
                                   ),
                                 ),
-                                GestureDetector(
-                                  onTap: () {
+                                TextButton(
+                                  onPressed: () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -682,6 +697,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     );
                                   },
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(48, 48),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 12,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.padded,
+                                  ),
                                   child: Text(
                                     widget.isTaglish ? 'Mag-sign up' : 'Sign up',
                                     style: AppTypography.labelMedium.copyWith(

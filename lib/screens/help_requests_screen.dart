@@ -143,7 +143,7 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
                         Expanded(
                           child: Text(
                             widget.isTaglish
-                                ? 'Aking Help Requests'
+                                ? 'Mga Hiling Kong Tulong'
                                 : 'My Help Requests',
                             textAlign: TextAlign.center,
                             style: TextStyle(
