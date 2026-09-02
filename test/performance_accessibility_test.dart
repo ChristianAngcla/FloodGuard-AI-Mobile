@@ -160,6 +160,35 @@ void main() {
       expect(find.text('FloodGuard v1.0.0'), findsOneWidget);
     });
 
+    testWidgets('AppDrawer Profile item navigates directly to LoginScreen when logged out', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            drawer: AppDrawer(
+              isDarkMode: false,
+              isTaglish: false,
+              onToggleDarkMode: (_) {},
+              onToggleLanguage: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final ScaffoldState state = tester.firstState(find.byType(Scaffold));
+      state.openDrawer();
+      await tester.pumpAndSettle();
+
+      final profileTile = find.widgetWithText(ListTile, 'Profile');
+      expect(profileTile, findsOneWidget);
+
+      await tester.tap(profileTile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.text('Log in to view your profile'), findsNothing);
+    });
+
     testWidgets('SplashScreen displays "FloodGuard" title', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(

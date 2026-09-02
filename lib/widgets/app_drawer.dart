@@ -5,6 +5,7 @@ import '../models/user_profile_model.dart';
 import '../data/translations.dart';
 import 'wave_background.dart';
 import '../screens/profile_screen.dart';
+import '../screens/login_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   final bool isDarkMode;
@@ -69,17 +70,36 @@ class _AppDrawerState extends State<AppDrawer> {
 
   void _openProfile() {
     Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProfileScreen(
-          isTaglish: widget.isTaglish,
-          isDarkMode: widget.isDarkMode,
-          onLogout: () {},
-          showBackButton: true,
+    if (_isLoggedIn && _userProfile != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProfileScreen(
+            isTaglish: widget.isTaglish,
+            isDarkMode: widget.isDarkMode,
+            onLogout: () {
+              if (mounted) {
+                setState(() {
+                  _isLoggedIn = false;
+                  _userProfile = null;
+                });
+              }
+            },
+            showBackButton: true,
+          ),
         ),
-      ),
-    );
+      ).then((_) => _loadProfile());
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(
+            isTaglish: widget.isTaglish,
+            isDarkMode: widget.isDarkMode,
+          ),
+        ),
+      ).then((_) => _loadProfile());
+    }
   }
 
   @override
