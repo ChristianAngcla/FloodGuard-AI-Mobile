@@ -1008,7 +1008,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=$_cartoKey';
 
   final String _darkMapUrl =
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=$_cartoKey';
+      'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=$_cartoKey';
 
   List<City> cities = [];
   int currentCityIndex = 0; // start with the first city
@@ -1360,7 +1360,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                 label:
                                     _isTaglish ? 'Mapa ng baha' : 'Flood map',
                                 child: FlutterMap(
-                                  key: ValueKey(_isDarkMode),
+                                  key: ValueKey('flood_map_$_isDarkMode'),
                                   mapController: _mapController,
                                   options: MapOptions(
                                     initialCenter: const LatLng(
@@ -1368,6 +1368,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                     initialZoom: 13,
                                     minZoom: 12,
                                     maxZoom: 18,
+                                    backgroundColor: _isDarkMode
+                                        ? const Color(0xFF141E28)
+                                        : const Color(0xFFE5EDF5),
                                     onPositionChanged: (position, hasGesture) {
                                       if (position.zoom != null) {
                                         setState(() =>
@@ -1406,10 +1409,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                   ),
                                   children: [
                                     TileLayer(
+                                      key: ValueKey('tile_layer_$_isDarkMode'),
                                       urlTemplate: _isDarkMode
                                           ? _darkMapUrl
                                           : _lightMapUrl,
-                                      subdomains: ['a', 'b', 'c', 'd'],
+                                      fallbackUrl: _isDarkMode
+                                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=$_cartoKey'
+                                          : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=$_cartoKey',
+                                      subdomains: const ['a', 'b', 'c', 'd'],
                                       userAgentPackageName:
                                           'com.example.floodguard_ai',
                                     ),
