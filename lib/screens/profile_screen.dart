@@ -397,9 +397,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final subTextColor =
         isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
 
-    return Container(
-      color: bgColor,
-      child: Stack(
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: Stack(
         children: [
           WaveBackground(isDarkMode: isDark),
           SafeArea(

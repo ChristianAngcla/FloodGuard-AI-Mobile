@@ -10,6 +10,7 @@ import 'package:floodguard_ai/widgets/splash_screen.dart';
 import 'package:floodguard_ai/data/translations.dart';
 import 'package:floodguard_ai/theme/app_theme.dart';
 import 'package:floodguard_ai/theme/app_typography.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('♿ 1. ACCESSIBILITY & CONTRAST BENCHMARKS', () {
@@ -283,6 +284,33 @@ void main() {
 
       expect(find.byType(ProfileScreen), findsNothing);
       debugPrint('🧠 ProfileScreen cleanly unmounted without memory leaks.');
+    });
+
+    testWidgets('ProfileScreen has Material ancestor and renders TextFields without error', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({
+        'is_logged_in': true,
+        'user_data': '{"uid":"123","email":"ben@123.com","firstName":"Ben","lastName":"Tenison","phone":"09171234567","barangay":"Nangka","city":"Marikina City","province":"Metro Manila","houseNo":"12","streetName":"Main St"}'
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProfileScreen(
+            isTaglish: false,
+            isDarkMode: false,
+            onLogout: () {},
+            showBackButton: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Scaffold), findsOneWidget);
+      expect(find.text('Ben Tenison'), findsOneWidget);
+      expect(find.byType(TextFormField), findsWidgets);
+      final ex = tester.takeException();
+      if (ex != null) {
+        expect(ex.toString().contains('No Material widget found'), isFalse);
+      }
     });
   });
 }
