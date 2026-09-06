@@ -28,6 +28,7 @@ import '../utils/station_thresholds.dart';
 import 'alerts_screen.dart';
 import 'help_requests_screen.dart';
 import '../widgets/wave_background.dart';
+import '../config/api_config.dart';
 
 class HomeMapScreen extends StatefulWidget {
   final bool initialDarkMode;
@@ -1002,10 +1003,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     return Translations.texts[key]?[_isTaglish ? "tl" : "en"] ?? key;
   }
 
-  // Use the keyless OpenStreetMap raster service. CARTO's hosted basemaps now
-  // return "API KEY REQUIRED" tiles for apps without an eligible account.
-  final String _mapUrl =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const String _cartoKey = ApiConfig.cartoBasemapKey;
+
+  final String _lightMapUrl =
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+
+  final String _darkMapUrl =
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
 
   List<City> cities = [];
   int currentCityIndex = 0; // start with the first city
@@ -1414,7 +1418,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                 label:
                                     _isTaglish ? 'Mapa ng baha' : 'Flood map',
                                 child: FlutterMap(
-                                  key: ValueKey(_isDarkMode),
+                                  key: ValueKey('flood_map_$_isDarkMode'),
                                   mapController: _mapController,
                                   options: MapOptions(
                                     initialCenter: const LatLng(
@@ -1422,6 +1426,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                     initialZoom: 13,
                                     minZoom: 12,
                                     maxZoom: 18,
+                                    backgroundColor: _isDarkMode
+                                        ? const Color(0xFF141E28)
+                                        : const Color(0xFFE5EDF5),
                                     onPositionChanged: (position, hasGesture) {
                                       if (position.zoom != null) {
                                         setState(() =>
@@ -1460,7 +1467,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                   ),
                                   children: [
                                     TileLayer(
-                                      urlTemplate: _mapUrl,
+                                      urlTemplate: _isDarkMode
+                                          ? _darkMapUrl
+                                          : _lightMapUrl,
+                                      subdomains: ['a', 'b', 'c', 'd'],
                                       userAgentPackageName:
                                           'com.example.floodguard_ai',
                                     ),
