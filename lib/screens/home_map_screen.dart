@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -28,7 +27,6 @@ import '../utils/station_thresholds.dart';
 import 'alerts_screen.dart';
 import 'help_requests_screen.dart';
 import '../widgets/wave_background.dart';
-import '../config/api_config.dart';
 
 class HomeMapScreen extends StatefulWidget {
   final bool initialDarkMode;
@@ -1003,8 +1001,6 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     return Translations.texts[key]?[_isTaglish ? "tl" : "en"] ?? key;
   }
 
-  static const String _cartoKey = ApiConfig.cartoBasemapKey;
-
   final String _lightMapUrl =
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
 
@@ -1467,10 +1463,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                   ),
                                   children: [
                                     TileLayer(
+                                      key: ValueKey('tile_layer_$_isDarkMode'),
                                       urlTemplate: _isDarkMode
                                           ? _darkMapUrl
                                           : _lightMapUrl,
-                                      subdomains: ['a', 'b', 'c', 'd'],
+                                      fallbackUrl: _isDarkMode
+                                          ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
+                                          : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                                      subdomains: const ['a', 'b', 'c', 'd'],
                                       userAgentPackageName:
                                           'com.example.floodguard_ai',
                                     ),
