@@ -55,6 +55,7 @@ class DefaultFirebaseOptions {
     appId: '1:274299040311:android:396bad82074bd83e9385b2',
     messagingSenderId: '274299040311',
     projectId: 'floodguard-ai-6a9b6',
+    authDomain: 'floodguard-ai-6a9b6.firebaseapp.com',
     storageBucket: 'floodguard-ai-6a9b6.firebasestorage.app',
   );
 
