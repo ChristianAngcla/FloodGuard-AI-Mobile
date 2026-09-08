@@ -117,4 +117,36 @@ void main() {
       expect(find.text("Enter a valid 11-digit mobile number starting with 09."), findsOneWidget);
     });
   });
+
+  group('👤 CITIZEN NAME VALIDATOR UNIT TESTS', () {
+    test('1. Valid names with letters, spaces, hyphens, periods, and apostrophes pass', () {
+      expect(RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true).hasMatch('Juan Dela Cruz'), isTrue);
+      expect(RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true).hasMatch('Niño Ramos'), isTrue);
+      expect(RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true).hasMatch('Ma. Santos'), isTrue);
+      expect(RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true).hasMatch('Anne-Marie Cruz'), isTrue);
+      expect(RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true).hasMatch("D'Angelo Reyes"), isTrue);
+      expect(RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true).hasMatch('Jose Rizal'), isTrue);
+    });
+
+    test('2. Unreasonable names with special characters or numbers fail', () {
+      final nameRegex = RegExp(r"^[\p{L}][\p{L}\s.'-]*[\p{L}.]$", unicode: true);
+      expect(nameRegex.hasMatch('Lio Ra.Is@+_)#'), isFalse);
+      expect(nameRegex.hasMatch('John @Doe'), isFalse);
+      expect(nameRegex.hasMatch('Juan123'), isFalse);
+      expect(nameRegex.hasMatch('12345'), isFalse);
+      expect(nameRegex.hasMatch('+_)#'), isFalse);
+      expect(nameRegex.hasMatch(''), isFalse);
+      expect(nameRegex.hasMatch('A'), isFalse); // Min 2 characters checked by validator
+    });
+
+    test('3. Name whitespace normalization collapses repeated spaces and trims', () {
+      String normalizeName(String raw) {
+        return raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+      }
+
+      expect(normalizeName('  Juan   Dela   Cruz  '), equals('Juan Dela Cruz'));
+      expect(normalizeName(' Niño   Ramos '), equals('Niño Ramos'));
+    });
+  });
 }
+

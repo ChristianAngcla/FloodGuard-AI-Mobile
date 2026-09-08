@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -7,6 +9,8 @@ import '../data/translations.dart';
 import '../services/auth_service.dart';
 import '../services/flood_api_service.dart';
 import '../models/user_profile_model.dart';
+import '../theme/app_spacing.dart';
+import '../utils/name_validator.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 import '../widgets/wave_background.dart';
@@ -49,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? _selectedBarangay;
   String _avatarSeed = 'Felix'; // Default avatar seed
+  String _originalPhone = '';
 
   final List<String> _marikinaBarangays = [
     "Barangka",
@@ -120,13 +125,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _userProfile = profile;
             _firstNameCtrl.text = profile.firstName;
             _lastNameCtrl.text = profile.lastName;
-            String rawPhone = profile.phone.trim();
-            if (rawPhone.startsWith('+63')) {
-              rawPhone = '0${rawPhone.substring(3)}';
-            } else if (rawPhone.startsWith('63') && rawPhone.length == 12) {
-              rawPhone = '0${rawPhone.substring(2)}';
-            }
-            _phoneCtrl.text = rawPhone;
+            final formattedPhone = formatPhMobileNumber(profile.phone);
+            _phoneCtrl.text = formattedPhone;
+            _originalPhone = formattedPhone;
 
             final safeEmail = profile.email.trim().toLowerCase();
             _houseNoCtrl.text = profile.houseNo.isNotEmpty
@@ -183,6 +184,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    // Require Firebase SMS OTP verification if changing the mobile number
+    if (_originalPhone.isNotEmpty && phone != _originalPhone) {
+      FocusScope.of(context).unfocus();
+      final verified = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _PhoneChangeOtpDialog(
+          newPhone: phone,
+          isTaglish: widget.isTaglish,
+          isDarkMode: widget.isDarkMode,
+        ),
+      );
+
+      if (verified != true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                widget.isTaglish
+                    ? "Hindi na-verify ang bagong mobile number. Hindi nai-save ang profile."
+                    : "New mobile number was not verified. Profile was not saved.",
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    if (!mounted) return;
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
     final uid = await AuthService().getEffectiveUid() ??
@@ -193,12 +225,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (s.isEmpty) return s;
       return s.split(' ').map((word) {
         if (word.isEmpty) return word;
-        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        return word[0].toUpperCase() + word.substring(1);
       }).join(' ');
     }
 
-    final formattedFirstName = capitalize(_firstNameCtrl.text.trim());
-    final formattedLastName = capitalize(_lastNameCtrl.text.trim());
+    final formattedFirstName =
+        capitalize(NameValidator.normalize(_firstNameCtrl.text));
+    final formattedLastName =
+        capitalize(NameValidator.normalize(_lastNameCtrl.text));
     final barangay = _selectedBarangay ?? "Nangka";
     final houseNo = _houseNoCtrl.text.trim();
     final streetName = _streetNameCtrl.text.trim();
@@ -652,6 +686,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               icon: Icons.person_outline,
                                               isDark: isDark,
                                               readOnly: !_isEditing,
+                                              validator: (val) =>
+                                                  NameValidator.validate(
+                                                val,
+                                                isTaglish: widget.isTaglish,
+                                                fieldName: widget.isTaglish
+                                                    ? "Pangalan"
+                                                    : "First Name",
+                                              ),
                                             ),
                                           ),
                                           const SizedBox(width: 16),
@@ -664,6 +706,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               icon: Icons.person_outline,
                                               isDark: isDark,
                                               readOnly: !_isEditing,
+                                              validator: (val) =>
+                                                  NameValidator.validate(
+                                                val,
+                                                isTaglish: widget.isTaglish,
+                                                fieldName: widget.isTaglish
+                                                    ? "Apelyido"
+                                                    : "Last Name",
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -1133,6 +1183,401 @@ class _ProfileScreenState extends State<ProfileScreen> {
       items:
           items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _PhoneChangeOtpDialog extends StatefulWidget {
+  final String newPhone;
+  final bool isTaglish;
+  final bool isDarkMode;
+
+  const _PhoneChangeOtpDialog({
+    required this.newPhone,
+    required this.isTaglish,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<_PhoneChangeOtpDialog> createState() => _PhoneChangeOtpDialogState();
+}
+
+class _PhoneChangeOtpDialogState extends State<_PhoneChangeOtpDialog> {
+  final TextEditingController _otpCtrl = TextEditingController();
+  bool _isSendingOtp = false;
+  bool _isVerifyingOtp = false;
+  String? _verificationId;
+  int? _forceResendingToken;
+  String? _errorMessage;
+  int _cooldownSec = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _sendOtp();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _otpCtrl.dispose();
+    super.dispose();
+  }
+
+  void _startCooldown() {
+    _timer?.cancel();
+    if (!mounted) return;
+    setState(() => _cooldownSec = 60);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSec <= 1) {
+        timer.cancel();
+        setState(() => _cooldownSec = 0);
+      } else {
+        setState(() => _cooldownSec--);
+      }
+    });
+  }
+
+  String _formatToE164(String phone) {
+    String clean = phone.trim();
+    if (clean.startsWith('0')) {
+      clean = clean.substring(1);
+    }
+    if (clean.startsWith('+63')) {
+      return clean;
+    }
+    return '+63$clean';
+  }
+
+  void _sendOtp() async {
+    if (_isSendingOtp || _cooldownSec > 0) return;
+    setState(() {
+      _isSendingOtp = true;
+      _errorMessage = null;
+    });
+
+    final e164 = _formatToE164(widget.newPhone);
+
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: e164,
+        timeout: const Duration(seconds: 60),
+        forceResendingToken: _forceResendingToken,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          try {
+            await FirebaseAuth.instance.signInWithCredential(credential);
+            if (mounted) {
+              Navigator.of(context).pop(true);
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() => _errorMessage = e.toString());
+            }
+          }
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          if (mounted) {
+            setState(() {
+              _isSendingOtp = false;
+              _errorMessage = _otpFailureMessage(e);
+            });
+          }
+        },
+        codeSent: (String verId, int? resendToken) {
+          if (mounted) {
+            setState(() {
+              _verificationId = verId;
+              _forceResendingToken = resendToken;
+              _isSendingOtp = false;
+            });
+            _startCooldown();
+          }
+        },
+        codeAutoRetrievalTimeout: (String verId) {
+          if (mounted) {
+            _verificationId = verId;
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSendingOtp = false;
+          _errorMessage = widget.isTaglish
+              ? "Hindi maipadala ang OTP. Pakisubukang muli."
+              : "Could not send OTP. Please try again.";
+        });
+      }
+    }
+  }
+
+  void _verifyOtp() async {
+    final code = _otpCtrl.text.trim();
+    if (code.length != 6 || _isVerifyingOtp) return;
+    if (_verificationId == null) {
+      setState(() {
+        _errorMessage = widget.isTaglish
+            ? "Walang aktibong OTP session. Pindutin ang Ipadala Muli."
+            : "No active OTP session. Tap Resend Code.";
+      });
+      return;
+    }
+
+    setState(() {
+      _isVerifyingOtp = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: code,
+      );
+      await FirebaseAuth.instance.signInWithCredential(credential);
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+          if (e.code == 'session-expired') {
+            _errorMessage = widget.isTaglish
+                ? "Nag-expire ang OTP. Mag-resend ng code."
+                : "OTP expired. Please resend code.";
+          } else if (e.code == 'invalid-verification-code') {
+            _errorMessage = widget.isTaglish
+                ? "Maling OTP code. Pakitingnan muli."
+                : "Invalid OTP code. Please check and try again.";
+          } else {
+            _errorMessage = _otpFailureMessage(e);
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+          _errorMessage = widget.isTaglish
+              ? "Maling OTP code."
+              : "Invalid OTP code.";
+        });
+      }
+    }
+  }
+
+  String _otpFailureMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return widget.isTaglish
+            ? 'Hindi valid ang numero ng mobile.'
+            : 'Invalid mobile number.';
+      case 'too-many-requests':
+        return widget.isTaglish
+            ? 'Masyadong maraming OTP request. Subukan ulit mamaya.'
+            : 'Too many OTP requests. Please try again later.';
+      case 'network-request-failed':
+        return widget.isTaglish
+            ? 'Walang network. Suriin ang koneksyon.'
+            : 'Network error. Check your connection.';
+      case 'session-expired':
+        return widget.isTaglish
+            ? 'Nag-expire ang OTP. Mag-resend ng code.'
+            : 'OTP expired. Please resend the code.';
+      default:
+        return e.message?.isNotEmpty == true
+            ? e.message!
+            : (widget.isTaglish ? 'Nabigo ang OTP.' : 'OTP failed.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDarkMode;
+    final bgColor = isDark ? const Color(0xFF1A2B3C) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor =
+        isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+
+    return AlertDialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3784DF).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.phonelink_lock_rounded,
+                color: Color(0xFF3784DF), size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.isTaglish
+                  ? "I-verify ang Numero"
+                  : "Verify Mobile Number",
+              style: TextStyle(
+                color: textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.isTaglish
+                  ? "Nagpadala kami ng 6-digit SMS OTP sa ${widget.newPhone} upang kumpirmahin ang pagbabago."
+                  : "We sent a 6-digit SMS OTP to ${widget.newPhone} to confirm this phone number change.",
+              style: TextStyle(color: subtextColor, fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _otpCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              autofocus: true,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 6,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              decoration: InputDecoration(
+                counterText: "",
+                hintText: "••••••",
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  letterSpacing: 6,
+                  fontSize: 22,
+                ),
+                filled: true,
+                fillColor:
+                    isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF3784DF), width: 2),
+                ),
+              ),
+              onChanged: (val) {
+                if (val.trim().length == 6) {
+                  _verifyOtp();
+                }
+              },
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.redAccent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_cooldownSec > 0)
+                  Text(
+                    widget.isTaglish
+                        ? "Ipadala muli sa ${_cooldownSec}s"
+                        : "Resend in ${_cooldownSec}s",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: subtextColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                else
+                  TextButton.icon(
+                    onPressed: _isSendingOtp ? null : _sendOtp,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(
+                      widget.isTaglish ? "Ipadala Muli" : "Resend Code",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(
+            widget.isTaglish ? "Kanselahin" : "Cancel",
+            style: TextStyle(color: subtextColor),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF3784DF),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ),
+          onPressed: _isVerifyingOtp ? null : _verifyOtp,
+          child: _isVerifyingOtp
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(
+                  widget.isTaglish ? "Kumpirmahin" : "Confirm",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+        ),
+      ],
     );
   }
 }

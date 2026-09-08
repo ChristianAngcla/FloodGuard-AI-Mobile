@@ -89,14 +89,39 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
   }
 
   String _locationLabel(Map<String, dynamic> request) {
-    final location = (request['location'] ?? '').toString().trim();
-    if (location.isNotEmpty) return location;
-    final street = (request['street'] ?? '').toString().trim();
-    final barangay = (request['barangay'] ?? '').toString().trim();
-    if (street.isNotEmpty && barangay.isNotEmpty) return '$street, $barangay';
-    return barangay.isNotEmpty
-        ? barangay
-        : (widget.isTaglish ? 'Walang lokasyon' : 'Unknown location');
+    final rawBarangay = (request['barangay'] ?? '').toString().trim();
+    var rawStreet = (request['street'] ?? request['street_name'] ?? '').toString().trim();
+    final rawLocation = (request['location'] ?? '').toString().trim();
+
+    if (rawStreet.isEmpty && rawLocation.isNotEmpty) {
+      rawStreet = rawLocation.replaceAll(RegExp(r'^[\s,]+'), '').trim();
+    }
+
+    final parts = <String>[];
+    if (rawStreet.isNotEmpty) {
+      final segments = rawStreet.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+      for (final seg in segments) {
+        if (rawBarangay.isNotEmpty && seg.toLowerCase() == rawBarangay.toLowerCase()) {
+          continue;
+        }
+        if (!parts.any((p) => p.toLowerCase() == seg.toLowerCase())) {
+          parts.add(seg);
+        }
+      }
+    }
+
+    if (rawBarangay.isNotEmpty) {
+      if (!parts.any((p) => p.toLowerCase() == rawBarangay.toLowerCase())) {
+        parts.add(rawBarangay);
+      }
+    }
+
+    if (parts.isNotEmpty) return parts.join(', ');
+    if (rawLocation.isNotEmpty) {
+      final cleaned = rawLocation.replaceAll(RegExp(r'^[\s,]+'), '').trim();
+      if (cleaned.isNotEmpty) return cleaned;
+    }
+    return widget.isTaglish ? 'Walang lokasyon' : 'Unknown location';
   }
 
   Color _statusColor(String status) {

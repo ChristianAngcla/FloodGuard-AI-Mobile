@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../data/translations.dart';
 import '../services/auth_service.dart';
+import '../utils/name_validator.dart';
 import '../widgets/wave_background.dart';
 import 'home_map_screen.dart';
 import 'login_screen.dart';
@@ -412,8 +413,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
     String email = _emailCtrl.text.trim();
     String phone = _phoneCtrl.text.trim();
-    String firstName = _firstNameCtrl.text.trim();
-    String lastName = _lastNameCtrl.text.trim();
+    String firstName = NameValidator.normalize(_firstNameCtrl.text);
+    String lastName = NameValidator.normalize(_lastNameCtrl.text);
 
     setState(() {
       _isSigningUp = true;
@@ -707,6 +708,11 @@ class _SignupScreenState extends State<SignupScreen> {
                 label: _t("firstName"),
                 icon: Icons.person_outline,
                 isDark: isDark,
+                validator: (val) => NameValidator.validate(
+                  val,
+                  isTaglish: widget.isTaglish,
+                  fieldName: _t("firstName"),
+                ),
               ),
               const SizedBox(height: 16),
               _buildTextField(
@@ -714,6 +720,11 @@ class _SignupScreenState extends State<SignupScreen> {
                 label: _t("lastName"),
                 icon: Icons.person_outline,
                 isDark: isDark,
+                validator: (val) => NameValidator.validate(
+                  val,
+                  isTaglish: widget.isTaglish,
+                  fieldName: _t("lastName"),
+                ),
               ),
             ] else ...[
               Row(
@@ -724,6 +735,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       label: _t("firstName"),
                       icon: Icons.person_outline,
                       isDark: isDark,
+                      validator: (val) => NameValidator.validate(
+                        val,
+                        isTaglish: widget.isTaglish,
+                        fieldName: _t("firstName"),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -733,6 +749,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       label: _t("lastName"),
                       icon: Icons.person_outline,
                       isDark: isDark,
+                      validator: (val) => NameValidator.validate(
+                        val,
+                        isTaglish: widget.isTaglish,
+                        fieldName: _t("lastName"),
+                      ),
                     ),
                   ),
                 ],
@@ -754,20 +775,23 @@ class _SignupScreenState extends State<SignupScreen> {
             const SizedBox(height: 16),
             _buildTextField(
               controller: _phoneCtrl,
-              label: widget.isTaglish ? "Numero ng Telepono" : "Phone Number",
-              hintText: "9123456789",
-              prefixText: "+63 ",
+              label: widget.isTaglish ? "Numero ng Telepono" : "Mobile Number",
+              hintText: "09129351660",
               icon: Icons.phone_outlined,
               isDark: isDark,
               inputType: TextInputType.phone,
-              maxLength: 10,
+              maxLength: 11,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
               validator: (val) {
-                if (val == null || val.isEmpty) return "Required";
-                String checkVal = val.startsWith('0') ? val.substring(1) : val;
-                if (checkVal.length != 10) {
+                if (val == null || val.trim().isEmpty) return "Required";
+                final clean = val.trim();
+                if (!RegExp(r'^09\d{9}$').hasMatch(clean)) {
                   return widget.isTaglish
-                      ? "Dapat 10 numero (hal. 9123456789)"
-                      : "Must be 10 digits (e.g. 9123456789)";
+                      ? "Dapat 11 numero na nagsisimula sa 09 (hal. 09129351660)"
+                      : "Must be 11 digits starting with 09 (e.g. 09129351660)";
                 }
                 return null;
               },
@@ -1145,6 +1169,7 @@ class _SignupScreenState extends State<SignupScreen> {
     int? maxLength,
     String? prefixText,
     TextAlign textAlign = TextAlign.start,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     final fillColor = isDark
@@ -1165,6 +1190,7 @@ class _SignupScreenState extends State<SignupScreen> {
         obscureText: obscureText,
         readOnly: readOnly,
         keyboardType: inputType,
+        inputFormatters: inputFormatters,
         maxLines: maxLines,
         maxLength: maxLength,
         onChanged: onChanged,

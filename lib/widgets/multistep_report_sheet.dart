@@ -206,7 +206,11 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
 
     final uid = await AuthService().getEffectiveUid();
     final userUid = uid ?? "anonymous";
-    final location = "${_streetCtrl.text.trim()}, $_selectedBarangay";
+    final streetText = _streetCtrl.text.trim();
+    final barangayText = (_selectedBarangay ?? "").trim();
+    final location = streetText.isNotEmpty && barangayText.isNotEmpty
+        ? "$streetText, $barangayText"
+        : (streetText.isNotEmpty ? streetText : (barangayText.isNotEmpty ? barangayText : "Unknown Location"));
 
     // Load user profile to get name and phone
     String reporterName = 'Unknown Reporter';

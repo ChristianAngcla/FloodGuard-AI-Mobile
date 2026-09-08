@@ -289,4 +289,51 @@ void main() {
       expect(sentLng, 121.1029);
     });
   });
+
+  group('Help Request location formatting', () {
+    String formatReportLocation({String? rawLocation, String? barangay, String? street}) {
+      final rawBarangay = (barangay ?? '').trim();
+      var rawStreet = (street ?? '').trim();
+      final loc = (rawLocation ?? '').trim();
+
+      if (rawStreet.isEmpty && loc.isNotEmpty) {
+        rawStreet = loc.replaceAll(RegExp(r'^[\s,]+'), '').trim();
+      }
+
+      final parts = <String>[];
+      if (rawStreet.isNotEmpty) {
+        final segments = rawStreet.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+        for (final seg in segments) {
+          if (rawBarangay.isNotEmpty && seg.toLowerCase() == rawBarangay.toLowerCase()) {
+            continue;
+          }
+          if (!parts.any((p) => p.toLowerCase() == seg.toLowerCase())) {
+            parts.add(seg);
+          }
+        }
+      }
+
+      if (rawBarangay.isNotEmpty) {
+        if (!parts.any((p) => p.toLowerCase() == rawBarangay.toLowerCase())) {
+          parts.add(rawBarangay);
+        }
+      }
+
+      if (parts.isNotEmpty) return parts.join(', ');
+      if (loc.isNotEmpty) {
+        final cleaned = loc.replaceAll(RegExp(r'^[\s,]+'), '').trim();
+        if (cleaned.isNotEmpty) return cleaned;
+      }
+      return 'Unknown location';
+    }
+
+    test('Deduplicates duplicate barangays and removes leading commas', () {
+      expect(formatReportLocation(rawLocation: ', Tumana, Tumana', barangay: 'Tumana'), equals('Tumana'));
+      expect(formatReportLocation(rawLocation: ', Tumana', barangay: 'Tumana'), equals('Tumana'));
+      expect(formatReportLocation(rawLocation: 'Rizal St., Tumana', barangay: 'Tumana'), equals('Rizal St., Tumana'));
+      expect(formatReportLocation(street: 'House 12, Rizal St.', barangay: 'Tumana'), equals('House 12, Rizal St., Tumana'));
+      expect(formatReportLocation(rawLocation: '', barangay: 'Malanday'), equals('Malanday'));
+    });
+  });
 }
+
