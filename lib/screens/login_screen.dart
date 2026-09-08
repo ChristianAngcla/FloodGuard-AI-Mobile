@@ -373,17 +373,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                   }
                                 },
                                 verificationFailed: (FirebaseAuthException e) async {
-                                  // Auto-fallback for emulators / unconfigured SHA-1 during testing
-                                  final fallbackRes = await AuthService().requestPasswordReset(foundPhone!);
                                   setDialogState(() {
                                     busy = false;
-                                    verificationId = 'emulator_fallback_id';
-                                    if (fallbackRes['dev_code'] != null) {
-                                      otpCtrl.text = fallbackRes['dev_code'].toString();
-                                    }
-                                    infoMessage = widget.isTaglish
-                                        ? 'Ginamit ang Test OTP code para sa emulator/testing.'
-                                        : 'Using Test OTP code for emulator testing.';
+                                    infoMessage = e.code == 'too-many-requests'
+                                        ? (widget.isTaglish
+                                            ? 'Masyadong maraming OTP request. Subukan mamaya.'
+                                            : 'Too many OTP requests. Please try again later.')
+                                        : (widget.isTaglish
+                                            ? 'Nabigo ang pagpapadala ng OTP code.'
+                                            : 'Failed to send OTP code.');
                                   });
                                 },
                                 codeSent: (String vId, int? resendToken) {
@@ -400,16 +398,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 },
                               );
                             } catch (e) {
-                              final fallbackRes = await AuthService().requestPasswordReset(foundPhone!);
                               setDialogState(() {
                                 busy = false;
-                                verificationId = 'emulator_fallback_id';
-                                if (fallbackRes['dev_code'] != null) {
-                                  otpCtrl.text = fallbackRes['dev_code'].toString();
-                                }
                                 infoMessage = widget.isTaglish
-                                    ? 'Ginamit ang Test OTP code para sa testing.'
-                                    : 'Using Test OTP code for testing.';
+                                    ? 'Hindi maipadala ang OTP. Subukan ulit.'
+                                    : 'Failed to send OTP. Please try again.';
                               });
                             }
                           },
@@ -464,32 +457,29 @@ class _LoginScreenState extends State<LoginScreen> {
                             setDialogState(() => busy = true);
 
                             try {
-                              Map<String, dynamic> res;
-                              if (verificationId == 'emulator_fallback_id') {
-                                // Fallback: Reset via AuthService for emulator testing
-                                res = await AuthService().resetPassword(
-                                  identifier: emailCtrl.text.trim(),
-                                  code: code,
-                                  newPassword: newPass,
-                                );
-                              } else {
-                                // 1. Verify SMS Credential via Firebase Phone Auth
-                                final credential = PhoneAuthProvider.credential(
-                                  verificationId: verificationId!,
-                                  smsCode: code,
-                                );
-                                await FirebaseAuth.instance.signInWithCredential(credential);
+                              // 1. Verify SMS Credential via Firebase Phone Auth
+                              final credential = PhoneAuthProvider.credential(
+                                verificationId: verificationId!,
+                                smsCode: code,
+                              );
+                              final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+                              final idToken = await userCred.user?.getIdToken() ??
+                                  await FirebaseAuth.instance.currentUser?.getIdToken();
 
-                                // 2. Update password in MongoDB account
-                                res = await AuthService().updatePasswordByEmail(
-                                  email: emailCtrl.text.trim(),
-                                  newPassword: newPass,
-                                );
-                              }
+                              // 2. Update password in MongoDB account
+                              final res = await AuthService().updatePasswordByEmail(
+                                email: emailCtrl.text.trim(),
+                                newPassword: newPass,
+                                firebaseIdToken: idToken,
+                              );
 
                               setDialogState(() => busy = false);
 
                               if (res['success'] == true && ctx.mounted) {
+                                try {
+                                  await FirebaseAuth.instance.signOut();
+                                } catch (_) {}
+                                if (!ctx.mounted) return;
                                 Navigator.pop(ctx);
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(

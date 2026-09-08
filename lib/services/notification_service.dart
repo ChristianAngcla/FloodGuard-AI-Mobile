@@ -71,6 +71,7 @@ class NotificationRoutingResult {
   final bool subscribed;
   final String? registeredFallback;
   final String? currentDetectedBarangay;
+  final String syncStatus; // 'synced' | 'pending'
 
   const NotificationRoutingResult({
     this.activeBarangay,
@@ -82,11 +83,12 @@ class NotificationRoutingResult {
     this.subscribed = false,
     this.registeredFallback,
     this.currentDetectedBarangay,
+    this.syncStatus = 'synced',
   });
 
   @override
   String toString() =>
-      'NotificationRoutingResult(active: $activeBarangay, topic: $activeTopic, mode: $routingMode, unsubs: $unsubscribed, subs: $subscribed)';
+      'NotificationRoutingResult(active: $activeBarangay, topic: $activeTopic, mode: $routingMode, unsubs: $unsubscribed, subs: $subscribed, syncStatus: $syncStatus)';
 }
 
 /// FCM setup + barangay topic subscribe via backend `/api/user/subscribe`.
@@ -103,6 +105,12 @@ class NotificationService {
   static const String keyRegisteredFallback = 'registered_fallback_barangay';
   static const String keySubscribedBarangay = 'subscribed_barangay';
 
+  // Explicit Synchronization State Keys (M7)
+  static const String keyConfirmedTopic = 'confirmed_fcm_topic';
+  static const String keyDesiredTopic = 'desired_fcm_topic';
+  static const String keyPendingCleanupTopic = 'pending_cleanup_topic';
+  static const String keySyncStatus = 'fcm_sync_status'; // 'synced' | 'pending'
+
   @visibleForTesting
   static Future<void> Function(String topic)? testSubscribeToTopic;
 
@@ -112,18 +120,38 @@ class NotificationService {
   @visibleForTesting
   static Future<bool> Function(String token, String barangay)? testRegisterBackend;
 
+  @visibleForTesting
+  static bool? testSubscribeSuccess;
+
+  @visibleForTesting
+  static bool? testUnsubscribeSuccess;
+
+  /// Canonical barangay topic dictionary for all 16 Marikina barangays.
+  static const Map<String, String> barangayTopicMap = {
+    'Barangka': 'barangay_barangka',
+    'Calumpang': 'barangay_calumpang',
+    'Concepcion Dos': 'barangay_concepcion_dos',
+    'Concepcion Uno': 'barangay_concepcion_uno',
+    'Fortune': 'barangay_fortune',
+    'Industrial Valley (IVC)': 'barangay_industrial_valley',
+    'Jesus Dela Peña': 'barangay_jesus_dela_pena',
+    'Malanday': 'barangay_malanday',
+    'Marikina Heights': 'barangay_marikina_heights',
+    'Nangka': 'barangay_nangka',
+    'Parang': 'barangay_parang',
+    'San Roque': 'barangay_san_roque',
+    'Santa Elena': 'barangay_santa_elena',
+    'Santo Niño': 'barangay_santo_nino',
+    'Tañong': 'barangay_tanong',
+    'Tumana': 'barangay_tumana',
+  };
+
   /// Canonical FCM topic for a barangay name.
-  /// Examples:
-  /// - Malanday -> barangay_malanday
-  /// - Tumana -> barangay_tumana
-  /// - Concepcion Uno -> barangay_concepcion_uno
-  /// - Concepcion Dos -> barangay_concepcion_dos
-  /// - Marikina Heights -> barangay_marikina_heights
-  /// - Santo Niño -> barangay_santo_nino
-  /// - Tañong -> barangay_tanong
-  /// - Jesus Dela Peña -> barangay_jesus_dela_pena
   static String topicForBarangay(String barangay) {
     final canonical = LocationService.canonicalizeBarangay(barangay);
+    if (barangayTopicMap.containsKey(canonical)) {
+      return barangayTopicMap[canonical]!;
+    }
     final normalized = canonical
         .trim()
         .toLowerCase()
@@ -136,6 +164,13 @@ class NotificationService {
         .replaceAll(RegExp(r'[úùüû]'), 'u')
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'^_+|_+$'), '');
+
+    if (normalized == 'industrial_valley_ivc' ||
+        normalized == 'industrial_valley_complex' ||
+        normalized == 'industrial_valley' ||
+        normalized == 'ivc') {
+      return 'barangay_industrial_valley';
+    }
     return 'barangay_$normalized';
   }
 
@@ -203,27 +238,42 @@ class NotificationService {
         ?.createNotificationChannel(_emergencyChannel);
   }
 
-  static Future<void> _internalSubscribe(String barangay) async {
+  static Future<bool> _internalSubscribe(String barangay) async {
     final topic = topicForBarangay(barangay);
+    if (testSubscribeSuccess == false) {
+      debugPrint('[FCM MOBILE] Simulated subscribe failure for $topic');
+      return false;
+    }
+
     if (testSubscribeToTopic != null) {
-      await testSubscribeToTopic!(topic);
+      try {
+        await testSubscribeToTopic!(topic);
+      } catch (e) {
+        debugPrint('[FCM MOBILE] Test subscribeToTopic exception: $e');
+        return false;
+      }
     } else {
       if (_authorizationStatus == AuthorizationStatus.denied) {
         debugPrint(
             '[FCM MOBILE] Subscribe aborted: Notification permission denied. Topic=$topic');
-        return;
+        return false;
       }
       try {
         _fcmToken ??= await FirebaseMessaging.instance.getToken();
         await FirebaseMessaging.instance.subscribeToTopic(topic);
       } catch (e) {
         debugPrint('[FCM MOBILE] FCM subscribeToTopic error: $e');
+        return false;
       }
     }
 
     final token = _fcmToken ?? 'test_token';
     if (testRegisterBackend != null) {
-      await testRegisterBackend!(token, barangay);
+      try {
+        await testRegisterBackend!(token, barangay);
+      } catch (e) {
+        debugPrint('[FCM MOBILE] Test registerBackend exception: $e');
+      }
     } else {
       try {
         final url = Uri.parse('$_baseUrl/user/subscribe');
@@ -238,17 +288,30 @@ class NotificationService {
         debugPrint('[FCM MOBILE] Backend registration error: $e');
       }
     }
+    return true;
   }
 
-  static Future<void> _internalUnsubscribe(String barangay) async {
-    final topic = topicForBarangay(barangay);
+  static Future<bool> _internalUnsubscribeTopic(String topic) async {
+    if (testUnsubscribeSuccess == false) {
+      debugPrint('[FCM MOBILE] Simulated unsubscribe failure for $topic');
+      return false;
+    }
+
     if (testUnsubscribeFromTopic != null) {
-      await testUnsubscribeFromTopic!(topic);
+      try {
+        await testUnsubscribeFromTopic!(topic);
+        return true;
+      } catch (e) {
+        debugPrint('[FCM MOBILE] Test unsubscribeFromTopic exception: $e');
+        return false;
+      }
     } else {
       try {
         await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
+        return true;
       } catch (e) {
         debugPrint('[FCM MOBILE] FCM unsubscribeFromTopic error: $e');
+        return false;
       }
     }
   }
@@ -259,8 +322,54 @@ class NotificationService {
     String? currentDetectedBarangay,
     String? registeredBarangay,
     bool force = false,
+    bool? isGuest,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Guest check: Unauthenticated guests should NOT subscribe to location topics
+    final bool guest = isGuest ??
+        (prefs.getBool('is_logged_in') == false &&
+            registeredBarangay == null &&
+            prefs.getString('user_data') == null);
+
+    if (guest) {
+      debugPrint('[FCM ROUTING] Guest mode active — cleaning up location subscriptions');
+      final active = prefs.getString(keyConfirmedTopic) ??
+          prefs.getString(keyActiveTopic) ??
+          prefs.getString(keySubscribedBarangay);
+      if (active != null && active.isNotEmpty) {
+        final topic = active.startsWith('barangay_') ? active : topicForBarangay(active);
+        final unsubsOk = await _internalUnsubscribeTopic(topic);
+        if (unsubsOk) {
+          await prefs.remove(keyPendingCleanupTopic);
+        } else {
+          await prefs.setString(keyPendingCleanupTopic, topic);
+        }
+      }
+      await prefs.remove(keyActiveBarangay);
+      await prefs.remove(keyActiveTopic);
+      await prefs.remove(keyConfirmedTopic);
+      await prefs.remove(keyDesiredTopic);
+      await prefs.setString(
+          keyRoutingMode, NotificationRoutingMode.none.toStorageString());
+      await prefs.remove(keySubscribedBarangay);
+      await prefs.setString(keySyncStatus, 'synced');
+      return const NotificationRoutingResult(
+        routingMode: NotificationRoutingMode.none,
+        syncStatus: 'synced',
+      );
+    }
+
+    // 0. Retry any pending cleanup topic from a prior failed unsubscription
+    final pendingCleanup = prefs.getString(keyPendingCleanupTopic);
+    if (pendingCleanup != null && pendingCleanup.isNotEmpty) {
+      debugPrint('[FCM ROUTING] Retrying pending cleanup for topic: $pendingCleanup');
+      final cleanupOk = await _internalUnsubscribeTopic(pendingCleanup);
+      if (cleanupOk) {
+        await prefs.remove(keyPendingCleanupTopic);
+        debugPrint('[FCM ROUTING] Pending cleanup succeeded for $pendingCleanup');
+      }
+    }
 
     // 1. Determine target barangay & routing mode according to priority rules:
     // Priority 1: Current detected location inside canonical Marikina barangays
@@ -294,29 +403,40 @@ class NotificationService {
       await prefs.setString(keyRegisteredFallback, canonicalRegistered);
     }
 
-    // 2. Read existing active state
+    // 2. Read existing active state and desired topic
     final previousBarangay = prefs.getString(keyActiveBarangay) ??
         prefs.getString(keySubscribedBarangay);
-    final previousTopic =
-        previousBarangay != null && previousBarangay.isNotEmpty
+    final previousTopic = prefs.getString(keyConfirmedTopic) ??
+        prefs.getString(keyActiveTopic) ??
+        (previousBarangay != null && previousBarangay.isNotEmpty
             ? topicForBarangay(previousBarangay)
-            : null;
+            : null);
 
     final targetTopic = targetBarangay != null && targetBarangay.isNotEmpty
         ? topicForBarangay(targetBarangay)
         : null;
 
+    if (targetTopic != null) {
+      await prefs.setString(keyDesiredTopic, targetTopic);
+    } else {
+      await prefs.remove(keyDesiredTopic);
+    }
+
     bool didUnsubscribe = false;
     bool didSubscribe = false;
 
     // 3. Single Active Location-Target Topic Rule:
-    // If target equals current active topic and not forcing refresh:
+    // If target equals current confirmed topic and not forcing refresh:
     if (!force &&
         targetBarangay == previousBarangay &&
-        targetBarangay != null) {
+        targetBarangay != null &&
+        prefs.getString(keyConfirmedTopic) == targetTopic) {
       await prefs.setString(keyRoutingMode, targetMode.toStorageString());
+      final hasPendingCleanup = prefs.getString(keyPendingCleanupTopic) != null;
+      final status = hasPendingCleanup ? 'pending' : 'synced';
+      await prefs.setString(keySyncStatus, status);
       debugPrint(
-          '[FCM ROUTING] Active topic unchanged: $targetTopic ($targetBarangay). Mode: ${targetMode.toStorageString()}');
+          '[FCM ROUTING] Active topic unchanged: $targetTopic ($targetBarangay). Status: $status');
       return NotificationRoutingResult(
         activeBarangay: targetBarangay,
         activeTopic: targetTopic,
@@ -327,37 +447,101 @@ class NotificationService {
         subscribed: false,
         registeredFallback: prefs.getString(keyRegisteredFallback),
         currentDetectedBarangay: isDetectedValid ? canonicalDetected : null,
+        syncStatus: status,
       );
     }
 
-    // Unsubscribe from previous topic if switching or clearing
-    if (previousBarangay != null &&
-        previousBarangay.isNotEmpty &&
-        previousBarangay != targetBarangay) {
-      debugPrint(
-          '[FCM ROUTING] Unsubscribing from stale topic: $previousTopic ($previousBarangay)');
-      await _internalUnsubscribe(previousBarangay);
-      didUnsubscribe = true;
-    }
-
-    // Subscribe to new target topic
-    if (targetBarangay != null && targetBarangay.isNotEmpty) {
+    // 4. Safe Topic Switch Order (M7):
+    // Step A: Subscribe to NEW topic first
+    // Step B: Only after success mark NEW confirmed
+    // Step C: Then unsubscribe OLD topic
+    // A failed NEW subscription must leave the previous confirmed topic active.
+    if (targetBarangay != null && targetBarangay.isNotEmpty && targetTopic != null) {
       debugPrint(
           '[FCM ROUTING] Subscribing to new topic: $targetTopic ($targetBarangay) [Mode: ${targetMode.toStorageString()}]');
-      await _internalSubscribe(targetBarangay);
-      didSubscribe = true;
+      final subsOk = await _internalSubscribe(targetBarangay);
+      if (subsOk) {
+        didSubscribe = true;
+        await prefs.setString(keyConfirmedTopic, targetTopic);
+        await prefs.setString(keyActiveBarangay, targetBarangay);
+        await prefs.setString(keyActiveTopic, targetTopic);
+        await prefs.setString(keyRoutingMode, targetMode.toStorageString());
+        await prefs.setString(keySubscribedBarangay, targetBarangay);
 
-      await prefs.setString(keyActiveBarangay, targetBarangay);
-      await prefs.setString(keyActiveTopic, targetTopic!);
-      await prefs.setString(keyRoutingMode, targetMode.toStorageString());
-      await prefs.setString(keySubscribedBarangay, targetBarangay);
+        // Step C: Then unsubscribe OLD topic
+        if (previousTopic != null &&
+            previousTopic.isNotEmpty &&
+            previousTopic != targetTopic) {
+          debugPrint('[FCM ROUTING] Unsubscribing from stale topic: $previousTopic');
+          final unsubsOk = await _internalUnsubscribeTopic(previousTopic);
+          if (unsubsOk) {
+            didUnsubscribe = true;
+            if (prefs.getString(keyPendingCleanupTopic) == previousTopic) {
+              await prefs.remove(keyPendingCleanupTopic);
+            }
+          } else {
+            await prefs.setString(keyPendingCleanupTopic, previousTopic);
+            debugPrint('[FCM ROUTING] Unsubscribe failed; stored in pending cleanup: $previousTopic');
+          }
+        }
+
+        final hasPendingCleanup = prefs.getString(keyPendingCleanupTopic) != null;
+        final status = hasPendingCleanup ? 'pending' : 'synced';
+        await prefs.setString(keySyncStatus, status);
+
+        return NotificationRoutingResult(
+          activeBarangay: targetBarangay,
+          activeTopic: targetTopic,
+          routingMode: targetMode,
+          previousBarangay: previousBarangay,
+          previousTopic: previousTopic,
+          unsubscribed: didUnsubscribe,
+          subscribed: didSubscribe,
+          registeredFallback: prefs.getString(keyRegisteredFallback),
+          currentDetectedBarangay: isDetectedValid ? canonicalDetected : null,
+          syncStatus: status,
+        );
+      } else {
+        // Step D: A failed NEW subscription must leave the previous confirmed topic active!
+        await prefs.setString(keySyncStatus, 'pending');
+        debugPrint('[FCM ROUTING] Subscription failed for $targetTopic; previous confirmed topic remains active: $previousTopic');
+        return NotificationRoutingResult(
+          activeBarangay: previousBarangay,
+          activeTopic: previousTopic,
+          routingMode: targetMode,
+          previousBarangay: previousBarangay,
+          previousTopic: previousTopic,
+          unsubscribed: false,
+          subscribed: false,
+          registeredFallback: prefs.getString(keyRegisteredFallback),
+          currentDetectedBarangay: isDetectedValid ? canonicalDetected : null,
+          syncStatus: 'pending',
+        );
+      }
     } else {
-      // Clear routing state
+      // Clear routing state (target is none)
+      if (previousTopic != null && previousTopic.isNotEmpty) {
+        debugPrint('[FCM ROUTING] Clearing active topic: unsubscribing from $previousTopic');
+        final unsubsOk = await _internalUnsubscribeTopic(previousTopic);
+        if (unsubsOk) {
+          didUnsubscribe = true;
+          if (prefs.getString(keyPendingCleanupTopic) == previousTopic) {
+            await prefs.remove(keyPendingCleanupTopic);
+          }
+        } else {
+          await prefs.setString(keyPendingCleanupTopic, previousTopic);
+        }
+      }
+      await prefs.remove(keyConfirmedTopic);
       await prefs.remove(keyActiveBarangay);
       await prefs.remove(keyActiveTopic);
       await prefs.setString(
           keyRoutingMode, NotificationRoutingMode.none.toStorageString());
       await prefs.remove(keySubscribedBarangay);
+      await prefs.remove(keyDesiredTopic);
+      final hasPendingCleanup = prefs.getString(keyPendingCleanupTopic) != null;
+      final status = hasPendingCleanup ? 'pending' : 'synced';
+      await prefs.setString(keySyncStatus, status);
     }
 
     return NotificationRoutingResult(
@@ -370,6 +554,7 @@ class NotificationService {
       subscribed: didSubscribe,
       registeredFallback: prefs.getString(keyRegisteredFallback),
       currentDetectedBarangay: isDetectedValid ? canonicalDetected : null,
+      syncStatus: prefs.getString(keySyncStatus) ?? 'synced',
     );
   }
 
@@ -378,10 +563,21 @@ class NotificationService {
     String? registeredBarangay,
     Duration timeout = const Duration(seconds: 8),
     bool force = false,
+    bool? isGuest,
   }) async {
     String? reg = registeredBarangay;
+    final prefs = await SharedPreferences.getInstance();
+
+    final bool guest = isGuest ??
+        (prefs.getBool('is_logged_in') == false &&
+            reg == null &&
+            prefs.getString('user_data') == null);
+
+    if (guest) {
+      return await syncBarangayNotificationRouting(isGuest: true);
+    }
+
     if (reg == null || reg.isEmpty) {
-      final prefs = await SharedPreferences.getInstance();
       final userDataString = prefs.getString('user_data');
       if (userDataString != null) {
         try {
@@ -405,25 +601,45 @@ class NotificationService {
       currentDetectedBarangay: detectedBarangay,
       registeredBarangay: reg,
       force: force,
+      isGuest: false,
     );
   }
 
   /// Cleans up the active barangay topic subscription on user logout.
   static Future<void> cleanupOnLogout() async {
     final prefs = await SharedPreferences.getInstance();
-    final activeBarangay = prefs.getString(keyActiveBarangay) ??
+    final confirmed = prefs.getString(keyConfirmedTopic) ??
+        prefs.getString(keyActiveTopic) ??
         prefs.getString(keySubscribedBarangay);
-    if (activeBarangay != null && activeBarangay.isNotEmpty) {
-      debugPrint(
-          '[FCM ROUTING] Logout cleanup: unsubscribing from $activeBarangay');
-      await _internalUnsubscribe(activeBarangay);
+    if (confirmed != null && confirmed.isNotEmpty) {
+      final topic = confirmed.startsWith('barangay_') ? confirmed : topicForBarangay(confirmed);
+      debugPrint('[FCM ROUTING] Logout cleanup: unsubscribing from $topic');
+      final unsubsOk = await _internalUnsubscribeTopic(topic);
+      if (!unsubsOk) {
+        await prefs.setString(keyPendingCleanupTopic, topic);
+      } else if (prefs.getString(keyPendingCleanupTopic) == topic) {
+        await prefs.remove(keyPendingCleanupTopic);
+      }
     }
 
+    final pendingCleanup = prefs.getString(keyPendingCleanupTopic);
+    if (pendingCleanup != null && pendingCleanup.isNotEmpty) {
+      final cleanupOk = await _internalUnsubscribeTopic(pendingCleanup);
+      if (cleanupOk) {
+        await prefs.remove(keyPendingCleanupTopic);
+      }
+    }
+
+    await prefs.remove(keyConfirmedTopic);
+    await prefs.remove(keyDesiredTopic);
     await prefs.remove(keyActiveBarangay);
     await prefs.remove(keyActiveTopic);
     await prefs.remove(keyRoutingMode);
     await prefs.remove(keyRegisteredFallback);
     await prefs.remove(keySubscribedBarangay);
+
+    final remainingCleanup = prefs.getString(keyPendingCleanupTopic);
+    await prefs.setString(keySyncStatus, (remainingCleanup != null && remainingCleanup.isNotEmpty) ? 'pending' : 'synced');
   }
 
   static Future<void> subscribeToBarangay(String barangay) async {

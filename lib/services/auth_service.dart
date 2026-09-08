@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,6 +104,7 @@ class AuthService {
     required String province,
     required String zipCode,
     required String country,
+    String? firebaseIdToken,
   }) async {
     final formattedFirstName = _capitalize(firstName.trim());
     final formattedLastName = _capitalize(lastName.trim());
@@ -132,6 +135,7 @@ class AuthService {
               'country': country.trim(),
               'first_name': formattedFirstName,
               'last_name': formattedLastName,
+              if (firebaseIdToken != null) 'firebaseIdToken': firebaseIdToken,
             }),
           )
           .timeout(const Duration(seconds: 60));
@@ -272,6 +276,7 @@ class AuthService {
   Future<Map<String, dynamic>> updatePasswordByEmail({
     required String email,
     required String newPassword,
+    String? firebaseIdToken,
   }) async {
     final cleanEmail = email.trim().toLowerCase();
     try {
@@ -282,6 +287,7 @@ class AuthService {
             body: jsonEncode({
               'email': cleanEmail,
               'newPassword': newPassword,
+              if (firebaseIdToken != null) 'firebaseIdToken': firebaseIdToken,
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -316,54 +322,6 @@ class AuthService {
     };
   }
 
-  Future<Map<String, dynamic>> requestPasswordReset(String identifier) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/forgot-password'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'identifier': identifier.trim(),
-              'email': identifier.trim(),
-              'phone': identifier.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (e) {
-      debugPrint('AuthService.requestPasswordReset error: $e');
-      return {'success': false, 'message': 'Could not connect to server'};
-    }
-  }
-
-  Future<Map<String, dynamic>> resetPassword({
-    required String identifier,
-    required String code,
-    required String newPassword,
-  }) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/reset-password'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'identifier': identifier.trim(),
-              'email': identifier.trim(),
-              'phone': identifier.trim(),
-              'code': code.trim(),
-              'newPassword': newPassword,
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (e) {
-      debugPrint('AuthService.resetPassword error: $e');
-      return {'success': false, 'message': 'Could not connect to server'};
-    }
-  }
-
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_logged_in', false);
@@ -371,5 +329,10 @@ class AuthService {
     await prefs.remove('user_data');
     await prefs.remove('uid');
     _cachedUser = null;
+    try {
+      if (Firebase.apps.isNotEmpty) {
+        await FirebaseAuth.instance.signOut();
+      }
+    } catch (_) {}
   }
 }

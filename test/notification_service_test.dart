@@ -38,7 +38,9 @@ void main() {
       expect(NotificationService.topicForBarangay('Calumpang'),
           'barangay_calumpang');
       expect(NotificationService.topicForBarangay('Industrial Valley Complex'),
-          'barangay_industrial_valley_complex');
+          'barangay_industrial_valley');
+      expect(NotificationService.topicForBarangay('Industrial Valley (IVC)'),
+          'barangay_industrial_valley');
     });
 
     test('handles variations with accents, uppercase, and minor differences', () {
@@ -51,7 +53,9 @@ void main() {
       expect(NotificationService.topicForBarangay('Jesus Dela Pena'),
           'barangay_jesus_dela_pena');
       expect(NotificationService.topicForBarangay('IVC'),
-          'barangay_industrial_valley_complex');
+          'barangay_industrial_valley');
+      expect(NotificationService.topicForBarangay('Industrial Valley'),
+          'barangay_industrial_valley');
     });
   });
 
@@ -128,8 +132,8 @@ void main() {
       expect(result.activeBarangay, 'Nangka');
       expect(result.activeTopic, 'barangay_nangka');
       expect(result.routingMode, NotificationRoutingMode.currentLocation);
-      // Unsubscribe must happen before subscribe
-      expect(topicOps(), ['unsub:barangay_tumana', 'sub:barangay_nangka']);
+      // Safe order: Subscribe NEW first, then unsubscribe OLD
+      expect(topicOps(), ['sub:barangay_nangka', 'unsub:barangay_tumana']);
       expect(operationLog, contains('backend:Nangka'));
       expect(activeSubscriptions, {'barangay_nangka'});
       expect(activeSubscriptions.length, 1);
@@ -183,7 +187,7 @@ void main() {
       expect(result.activeBarangay, 'Parang');
       expect(result.activeTopic, 'barangay_parang');
       expect(result.routingMode, NotificationRoutingMode.registeredFallback);
-      expect(topicOps(), ['unsub:barangay_barangka', 'sub:barangay_parang']);
+      expect(topicOps(), ['sub:barangay_parang', 'unsub:barangay_barangka']);
       expect(operationLog, contains('backend:Parang'));
       expect(activeSubscriptions, {'barangay_parang'});
     });
@@ -206,7 +210,7 @@ void main() {
       expect(result.activeBarangay, 'Santo Niño');
       expect(result.activeTopic, 'barangay_santo_nino');
       expect(result.routingMode, NotificationRoutingMode.currentLocation);
-      expect(topicOps(), ['unsub:barangay_parang', 'sub:barangay_santo_nino']);
+      expect(topicOps(), ['sub:barangay_santo_nino', 'unsub:barangay_parang']);
       expect(operationLog, contains('backend:Santo Niño'));
       expect(activeSubscriptions, {'barangay_santo_nino'});
     });
@@ -229,7 +233,7 @@ void main() {
       expect(result.activeBarangay, 'Nangka');
       expect(result.activeTopic, 'barangay_nangka');
       expect(result.routingMode, NotificationRoutingMode.registeredFallback);
-      expect(topicOps(), ['unsub:barangay_tumana', 'sub:barangay_nangka']);
+      expect(topicOps(), ['sub:barangay_nangka', 'unsub:barangay_tumana']);
       expect(operationLog, contains('backend:Nangka'));
       expect(activeSubscriptions, {'barangay_nangka'});
     });
@@ -279,7 +283,7 @@ void main() {
       expect(result.activeBarangay, 'Nangka');
       expect(result.activeTopic, 'barangay_nangka');
       expect(result.routingMode, NotificationRoutingMode.registeredFallback);
-      expect(topicOps(), ['unsub:barangay_barangka', 'sub:barangay_nangka']);
+      expect(topicOps(), ['sub:barangay_nangka', 'unsub:barangay_barangka']);
       expect(operationLog, contains('backend:Nangka'));
       expect(activeSubscriptions, {'barangay_nangka'});
     });
@@ -352,6 +356,99 @@ void main() {
       expect(result.routingMode, NotificationRoutingMode.registeredFallback);
       expect(activeSubscriptions, {'barangay_fortune'});
     });
+
+    test('Scenario O: Subscription failure leaves confirmed topic unchanged and sets status pending', () async {
+      // Start in Tumana successfully
+      await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Tumana',
+        registeredBarangay: 'Tumana',
+      );
+      expect(activeSubscriptions, {'barangay_tumana'});
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('confirmed_fcm_topic'), 'barangay_tumana');
+      expect(prefs.getString('fcm_sync_status'), 'synced');
+
+      // Simulate subscribe failure when moving to Nangka
+      NotificationService.testSubscribeSuccess = false;
+      final result = await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Nangka',
+        registeredBarangay: 'Tumana',
+      );
+
+      expect(result.subscribed, isFalse);
+      expect(result.syncStatus, 'pending');
+      expect(prefs.getString('fcm_sync_status'), 'pending');
+      expect(prefs.getString('desired_fcm_topic'), 'barangay_nangka');
+      // Confirmed topic was not updated to desired topic on failure
+      expect(prefs.getString('confirmed_fcm_topic'), isNot('barangay_nangka'));
+
+      // Restore subscribe success and re-sync -> should succeed and mark synced
+      NotificationService.testSubscribeSuccess = true;
+      final retryResult = await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Nangka',
+        registeredBarangay: 'Tumana',
+      );
+      expect(retryResult.subscribed, isTrue);
+      expect(retryResult.syncStatus, 'synced');
+      expect(prefs.getString('confirmed_fcm_topic'), 'barangay_nangka');
+      expect(prefs.getString('fcm_sync_status'), 'synced');
+      NotificationService.testSubscribeSuccess = null;
+    });
+
+    test('Scenario P: Unsubscribe failure retains topic in pending_cleanup_topic and retries', () async {
+      // Start in Malanday
+      await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Malanday',
+        registeredBarangay: 'Malanday',
+      );
+      expect(activeSubscriptions, {'barangay_malanday'});
+
+      // Simulate unsubscribe failure when switching to Parang
+      NotificationService.testUnsubscribeSuccess = false;
+      final result = await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Parang',
+        registeredBarangay: 'Malanday',
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('pending_cleanup_topic'), 'barangay_malanday');
+      expect(result.syncStatus, 'pending');
+
+      // Subsequent sync with unsubs fixed -> clears pending cleanup
+      NotificationService.testUnsubscribeSuccess = true;
+      await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Parang',
+        registeredBarangay: 'Malanday',
+        force: true,
+      );
+
+      expect(prefs.getString('pending_cleanup_topic'), isNull);
+      expect(prefs.getString('fcm_sync_status'), 'synced');
+      NotificationService.testUnsubscribeSuccess = null;
+    });
+
+    test('Scenario Q: Unauthenticated guest does not subscribe to location topics and cleans up active', () async {
+      // Active user in Tumana
+      await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Tumana',
+        registeredBarangay: 'Tumana',
+      );
+      expect(activeSubscriptions, {'barangay_tumana'});
+
+      // Guest access
+      final result = await NotificationService.syncBarangayNotificationRouting(
+        currentDetectedBarangay: 'Tumana',
+        isGuest: true,
+      );
+
+      expect(result.routingMode, NotificationRoutingMode.none);
+      expect(result.syncStatus, 'synced');
+      expect(activeSubscriptions, isEmpty);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('active_notification_topic'), isNull);
+      expect(prefs.getString('confirmed_fcm_topic'), isNull);
+    });
   });
 
   group('LocationService Barangay Resolution', () {
@@ -365,7 +462,9 @@ void main() {
       expect(LocationService.canonicalizeBarangay('Tañong'), 'Tañong');
       expect(LocationService.canonicalizeBarangay('jesus dela pena'), 'Jesus Dela Peña');
       expect(LocationService.canonicalizeBarangay('Jesus Dela Peña'), 'Jesus Dela Peña');
-      expect(LocationService.canonicalizeBarangay('IVC'), 'Industrial Valley Complex');
+      expect(LocationService.canonicalizeBarangay('IVC'), 'Industrial Valley (IVC)');
+      expect(LocationService.canonicalizeBarangay('Industrial Valley Complex'), 'Industrial Valley (IVC)');
+      expect(LocationService.canonicalizeBarangay('Industrial Valley'), 'Industrial Valley (IVC)');
       expect(LocationService.canonicalizeBarangay('Concepcion 1'), 'Concepcion Uno');
       expect(LocationService.canonicalizeBarangay('Concepcion 2'), 'Concepcion Dos');
     });

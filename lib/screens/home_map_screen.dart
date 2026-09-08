@@ -153,9 +153,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   void _resumeBackgroundWork() {
     _startAutoRefreshTimer();
     _startLocationTracking();
-    NotificationService.syncFromCurrentEnvironment(
-      registeredBarangay: _userProfile?.barangay,
-    );
+    if (_isLoggedIn && _userProfile != null) {
+      NotificationService.syncFromCurrentEnvironment(
+        registeredBarangay: _userProfile?.barangay,
+      );
+    }
     if (_currentTabIndex == 1 && !_pulseController.isAnimating) {
       _pulseController.repeat(reverse: true);
     }
@@ -316,17 +318,19 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         });
 
         // Geolocation-based FCM routing: update active topic if user crossed barangay boundaries
-        LocationService.resolveBarangayFromCoordinates(
-          position.latitude,
-          position.longitude,
-        ).then((detected) {
-          NotificationService.syncBarangayNotificationRouting(
-            currentDetectedBarangay: detected,
-            registeredBarangay: _userProfile?.barangay,
-          );
-        }).catchError((e) {
-          debugPrint('[FCM MOBILE] Error resolving barangay from GPS stream: $e');
-        });
+        if (_isLoggedIn && _userProfile != null) {
+          LocationService.resolveBarangayFromCoordinates(
+            position.latitude,
+            position.longitude,
+          ).then((detected) {
+            NotificationService.syncBarangayNotificationRouting(
+              currentDetectedBarangay: detected,
+              registeredBarangay: _userProfile?.barangay,
+            );
+          }).catchError((e) {
+            debugPrint('[FCM MOBILE] Error resolving barangay from GPS stream: $e');
+          });
+        }
       });
     }
   }
@@ -587,10 +591,39 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     // Prevent showing multiple times in one session
     if (_hasShownEarlyWarning) return;
 
-    // Only check if user is logged in
+    // Only check if user is logged in (unauthenticated guests excluded)
     if (!_isLoggedIn || _userProfile == null) return;
 
-    final userBarangay = _userProfile!.barangay;
+    // M6: Align in-app early warning check with the FCM location routing rule:
+    // 1. Current GPS location inside Marikina first
+    // 2. Registered profile barangay fallback second
+    // 3. Unauthenticated guest excluded
+    String? targetBarangay;
+    if (_myLocation != null) {
+      try {
+        final detected = await LocationService.resolveBarangayFromCoordinates(
+          _myLocation!.latitude,
+          _myLocation!.longitude,
+        );
+        if (detected != null &&
+            LocationService.isCanonicalMarikinaBarangay(detected)) {
+          targetBarangay = LocationService.canonicalizeBarangay(detected);
+        }
+      } catch (e) {
+        debugPrint('[EARLY WARNING] Error resolving GPS for early warning: $e');
+      }
+    }
+
+    if (targetBarangay == null) {
+      final reg = LocationService.canonicalizeBarangay(_userProfile!.barangay);
+      if (LocationService.isCanonicalMarikinaBarangay(reg)) {
+        targetBarangay = reg;
+      }
+    }
+
+    if (targetBarangay == null || targetBarangay.isEmpty) return;
+
+    final userBarangay = targetBarangay;
     final sensorKey =
         FloodApiService.barangayToSensor[userBarangay] ?? 'sto_nino';
     final daily = FloodApiService.getDailyForecastForBarangay(userBarangay);

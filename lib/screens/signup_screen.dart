@@ -417,6 +417,8 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      final firebaseIdToken =
+          await FirebaseAuth.instance.currentUser?.getIdToken();
       final authService = AuthService();
       final result = await authService.signUp(
         email: email,
@@ -431,11 +433,16 @@ class _SignupScreenState extends State<SignupScreen> {
         province: _provinceCtrl.text.trim(),
         zipCode: _zipCodeCtrl.text.trim(),
         country: _countryCtrl.text.trim(),
+        firebaseIdToken: firebaseIdToken,
       );
 
       if (!mounted) return;
 
       if (result['success'] == true) {
+        try {
+          await FirebaseAuth.instance.signOut();
+        } catch (_) {}
+
         setState(() {
           _isSuccess = true;
           _isSigningUp = false;

@@ -28,15 +28,17 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadRequests();
+    _loadRequests(isInitial: true);
   }
 
-  Future<void> _loadRequests() async {
-    if (_isLoading) return;
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _loadRequests({bool isInitial = false}) async {
+    if (_isLoading && !isInitial) return;
+    if (!_isLoading || _error != null) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
     try {
       final rows = await FloodApiService.fetchMyHelpRequests();
       if (!mounted) return;

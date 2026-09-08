@@ -586,11 +586,13 @@ class FloodApiService {
         'zipCode': zipCode,
       });
 
+      final headers = await _jsonHeaders(withAuth: true);
+
       // Try PUT /user/profile first
       var response = await http
           .put(
             Uri.parse('$dbBaseUrl/user/profile'),
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: payload,
           )
           .timeout(_timeout);
@@ -604,30 +606,13 @@ class FloodApiService {
       response = await http
           .post(
             Uri.parse('$dbBaseUrl/user/profile'),
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: payload,
           )
           .timeout(_timeout);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         debugPrint('✅ User profile saved to MongoDB successfully.');
-        return true;
-      }
-
-      // Fallback 2: POST /user/register (legacy deployed endpoint)
-      response = await http
-          .post(
-            Uri.parse('$dbBaseUrl/user/register'),
-            headers: {'Content-Type': 'application/json'},
-            body: payload,
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 400) {
-        debugPrint(
-            '✅ User profile saved (registered/synced locally & remote).');
         return true;
       }
 

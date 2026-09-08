@@ -10,7 +10,7 @@ class LocationService {
     'Concepcion Dos',
     'Concepcion Uno',
     'Fortune',
-    'Industrial Valley Complex',
+    'Industrial Valley (IVC)',
     'Jesus Dela Peña',
     'Malanday',
     'Marikina Heights',
@@ -43,8 +43,10 @@ class LocationService {
       'concepcion 2': 'Concepcion Dos',
       'sta. elena': 'Santa Elena',
       'sta elena': 'Santa Elena',
-      'ivc': 'Industrial Valley Complex',
-      'industrial valley': 'Industrial Valley Complex',
+      'ivc': 'Industrial Valley (IVC)',
+      'industrial valley': 'Industrial Valley (IVC)',
+      'industrial valley complex': 'Industrial Valley (IVC)',
+      'industrial valley (ivc)': 'Industrial Valley (IVC)',
     };
 
     final lower = trimmed.toLowerCase();
