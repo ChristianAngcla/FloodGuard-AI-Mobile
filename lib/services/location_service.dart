@@ -1,6 +1,73 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 class LocationService {
+  static const List<String> marikinaBarangays = [
+    'Barangka',
+    'Calumpang',
+    'Concepcion Dos',
+    'Concepcion Uno',
+    'Fortune',
+    'Industrial Valley Complex',
+    'Jesus Dela Peña',
+    'Malanday',
+    'Marikina Heights',
+    'Nangka',
+    'Parang',
+    'San Roque',
+    'Santa Elena',
+    'Santo Niño',
+    'Tañong',
+    'Tumana',
+  ];
+
+  /// Canonicalizes any legacy or ASCII spelling into the official 16 Marikina barangay names.
+  static String canonicalizeBarangay(String? raw) {
+    if (raw == null) return '';
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+
+    const aliases = {
+      'jesus de la pena': 'Jesus Dela Peña',
+      'jesus dela pena': 'Jesus Dela Peña',
+      'jesus de la peña': 'Jesus Dela Peña',
+      'jesus dela peña': 'Jesus Dela Peña',
+      'santo nino': 'Santo Niño',
+      'sto nino': 'Santo Niño',
+      'sto. nino': 'Santo Niño',
+      'sto. niño': 'Santo Niño',
+      'tanong': 'Tañong',
+      'concepcion 1': 'Concepcion Uno',
+      'concepcion 2': 'Concepcion Dos',
+      'sta. elena': 'Santa Elena',
+      'sta elena': 'Santa Elena',
+      'ivc': 'Industrial Valley Complex',
+      'industrial valley': 'Industrial Valley Complex',
+    };
+
+    final lower = trimmed.toLowerCase();
+    if (aliases.containsKey(lower)) {
+      return aliases[lower]!;
+    }
+
+    for (final b in marikinaBarangays) {
+      if (b.toLowerCase() == lower) {
+        return b;
+      }
+    }
+
+    return trimmed;
+  }
+
+  /// Returns true if the name matches one of the 16 canonical Marikina barangays.
+  static bool isCanonicalMarikinaBarangay(String? name) {
+    if (name == null || name.trim().isEmpty) return false;
+    final canonical = canonicalizeBarangay(name);
+    return marikinaBarangays.contains(canonical);
+  }
+
   static Future<bool> handlePermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return false;
@@ -21,6 +88,160 @@ class LocationService {
         distanceFilter: 5,
       ),
     );
+  }
+
+  /// Ray-casting point-in-polygon test.
+  /// [polygon] is a list of [lng, lat] coordinate pairs.
+  static bool isPointInPolygon(
+      double lat, double lng, List<List<double>> polygon) {
+    bool isInside = false;
+    int j = polygon.length - 1;
+    for (int i = 0; i < polygon.length; i++) {
+      final piLat = polygon[i][1];
+      final piLng = polygon[i][0];
+      final pjLat = polygon[j][1];
+      final pjLng = polygon[j][0];
+
+      if ((piLat > lat) != (pjLat > lat)) {
+        if (lng <
+            (pjLng - piLng) * (lat - piLat) / (pjLat - piLat) + piLng) {
+          isInside = !isInside;
+        }
+      }
+      j = i;
+    }
+    return isInside;
+  }
+
+  static Map<String, List<List<List<double>>>>? _cachedBarangayBoundaries;
+
+  /// Loads GeoJSON boundary rings from assets, cached in memory.
+  static Future<Map<String, List<List<List<double>>>>> loadBarangayBoundaries({
+    String assetPath = 'assets/marikina1.geojson',
+  }) async {
+    if (_cachedBarangayBoundaries != null) {
+      return _cachedBarangayBoundaries!;
+    }
+
+    try {
+      final data = await rootBundle.loadString(assetPath);
+      final json = jsonDecode(data) as Map<String, dynamic>;
+      final features = json['features'] as List<dynamic>;
+
+      final map = <String, List<List<List<double>>>>{};
+      for (final feature in features) {
+        final props = feature['properties'] as Map<String, dynamic>? ?? {};
+        final rawName = props['NAME_3'] ??
+            props['name'] ??
+            props['NAME'] ??
+            props['barangay'] ??
+            '';
+        final canonicalName = canonicalizeBarangay(rawName.toString());
+        if (canonicalName.isEmpty) continue;
+
+        final geom = feature['geometry'] as Map<String, dynamic>? ?? {};
+        final type = geom['type']?.toString();
+        final rawCoords = geom['coordinates'] as List<dynamic>? ?? [];
+
+        final polygonRings = <List<List<double>>>[];
+        if (type == 'Polygon' && rawCoords.isNotEmpty) {
+          for (final ring in rawCoords) {
+            final points = <List<double>>[];
+            for (final pt in ring) {
+              if (pt is List && pt.length >= 2) {
+                points.add([
+                  (pt[0] as num).toDouble(),
+                  (pt[1] as num).toDouble(),
+                ]);
+              }
+            }
+            if (points.isNotEmpty) polygonRings.add(points);
+          }
+        } else if (type == 'MultiPolygon' && rawCoords.isNotEmpty) {
+          for (final poly in rawCoords) {
+            for (final ring in poly) {
+              final points = <List<double>>[];
+              for (final pt in ring) {
+                if (pt is List && pt.length >= 2) {
+                  points.add([
+                    (pt[0] as num).toDouble(),
+                    (pt[1] as num).toDouble(),
+                  ]);
+                }
+              }
+              if (points.isNotEmpty) polygonRings.add(points);
+            }
+          }
+        }
+
+        if (polygonRings.isNotEmpty) {
+          map[canonicalName] = polygonRings;
+        }
+      }
+
+      _cachedBarangayBoundaries = map;
+      return map;
+    } catch (e) {
+      debugPrint('[LocationService] Error loading GeoJSON boundaries: $e');
+      return {};
+    }
+  }
+
+  @visibleForTesting
+  static void setMockBarangayBoundaries(
+      Map<String, List<List<List<double>>>>? boundaries) {
+    _cachedBarangayBoundaries = boundaries;
+  }
+
+  /// Resolves latitude and longitude coordinates to one of the 16 Marikina barangays.
+  /// Returns null if the coordinates are outside Marikina or cannot be mapped.
+  static Future<String?> resolveBarangayFromCoordinates(
+      double latitude, double longitude) async {
+    final boundaries = await loadBarangayBoundaries();
+    for (final entry in boundaries.entries) {
+      final name = entry.key;
+      for (final ring in entry.value) {
+        if (isPointInPolygon(latitude, longitude, ring)) {
+          return name;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Safe, non-throwing single position fetch.
+  static Future<Position?> getCurrentPositionSafe({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.unableToDetermine) {
+        return null;
+      }
+
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: timeout,
+      );
+    } catch (e) {
+      debugPrint('[LocationService] getCurrentPositionSafe failed: $e');
+      return null;
+    }
+  }
+
+  /// Resolves the device's current location to a Marikina barangay.
+  /// Returns null if GPS is unavailable, disabled, denied, timed out, or outside Marikina.
+  static Future<String?> resolveCurrentLocationBarangay({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final pos = await getCurrentPositionSafe(timeout: timeout);
+    if (pos == null) return null;
+    return await resolveBarangayFromCoordinates(pos.latitude, pos.longitude);
   }
 }
 

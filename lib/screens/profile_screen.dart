@@ -302,8 +302,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await prefs.setString('avatar_seed_$safeEmail', _avatarSeed);
       }
 
-      // Re-subscribe FCM to the new barangay for daily forecast advisories
-      NotificationService.subscribeToBarangay(barangay);
+      // Sync FCM notification routing with new registered barangay (preserves GPS if active, updates fallback)
+      await NotificationService.syncFromCurrentEnvironment(
+        registeredBarangay: barangay,
+      );
 
       if (mounted) {
         setState(() {
@@ -403,9 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _handleLogout() async {
-    if (_userProfile != null) {
-      await NotificationService.unsubscribeFromBarangay(_userProfile!.barangay);
-    }
+    await NotificationService.cleanupOnLogout();
 
     await AuthService().logout(); // Centralized logout logic
 

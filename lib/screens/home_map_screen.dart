@@ -23,6 +23,7 @@ import '../services/flood_api_service.dart';
 import '../models/user_profile_model.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/location_service.dart';
 import '../utils/station_thresholds.dart';
 import 'alerts_screen.dart';
 import 'help_requests_screen.dart';
@@ -152,6 +153,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   void _resumeBackgroundWork() {
     _startAutoRefreshTimer();
     _startLocationTracking();
+    NotificationService.syncFromCurrentEnvironment(
+      registeredBarangay: _userProfile?.barangay,
+    );
     if (_currentTabIndex == 1 && !_pulseController.isAnimating) {
       _pulseController.repeat(reverse: true);
     }
@@ -206,11 +210,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               '👤 PROFILE LOADED: ${profile.firstName} ${profile.lastName}');
           debugPrint('🏠 BARANGAY: "${profile.barangay}"');
 
-          // 🔔 AUTO-SUBSCRIBE: Ensure the user is subscribed to their barangay alerts
+          // 🔔 AUTO-SUBSCRIBE: Geolocation-first routing with registered fallback
           if (profile.barangay.isNotEmpty) {
-            NotificationService.subscribeToBarangay(profile.barangay);
+            NotificationService.syncFromCurrentEnvironment(
+              registeredBarangay: profile.barangay,
+            );
           } else {
-            debugPrint('⚠️ NO BARANGAY FOUND: Skipping alert subscription.');
+            NotificationService.syncFromCurrentEnvironment();
+            debugPrint('⚠️ NO BARANGAY FOUND: Syncing with GPS only.');
           }
         }
       }
@@ -306,6 +313,19 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             position.longitude,
           );
           _myLocation = LatLng(position.latitude, position.longitude);
+        });
+
+        // Geolocation-based FCM routing: update active topic if user crossed barangay boundaries
+        LocationService.resolveBarangayFromCoordinates(
+          position.latitude,
+          position.longitude,
+        ).then((detected) {
+          NotificationService.syncBarangayNotificationRouting(
+            currentDetectedBarangay: detected,
+            registeredBarangay: _userProfile?.barangay,
+          );
+        }).catchError((e) {
+          debugPrint('[FCM MOBILE] Error resolving barangay from GPS stream: $e');
         });
       });
     }
