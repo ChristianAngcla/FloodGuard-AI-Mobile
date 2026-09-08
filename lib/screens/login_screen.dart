@@ -41,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (_isLoading) return;
     if (_emailCtrl.text.isEmpty || _passwordCtrl.text.isEmpty) return;
     setState(() => _isLoading = true);
 
@@ -295,6 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: busy
                         ? null
                         : () async {
+                            if (busy) return;
                             final targetEmail = emailCtrl.text.trim();
                             if (targetEmail.isEmpty) return;
                             setDialogState(() => busy = true);
@@ -320,13 +322,44 @@ class _LoginScreenState extends State<LoginScreen> {
                               });
                             }
                           },
-                    child: Text(widget.isTaglish ? 'Hanapin ang Account' : 'Find Account'),
+                    child: busy
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(widget.isTaglish
+                                  ? 'Naghahanap...'
+                                  : 'Searching...'),
+                            ],
+                          )
+                        : Text(widget.isTaglish ? 'Hanapin ang Account' : 'Find Account'),
                   )
                 else if (currentStep == 1 && verificationId == null)
                   ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3784DF),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          const Color(0xFF3784DF).withValues(alpha: 0.45),
+                      disabledForegroundColor: Colors.white70,
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                     onPressed: busy
                         ? null
                         : () async {
+                            if (busy) return;
                             if (foundPhone == null) return;
                             setDialogState(() => busy = true);
 
@@ -380,13 +413,44 @@ class _LoginScreenState extends State<LoginScreen> {
                               });
                             }
                           },
-                    child: Text(widget.isTaglish ? 'Ipadala ang OTP' : 'Send OTP'),
+                    child: busy
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(widget.isTaglish
+                                  ? 'Ipinapadala...'
+                                  : 'Sending...'),
+                            ],
+                          )
+                        : Text(widget.isTaglish ? 'Ipadala ang OTP' : 'Send OTP'),
                   )
                 else if (currentStep == 1 && verificationId != null)
                   ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3784DF),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          const Color(0xFF3784DF).withValues(alpha: 0.45),
+                      disabledForegroundColor: Colors.white70,
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                     onPressed: busy
                         ? null
                         : () async {
+                            if (busy) return;
                             final code = otpCtrl.text.trim();
                             final newPass = newPassCtrl.text;
                             if (code.length < 6 || newPass.length < 6) {
@@ -451,7 +515,25 @@ class _LoginScreenState extends State<LoginScreen> {
                               });
                             }
                           },
-                    child: Text(widget.isTaglish ? 'I-save ang Password' : 'Save New Password'),
+                    child: busy
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(widget.isTaglish
+                                  ? 'Sine-save...'
+                                  : 'Saving...'),
+                            ],
+                          )
+                        : Text(widget.isTaglish ? 'I-save ang Password' : 'Save New Password'),
                   ),
               ],
             );

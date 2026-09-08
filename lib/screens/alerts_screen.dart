@@ -73,9 +73,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('app_alerts');
-      setState(() {
-        _alerts.clear();
-      });
+      if (mounted) {
+        setState(() {
+          _alerts.clear();
+        });
+      }
     } catch (e) {
       debugPrint('Error clearing alerts: $e');
     }
@@ -165,51 +167,70 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                   onPressed: () {
                                     showDialog(
                                       context: context,
-                                      builder: (context) => AlertDialog(
-                                        backgroundColor: isDark
-                                            ? const Color(0xFF253B50)
-                                            : Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(16)),
-                                        title: Text(
-                                            widget.isTaglish
-                                                ? "Burahin Lahat?"
-                                                : "Clear All Alerts?",
-                                            style: TextStyle(color: textColor)),
-                                        content: Text(
-                                            widget.isTaglish
-                                                ? "Sigurado ka ba? Hindi na ito mababawi."
-                                                : "Are you sure? This cannot be undone.",
-                                            style: TextStyle(color: textColor)),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: Text(
+                                      builder: (dialogCtx) {
+                                        bool isClearing = false;
+                                        return StatefulBuilder(
+                                          builder: (dialogCtx, setDialogState) => AlertDialog(
+                                            backgroundColor: isDark
+                                                ? const Color(0xFF253B50)
+                                                : Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16)),
+                                            title: Text(
                                                 widget.isTaglish
-                                                    ? "Kanselahin"
-                                                    : "Cancel",
-                                                style: TextStyle(
-                                                    color: isDark
-                                                        ? Colors.white54
-                                                        : Colors.grey[700])),
-                                          ),
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.red),
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                              _clearAll();
-                                            },
-                                            child: Text(
+                                                    ? "Burahin Lahat?"
+                                                    : "Clear All Alerts?",
+                                                style: TextStyle(color: textColor)),
+                                            content: Text(
                                                 widget.isTaglish
-                                                    ? "Burahin"
-                                                    : "Clear",
-                                                style: const TextStyle(
-                                                    color: Colors.white)),
+                                                    ? "Sigurado ka ba? Hindi na ito mababawi."
+                                                    : "Are you sure? This cannot be undone.",
+                                                style: TextStyle(color: textColor)),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: isClearing ? null : () => Navigator.pop(dialogCtx),
+                                                child: Text(
+                                                    widget.isTaglish
+                                                        ? "Kanselahin"
+                                                        : "Cancel",
+                                                    style: TextStyle(
+                                                        color: isDark
+                                                            ? Colors.white54
+                                                            : Colors.grey[700])),
+                                              ),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                    backgroundColor: Colors.red),
+                                                onPressed: isClearing
+                                                    ? null
+                                                    : () async {
+                                                        setDialogState(() => isClearing = true);
+                                                        await _clearAll();
+                                                        if (dialogCtx.mounted) {
+                                                          Navigator.pop(dialogCtx);
+                                                        }
+                                                      },
+                                                child: isClearing
+                                                    ? const SizedBox(
+                                                        width: 16,
+                                                        height: 16,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
+                                                      )
+                                                    : Text(
+                                                        widget.isTaglish
+                                                            ? "Burahin"
+                                                            : "Clear",
+                                                        style: const TextStyle(
+                                                            color: Colors.white)),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        );
+                                      },
                                     );
                                   },
                                 )

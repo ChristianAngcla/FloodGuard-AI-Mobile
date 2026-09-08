@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -201,11 +200,7 @@ class _SignupScreenState extends State<SignupScreen> {
             final friendly = _otpFailureMessage(e);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  kDebugMode
-                      ? '$friendly\n[${e.code}]'
-                      : friendly,
-                ),
+                content: Text(friendly),
                 backgroundColor: Colors.redAccent,
                 duration: const Duration(seconds: 6),
               ),
@@ -484,9 +479,14 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSigningUp = false);
+      debugPrint("Signup error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst("Exception: ", "")),
+          content: Text(
+            widget.isTaglish
+                ? "Hindi makakonekta sa serbisyo. Pakisuri ang iyong koneksyon sa internet at subukang muli."
+                : "Unable to connect to the service. Check your internet connection and try again.",
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );

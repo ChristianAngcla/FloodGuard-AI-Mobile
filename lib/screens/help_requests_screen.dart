@@ -32,6 +32,7 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
   }
 
   Future<void> _loadRequests() async {
+    if (_isLoading) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -282,9 +283,20 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
-              onPressed: _loadRequests,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(widget.isTaglish ? 'I-reload' : 'Reload'),
+              onPressed: _isLoading ? null : _loadRequests,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.refresh_rounded),
+              label: Text(_isLoading
+                  ? (widget.isTaglish ? 'Nagre-reload...' : 'Reloading...')
+                  : (widget.isTaglish ? 'I-reload' : 'Reload')),
             ),
           ],
         ),

@@ -165,6 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     final phone = _phoneCtrl.text.trim();
@@ -865,13 +866,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               BorderRadius.circular(16),
                                         ),
                                       ),
-                                      onPressed: _saveProfile,
-                                      icon: const Icon(Icons.save_rounded,
-                                          color: Colors.white),
+                                      onPressed: _isLoading ? null : _saveProfile,
+                                      icon: _isLoading
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(Icons.save_rounded,
+                                              color: Colors.white),
                                       label: Text(
-                                        widget.isTaglish
-                                            ? "I-save ang Profile"
-                                            : "Save Profile",
+                                        _isLoading
+                                            ? (widget.isTaglish
+                                                ? "Sine-save..."
+                                                : "Saving...")
+                                            : (widget.isTaglish
+                                                ? "I-save ang Profile"
+                                                : "Save Profile"),
                                         style: const TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
