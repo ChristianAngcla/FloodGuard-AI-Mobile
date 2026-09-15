@@ -20,6 +20,13 @@ typedef HelpRequestSubmitHook = Future<bool> Function({
   required double longitude,
   String? status,
   String? helpNeeded,
+  String? helpType,
+  String? helpSubtype,
+  String? waterLevel,
+  String? evacuationObstacle,
+  String? vulnerablePerson,
+  String? urgency,
+  String? details,
 });
 
 class MultistepReportSheet extends StatefulWidget {
@@ -49,15 +56,30 @@ class MultistepReportSheet extends StatefulWidget {
 class _MultistepReportSheetState extends State<MultistepReportSheet> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
-  final int _totalSteps = 5;
+  final int _totalSteps = 4;
 
-  // Form Data
+  // Level 1: What help do you need?
+  String? _helpType; // 'Medical', 'Evacuation', 'Other Emergency'
+
+  // Level 2: Branch Details
+  // Medical
+  String? _medicalType; // 'Injury', 'Medical emergency', 'Help for another person'
+  String? _urgency = 'Immediate / Life-threatening';
+
+  // Evacuation
+  String? _evacuationReason; // 'Floodwater is rising', 'I cannot safely leave', 'Need assistance for a vulnerable person', 'Other'
+  String? _waterLevel; // 'Below knee', 'Knee to waist', 'Waist to chest', 'Above chest', 'Cannot estimate'
+  String? _evacuationObstacle; // 'Floodwater blocking the way', 'No transportation', 'Physical difficulty', 'Other'
+  String? _vulnerablePerson; // 'Child', 'Elderly person', 'Person with disability', 'Injured person'
+
+  // Details text for notes / Other
+  final TextEditingController _detailsCtrl = TextEditingController();
+
+  // Location
   String? _selectedBarangay;
   final TextEditingController _streetCtrl = TextEditingController();
-  bool? _isRaining;
-  String? _floodLevel;
-  bool? _isSafe;
-  String? _helpNeeded;
+
+  // Confirmation & Legal
   bool _agreedToLegal = false;
   bool _isSubmitting = false;
   String? _validationMessage;
@@ -70,10 +92,11 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   Color get textColor =>
       widget.isDarkMode ? Colors.white : const Color(0xFF1A2B3C);
   Color get subTextColor =>
-      widget.isDarkMode ? Colors.white : const Color(0xFF4B5563);
+      widget.isDarkMode ? Colors.white70 : const Color(0xFF4B5563);
   Color get cardColor =>
       widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8F9FA);
   Color get accentColor => const Color(0xFF3784DF);
+  Color get emergencyColor => const Color(0xFFE53935);
 
   final List<String> _marikinaBarangays = [
     "Barangka",
@@ -105,43 +128,87 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   void dispose() {
     _pageController.dispose();
     _streetCtrl.dispose();
+    _detailsCtrl.dispose();
     super.dispose();
   }
 
   void _nextStep() {
-    // Validation
-    if (_currentStep == 0 && _selectedBarangay == null) {
-      _showError(widget.isTaglish
-          ? "Pakipili ang isang opsyon upang magpatuloy."
-          : "Please select an option to continue.");
-      return;
-    }
-    if (_currentStep == 1 && (_isRaining == null || _floodLevel == null)) {
-      _showError(widget.isTaglish
-          ? "Pakipili ang lahat ng kailangang opsyon upang magpatuloy."
-          : "Please select all required options to continue.");
-      return;
-    }
-    if (_currentStep == 2 && _isSafe == null) {
-      _showError(widget.isTaglish
-          ? "Pakipili ang isang opsyon upang magpatuloy."
-          : "Please select an option to continue.");
-      return;
-    }
-    if (_currentStep == 3) {
-      if (_isSafe == false && (_helpNeeded == null || _helpNeeded!.isEmpty)) {
+    // Step 0: Help Type validation
+    if (_currentStep == 0) {
+      if (_helpType == null) {
         _showError(widget.isTaglish
-            ? "Pakipili ang isang opsyon upang magpatuloy."
-            : "Please select an option to continue.");
-        return;
-      }
-      if (!_agreedToLegal) {
-        _showError(widget.isTaglish
-            ? "Kailangan mong sumang-ayon sa emergency notice upang magpatuloy."
-            : "Please agree to the emergency notice to continue.");
+            ? "Pakipili kung anong uri ng tulong ang kailangan mo."
+            : "Please select what help you need.");
         return;
       }
     }
+
+    // Step 1: Branch Details validation
+    if (_currentStep == 1) {
+      if (_helpType == 'Medical') {
+        if (_medicalType == null) {
+          _showError(widget.isTaglish
+              ? "Pakipili ang uri ng medikal na tulong."
+              : "Please select the type of medical assistance needed.");
+          return;
+        }
+      } else if (_helpType == 'Evacuation') {
+        if (_evacuationReason == null) {
+          _showError(widget.isTaglish
+              ? "Pakipili ang dahilan kung bakit kailangan ng tulong sa paglikas."
+              : "Please select why you need evacuation assistance.");
+          return;
+        }
+        if (_evacuationReason == 'Floodwater is rising') {
+          if (_waterLevel == null) {
+            _showError(widget.isTaglish
+                ? "Pakisaad ang tinatayang taas ng tubig-baha."
+                : "Please specify the estimated floodwater level.");
+            return;
+          }
+        } else if (_evacuationReason == 'I cannot safely leave') {
+          if (_evacuationObstacle == null) {
+            _showError(widget.isTaglish
+                ? "Pakipili ang humahadlang sa iyong pag-alis."
+                : "Please select what is preventing you from leaving.");
+            return;
+          }
+        } else if (_evacuationReason == 'Need assistance for a vulnerable person') {
+          if (_vulnerablePerson == null) {
+            _showError(widget.isTaglish
+                ? "Pakipili kung sino ang nangangailangan ng tulong."
+                : "Please select who needs assistance.");
+            return;
+          }
+        } else if (_evacuationReason == 'Other') {
+          if (_detailsCtrl.text.trim().isEmpty) {
+            _showError(widget.isTaglish
+                ? "Pakisaad ang mga detalye ng iyong paglikas."
+                : "Please provide details for the evacuation request.");
+            return;
+          }
+        }
+      } else if (_helpType == 'Other Emergency') {
+        if (_detailsCtrl.text.trim().isEmpty) {
+          _showError(widget.isTaglish
+              ? "Pakilarawan ang emergency situation."
+              : "Please describe your emergency situation.");
+          return;
+        }
+      }
+    }
+
+    // Step 2: Location validation
+    if (_currentStep == 2) {
+      if (_selectedBarangay == null) {
+        _showError(widget.isTaglish
+            ? "Pakipili ang iyong barangay upang magpatuloy."
+            : "Please select your barangay to continue.");
+        return;
+      }
+    }
+
+    // Step 3: Confirmation handled directly by CONFIRM button
 
     if (_currentStep < _totalSteps - 1) {
       FocusScope.of(context).unfocus();
@@ -177,8 +244,84 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     });
   }
 
+  String? _getHelpSubtype() {
+    if (_helpType == 'Medical') return _medicalType;
+    if (_helpType == 'Evacuation') return _evacuationReason;
+    return null;
+  }
+
+  double? _getWaterLevelDepth(String? level) {
+    switch (level) {
+      case 'Below knee':
+        return 0.3;
+      case 'Knee to waist':
+        return 0.7;
+      case 'Waist to chest':
+        return 1.2;
+      case 'Above chest':
+        return 1.8;
+      default:
+        return null;
+    }
+  }
+
+  String _getWaterLevelLabel(String? level) {
+    switch (level) {
+      case 'Below knee':
+        return 'Ankle to Knee';
+      case 'Knee to waist':
+        return 'Knee to Waist';
+      case 'Waist to chest':
+        return 'Waist to Chest';
+      case 'Above chest':
+        return 'Above Chest';
+      default:
+        return level ?? 'Unknown';
+    }
+  }
+
+  String _buildCompositeHelpNeeded() {
+    final details = _detailsCtrl.text.trim();
+    if (_helpType == 'Medical') {
+      final parts = <String>['Medical'];
+      if (_medicalType != null) parts.add(_medicalType!);
+      if (_urgency != null) parts.add('($_urgency)');
+      var res = parts.join(' - ');
+      if (details.isNotEmpty) res += ': $details';
+      return res;
+    }
+    if (_helpType == 'Evacuation') {
+      var res = 'Evacuation';
+      if (_evacuationReason == 'Floodwater is rising') {
+        res += ' - Floodwater is rising (${_waterLevel ?? 'Level unspecified'})';
+      } else if (_evacuationReason == 'I cannot safely leave') {
+        res += ' - Cannot safely leave (${_evacuationObstacle ?? 'Obstacle unspecified'})';
+      } else if (_evacuationReason == 'Need assistance for a vulnerable person') {
+        res += ' - Vulnerable person (${_vulnerablePerson ?? 'Unspecified'})';
+      } else if (_evacuationReason == 'Other') {
+        res += ' - Other';
+      } else if (_evacuationReason != null) {
+        res += ' - $_evacuationReason';
+      }
+      if (details.isNotEmpty) res += ': $details';
+      return res;
+    }
+    if (_helpType == 'Other Emergency') {
+      return details.isNotEmpty ? 'Other Emergency: $details' : 'Other Emergency';
+    }
+    return 'Emergency Assistance';
+  }
+
   Future<void> _submitReport() async {
     if (_isSubmitting) return;
+
+    if (!_agreedToLegal) {
+      _showError(widget.isTaglish
+          ? "Kailangan mong sumang-ayon sa emergency notice upang magpatuloy."
+          : "Please agree to the emergency notice to continue.");
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
       _validationMessage = null;
@@ -210,25 +353,14 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     final barangayText = (_selectedBarangay ?? "").trim();
     final location = streetText.isNotEmpty && barangayText.isNotEmpty
         ? "$streetText, $barangayText"
-        : (streetText.isNotEmpty ? streetText : (barangayText.isNotEmpty ? barangayText : "Unknown Location"));
+        : (streetText.isNotEmpty
+            ? streetText
+            : (barangayText.isNotEmpty ? barangayText : "Unknown Location"));
 
-    // Load user profile to get name and phone
     String reporterName = 'Unknown Reporter';
     String reporterPhone = '';
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      // RATE LIMITING disabled for functional testing
-      // final lastReportStr = prefs.getString('last_report_time');
-      // if (lastReportStr != null) {
-      //   final lastReport = DateTime.parse(lastReportStr);
-      //   if (DateTime.now().difference(lastReport).inMinutes < 30) {
-      //     setState(() => _isSubmitting = false);
-      //     _showError(widget.isTaglish ? "Maaari ka lamang mag-submit ng isang ulat bawat 30 minuto." : "You can only submit one report every 30 minutes to prevent spam.");
-      //     return;
-      //   }
-      // }
-
       final userDataString = prefs.getString('user_data');
       if (userDataString != null) {
         final userData = jsonDecode(userDataString);
@@ -251,6 +383,11 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       debugPrint('Could not load user profile for report: $e');
     }
 
+    final detailsText = _detailsCtrl.text.trim();
+    final compositeHelp = _buildCompositeHelpNeeded();
+    final floodDepth = _getWaterLevelDepth(_waterLevel);
+    final floodLevel = _getWaterLevelLabel(_waterLevel);
+
     final submit = widget.submitFloodReport ??
         ({
           required String location,
@@ -265,6 +402,13 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           required double longitude,
           String? status,
           String? helpNeeded,
+          String? helpType,
+          String? helpSubtype,
+          String? waterLevel,
+          String? evacuationObstacle,
+          String? vulnerablePerson,
+          String? urgency,
+          String? details,
         }) {
           return FloodApiService.submitFloodReport(
             location: location,
@@ -279,22 +423,36 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             longitude: longitude,
             status: status,
             helpNeeded: helpNeeded,
+            helpType: helpType,
+            helpSubtype: helpSubtype,
+            waterLevel: waterLevel,
+            evacuationObstacle: evacuationObstacle,
+            vulnerablePerson: vulnerablePerson,
+            urgency: urgency,
+            details: details,
           );
         };
 
     final success = await submit(
       location: location,
-      isRaining: _isRaining ?? false,
-      isSafe: _isSafe ?? true,
+      isRaining: false,
+      isSafe: false, // Help requests are inherently emergency requests
       uid: userUid,
-      floodDepth: _getFloodDepthInMeters(_floodLevel),
-      floodLevel: _floodLevel ?? 'Unknown',
+      floodDepth: floodDepth,
+      floodLevel: floodLevel,
       reporterName: reporterName,
       reporterPhone: reporterPhone,
       latitude: lat,
       longitude: lng,
       status: 'submitted',
-      helpNeeded: (_isSafe == false) ? _helpNeeded : null,
+      helpNeeded: compositeHelp,
+      helpType: _helpType,
+      helpSubtype: _getHelpSubtype(),
+      waterLevel: _waterLevel,
+      evacuationObstacle: _evacuationObstacle,
+      vulnerablePerson: _vulnerablePerson,
+      urgency: _urgency,
+      details: detailsText.isNotEmpty ? detailsText : null,
     );
 
     if (mounted) {
@@ -304,11 +462,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         SharedPreferences.getInstance().then((p) =>
             p.setString('last_report_time', DateTime.now().toIso8601String()));
         widget.onSuccess();
-        if (_isSafe == false) {
-          widget.onUnsafe();
-        } else {
-          widget.onSafe();
-        }
+        widget.onUnsafe();
       } else {
         final apiMessage = widget.submitFloodReport == null
             ? FloodApiService.lastHelpRequestError
@@ -328,9 +482,9 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          height: MediaQuery.of(context).size.height * 0.88,
+          height: MediaQuery.of(context).size.height * 0.90,
           decoration: BoxDecoration(
-            color: bgColor.withValues(alpha: 0.85),
+            color: bgColor.withValues(alpha: 0.95),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             border: Border.all(
               color: widget.isDarkMode
@@ -349,7 +503,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                     const SizedBox(height: AppSpacing.s6),
                     // Drag Handle
                     Container(
-                      width: AppSpacing.s13 + AppSpacing.s4, // 40
+                      width: AppSpacing.s13 + AppSpacing.s4,
                       height: AppSpacing.s2,
                       decoration: BoxDecoration(
                         color: Colors.grey[400],
@@ -359,7 +513,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                     ),
                     const SizedBox(height: AppSpacing.s8),
 
-                    // Progress Indicator
+                    // Progress Indicator (4 Steps)
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.s11),
@@ -373,7 +527,9 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                               height: 6,
                               decoration: BoxDecoration(
                                 color: isActive
-                                    ? accentColor
+                                    ? (_currentStep == _totalSteps - 1
+                                        ? emergencyColor
+                                        : accentColor)
                                     : (widget.isDarkMode
                                         ? Colors.white24
                                         : Colors.grey[300]),
@@ -384,20 +540,18 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                         }),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
                     // Page Content
                     Expanded(
                       child: PageView(
                         controller: _pageController,
-                        physics:
-                            const NeverScrollableScrollPhysics(), // Disable swipe
+                        physics: const NeverScrollableScrollPhysics(),
                         children: [
-                          _buildStep0Location(),
-                          _buildStep1Situation(),
-                          _buildStep2Safety(),
-                          _buildStep3Evidence(),
-                          _buildStep4Summary(),
+                          _buildStep0HelpType(),
+                          _buildStep1BranchSpecifics(),
+                          _buildStep2Location(),
+                          _buildStep3Confirmation(),
                         ],
                       ),
                     ),
@@ -459,51 +613,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                         ),
                       ),
 
-                    // Bottom Controls
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color:
-                            bgColor.withValues(alpha: 0.0), // Transparent here
-                      ),
-                      child: Row(
-                        children: [
-                          if (_currentStep > 0) ...[
-                            TextButton(
-                              onPressed: _prevStep,
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 24, vertical: 16),
-                              ),
-                              child: Text(
-                                widget.isTaglish ? "Bumalik" : "Back",
-                                style: TextStyle(
-                                    color: subTextColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                          ],
-                          Expanded(
-                            child: _buildGradientButton(
-                              onPressed: _isSubmitting
-                                  ? null
-                                  : (_currentStep == _totalSteps - 1
-                                      ? _submitReport
-                                      : _nextStep),
-                              isSubmit: _currentStep == _totalSteps - 1,
-                              isSubmitting: _isSubmitting,
-                              text: _currentStep == _totalSteps - 1
-                                  ? (widget.isTaglish
-                                      ? "I-submit"
-                                      : "Submit Report")
-                                  : (widget.isTaglish ? "Susunod" : "Next"),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
+                    // Bottom Navigation Bar
+                    _buildBottomNavigationBar(),
                   ],
                 ),
               ),
@@ -514,7 +625,92 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     );
   }
 
-  // --- WIDGETS ---
+  Widget _buildBottomNavigationBar() {
+    final isConfirmStep = _currentStep == _totalSteps - 1;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          top: BorderSide(
+            color: widget.isDarkMode ? Colors.white10 : Colors.grey[200]!,
+            width: 1,
+          ),
+        ),
+      ),
+      child: isConfirmStep
+          ? Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: OutlinedButton.icon(
+                    onPressed: _prevStep,
+                    icon: const Icon(Icons.edit_note_rounded, size: 20),
+                    label: Text(
+                      widget.isTaglish ? "I-EDIT" : "EDIT",
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      foregroundColor: textColor,
+                      side: BorderSide(
+                        color: widget.isDarkMode ? Colors.white38 : Colors.grey[400]!,
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: _buildGradientButton(
+                    onPressed: _isSubmitting ? null : _submitReport,
+                    isSubmit: true,
+                    isSubmitting: _isSubmitting,
+                    text: widget.isTaglish ? "KUMPIRMAHIN" : "CONFIRM",
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                if (_currentStep > 0) ...[
+                  TextButton(
+                    onPressed: _prevStep,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                    ),
+                    child: Text(
+                      widget.isTaglish ? "Bumalik" : "Back",
+                      style: TextStyle(
+                          color: subTextColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: _buildGradientButton(
+                    onPressed: _nextStep,
+                    isSubmit: false,
+                    isSubmitting: false,
+                    text: widget.isTaglish ? "Susunod" : "Next",
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
 
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
@@ -522,21 +718,21 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     required bool isSubmitting,
     required String text,
   }) {
-    final buttonColor = isSubmit ? const Color(0xFFE53935) : accentColor;
+    final buttonColor = isSubmit ? emergencyColor : accentColor;
 
     return Container(
-      height: 52,
+      height: 50,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [buttonColor.withValues(alpha: 0.8), buttonColor],
+          colors: [buttonColor.withValues(alpha: 0.85), buttonColor],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: buttonColor.withValues(alpha: 0.4),
-            blurRadius: 12,
+            color: buttonColor.withValues(alpha: 0.35),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -567,433 +763,812 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     );
   }
 
-  // --- STEPS ---
+  // --- STEP 0: What Help Do You Need? ---
 
-  Widget _buildStep0Location() {
+  Widget _buildStep0HelpType() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.isTaglish ? "Lokasyon ng Insidente" : "Incident Location",
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+          Text(
+            widget.isTaglish
+                ? "Anong tulong ang kailangan mo?"
+                : "What help do you need?",
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+          ),
           const SizedBox(height: 8),
           Text(
+            widget.isTaglish
+                ? "Piliin ang pinakaangkop na tulong para mabilis kang maasikaso."
+                : "Select the emergency assistance category required.",
+            style: TextStyle(fontSize: 14, color: subTextColor),
+          ),
+          const SizedBox(height: 24),
+          _buildHelpTypeCard(
+            title: "Medical",
+            taglishTitle: "Tulong Medikal",
+            subtitle: "Injury, health emergency, or medical aid",
+            taglishSubtitle: "Pinsala, medikal na emergency, o saklolo",
+            icon: Icons.medical_services_rounded,
+            isSelected: _helpType == 'Medical',
+            onTap: () {
+              setState(() {
+                _helpType = 'Medical';
+                _validationMessage = null;
+              });
+            },
+            color: const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 14),
+          _buildHelpTypeCard(
+            title: "Evacuation",
+            taglishTitle: "Paglikas / Evacuation",
+            subtitle: "Rising floodwater, cannot safely leave, or vulnerable person rescue",
+            taglishSubtitle: "Tumataas ang baha, naipit, o may kailangang ilikas",
+            icon: Icons.directions_run_rounded,
+            isSelected: _helpType == 'Evacuation',
+            onTap: () {
+              setState(() {
+                _helpType = 'Evacuation';
+                _validationMessage = null;
+              });
+            },
+            color: const Color(0xFFF97316),
+          ),
+          const SizedBox(height: 14),
+          _buildHelpTypeCard(
+            title: "Other Emergency",
+            taglishTitle: "Ibang Emergency",
+            subtitle: "Immediate safety hazard or specific emergency situation",
+            taglishSubtitle: "Iba pang kagyat o mapanganib na sitwasyon",
+            icon: Icons.warning_amber_rounded,
+            isSelected: _helpType == 'Other Emergency',
+            onTap: () {
+              setState(() {
+                _helpType = 'Other Emergency';
+                _validationMessage = null;
+              });
+            },
+            color: const Color(0xFF8B5CF6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHelpTypeCard({
+    required String title,
+    required String taglishTitle,
+    required String subtitle,
+    required String taglishSubtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.12) : cardColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected
+                ? color
+                : (widget.isDarkMode ? Colors.white12 : Colors.grey[200]!),
+            width: isSelected ? 2 : 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isSelected ? color : color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : color,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.isTaglish ? taglishTitle : title,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.isTaglish ? taglishSubtitle : subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: subTextColor,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: color, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- STEP 1: Branch Specifics ---
+
+  Widget _buildStep1BranchSpecifics() {
+    if (_helpType == 'Medical') {
+      return _buildMedicalBranch();
+    }
+    if (_helpType == 'Evacuation') {
+      return _buildEvacuationBranch();
+    }
+    return _buildOtherEmergencyBranch();
+  }
+
+  Widget _buildMedicalBranch() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.isTaglish
+                ? "Detalye ng Tulong Medikal"
+                : "Medical Assistance Details",
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.isTaglish
+                ? "Anong uri ng medikal na tulong ang kailangan?"
+                : "What kind of medical help do you need?",
+            style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+          ),
+          const SizedBox(height: 14),
+          _buildSelectionCard(
+            widget.isTaglish ? "Pinsala / Sugat" : "Injury",
+            Icons.healing_rounded,
+            _medicalType == 'Injury',
+            () => setState(() => _medicalType = 'Injury'),
+            activeColor: const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 10),
+          _buildSelectionCard(
+            widget.isTaglish ? "Medikal na Emergency" : "Medical emergency",
+            Icons.local_hospital_rounded,
+            _medicalType == 'Medical emergency',
+            () => setState(() => _medicalType = 'Medical emergency'),
+            activeColor: const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 10),
+          _buildSelectionCard(
+            widget.isTaglish ? "Tulong para sa Ibang Tao" : "Help for another person",
+            Icons.person_add_alt_1_rounded,
+            _medicalType == 'Help for another person',
+            () => setState(() => _medicalType = 'Help for another person'),
+            activeColor: const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            widget.isTaglish
+                ? "Antas ng Pangangailangan (Urgency)"
+                : "Urgency Level",
+            style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+          ),
+          const SizedBox(height: 12),
+          _buildSelectionCard(
+            widget.isTaglish
+                ? "Agad-agad / Nanganganib ang buhay"
+                : "Immediate / Life-threatening",
+            Icons.crisis_alert_rounded,
+            _urgency == 'Immediate / Life-threatening',
+            () => setState(() => _urgency = 'Immediate / Life-threatening'),
+            activeColor: const Color(0xFFDC2626),
+          ),
+          const SizedBox(height: 8),
+          _buildSelectionCard(
+            widget.isTaglish ? "Kagyat / Malubha" : "Urgent / Serious",
+            Icons.priority_high_rounded,
+            _urgency == 'Urgent / Serious',
+            () => setState(() => _urgency = 'Urgent / Serious'),
+            activeColor: const Color(0xFFEA580C),
+          ),
+          const SizedBox(height: 8),
+          _buildSelectionCard(
+            widget.isTaglish
+                ? "Hindi nanganganib ang buhay"
+                : "Non-life threatening",
+            Icons.info_outline_rounded,
+            _urgency == 'Non-life threatening',
+            () => setState(() => _urgency = 'Non-life threatening'),
+            activeColor: const Color(0xFF0284C7),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _detailsCtrl,
+            maxLines: 2,
+            style: TextStyle(color: textColor, fontSize: 14),
+            decoration: _inputDecoration(
               widget.isTaglish
-                  ? "Saan nagaganap ang pagbaha?"
-                  : "Where is the incident happening?",
-              style: TextStyle(fontSize: 14, color: subTextColor)),
-          const SizedBox(height: 32),
+                  ? "Karagdagang detalye (Opsyonal)"
+                  : "Additional details (Optional)",
+              Icons.notes_rounded,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEvacuationBranch() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.isTaglish
+                ? "Tulong sa Paglikas (Evacuation)"
+                : "Evacuation Assistance",
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.isTaglish
+                ? "Bakit kailangan mo ng tulong sa paglikas?"
+                : "Why do you need evacuation assistance?",
+            style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+          ),
+          const SizedBox(height: 14),
+          _buildSelectionCard(
+            widget.isTaglish ? "Tumataas ang baha" : "Floodwater is rising",
+            Icons.waves_rounded,
+            _evacuationReason == 'Floodwater is rising',
+            () => setState(() {
+              _evacuationReason = 'Floodwater is rising';
+              _validationMessage = null;
+            }),
+            activeColor: const Color(0xFFF97316),
+          ),
+          const SizedBox(height: 10),
+          _buildSelectionCard(
+            widget.isTaglish ? "Hindi ligtas na makaalis" : "I cannot safely leave",
+            Icons.sensor_door_outlined,
+            _evacuationReason == 'I cannot safely leave',
+            () => setState(() {
+              _evacuationReason = 'I cannot safely leave';
+              _validationMessage = null;
+            }),
+            activeColor: const Color(0xFFF97316),
+          ),
+          const SizedBox(height: 10),
+          _buildSelectionCard(
+            widget.isTaglish
+                ? "Kailangan ng tulong para sa mahinang tao"
+                : "Need assistance for a vulnerable person",
+            Icons.accessible_rounded,
+            _evacuationReason == 'Need assistance for a vulnerable person',
+            () => setState(() {
+              _evacuationReason = 'Need assistance for a vulnerable person';
+              _validationMessage = null;
+            }),
+            activeColor: const Color(0xFFF97316),
+          ),
+          const SizedBox(height: 10),
+          _buildSelectionCard(
+            widget.isTaglish ? "Iba pa" : "Other",
+            Icons.more_horiz_rounded,
+            _evacuationReason == 'Other',
+            () => setState(() {
+              _evacuationReason = 'Other';
+              _validationMessage = null;
+            }),
+            activeColor: const Color(0xFFF97316),
+          ),
+
+          // Sub-branch follow-ups
+          if (_evacuationReason == 'Floodwater is rising') ...[
+            const SizedBox(height: 24),
+            Text(
+              widget.isTaglish
+                  ? "Gaano kataas ang baha sa inyo?"
+                  : "Estimated floodwater level:",
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+            ),
+            const SizedBox(height: 12),
+            _buildSelectionCard(
+              widget.isTaglish ? "Hanggang binti (Mababa sa tuhod)" : "Below knee",
+              Icons.waves_rounded,
+              _waterLevel == 'Below knee',
+              () => setState(() => _waterLevel = 'Below knee'),
+              activeColor: const Color(0xFF0284C7),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Tuhod hanggang baywang" : "Knee to waist",
+              Icons.waves_rounded,
+              _waterLevel == 'Knee to waist',
+              () => setState(() => _waterLevel = 'Knee to waist'),
+              activeColor: const Color(0xFFEAB308),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Baywang hanggang dibdib" : "Waist to chest",
+              Icons.warning_amber_rounded,
+              _waterLevel == 'Waist to chest',
+              () => setState(() => _waterLevel = 'Waist to chest'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Lagpas dibdib" : "Above chest",
+              Icons.warning_rounded,
+              _waterLevel == 'Above chest',
+              () => setState(() => _waterLevel = 'Above chest'),
+              activeColor: const Color(0xFFDC2626),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Hindi matantiya" : "Cannot estimate",
+              Icons.help_outline_rounded,
+              _waterLevel == 'Cannot estimate',
+              () => setState(() => _waterLevel = 'Cannot estimate'),
+              activeColor: Colors.grey,
+            ),
+          ],
+
+          if (_evacuationReason == 'I cannot safely leave') ...[
+            const SizedBox(height: 24),
+            Text(
+              widget.isTaglish
+                  ? "Ano ang humahadlang sa iyong pag-alis?"
+                  : "What is preventing you from leaving?",
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+            ),
+            const SizedBox(height: 12),
+            _buildSelectionCard(
+              widget.isTaglish
+                  ? "Nakaharang ang baha sa daanan"
+                  : "Floodwater blocking the way",
+              Icons.block_rounded,
+              _evacuationObstacle == 'Floodwater blocking the way',
+              () => setState(() => _evacuationObstacle = 'Floodwater blocking the way'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Walang masasakyan" : "No transportation",
+              Icons.directions_car_filled_outlined,
+              _evacuationObstacle == 'No transportation',
+              () => setState(() => _evacuationObstacle = 'No transportation'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish
+                  ? "Pisikal na kahirapan"
+                  : "Physical difficulty",
+              Icons.accessibility_new_rounded,
+              _evacuationObstacle == 'Physical difficulty',
+              () => setState(() => _evacuationObstacle = 'Physical difficulty'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Iba pang hadlang" : "Other",
+              Icons.more_horiz_rounded,
+              _evacuationObstacle == 'Other',
+              () => setState(() => _evacuationObstacle = 'Other'),
+              activeColor: const Color(0xFFF97316),
+            ),
+          ],
+
+          if (_evacuationReason == 'Need assistance for a vulnerable person') ...[
+            const SizedBox(height: 24),
+            Text(
+              widget.isTaglish
+                  ? "Sino ang nangangailangan ng tulong?"
+                  : "Who needs assistance?",
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+            ),
+            const SizedBox(height: 12),
+            _buildSelectionCard(
+              widget.isTaglish ? "Bata" : "Child",
+              Icons.child_care_rounded,
+              _vulnerablePerson == 'Child',
+              () => setState(() => _vulnerablePerson = 'Child'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "Matanda / Senior Citizen" : "Elderly person",
+              Icons.elderly_rounded,
+              _vulnerablePerson == 'Elderly person',
+              () => setState(() => _vulnerablePerson = 'Elderly person'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "May Kapansanan (PWD)" : "Person with disability",
+              Icons.accessible_rounded,
+              _vulnerablePerson == 'Person with disability',
+              () => setState(() => _vulnerablePerson = 'Person with disability'),
+              activeColor: const Color(0xFFF97316),
+            ),
+            const SizedBox(height: 8),
+            _buildSelectionCard(
+              widget.isTaglish ? "May pinsala / sugatan" : "Injured person",
+              Icons.healing_rounded,
+              _vulnerablePerson == 'Injured person',
+              () => setState(() => _vulnerablePerson = 'Injured person'),
+              activeColor: const Color(0xFFF97316),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+          TextField(
+            controller: _detailsCtrl,
+            maxLines: 2,
+            style: TextStyle(color: textColor, fontSize: 14),
+            decoration: _inputDecoration(
+              _evacuationReason == 'Other'
+                  ? (widget.isTaglish
+                      ? "Pakisaad ang mga detalye (Kailangan)"
+                      : "Specific details (Required)")
+                  : (widget.isTaglish
+                      ? "Karagdagang detalye (Opsyonal)"
+                      : "Additional details (Optional)"),
+              Icons.notes_rounded,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOtherEmergencyBranch() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.isTaglish
+                ? "Ilarawan ang Sitwasyon"
+                : "Describe Emergency Situation",
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.isTaglish
+                ? "Pakilarawan nang detalyado ang emergency upang makapaghanda ang rescue team."
+                : "Please describe the emergency in detail so the responders can prepare.",
+            style: TextStyle(fontSize: 14, color: subTextColor),
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _detailsCtrl,
+            maxLines: 4,
+            style: TextStyle(color: textColor, fontSize: 14),
+            decoration: _inputDecoration(
+              widget.isTaglish
+                  ? "Ilarawan ang emergency (Hal. live wire, bumagsak na pader)"
+                  : "Describe emergency (e.g. fallen tree, live electrical wire)",
+              Icons.emergency_rounded,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  // --- STEP 2: Incident Location ---
+
+  Widget _buildStep2Location() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.isTaglish ? "Lokasyon ng Insidente" : "Incident Location",
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.isTaglish
+                ? "Saan kailangan ipadala ang tulong o rescue?"
+                : "Where does the emergency assistance need to be sent?",
+            style: TextStyle(fontSize: 14, color: subTextColor),
+          ),
+          const SizedBox(height: 28),
           DropdownButtonFormField<String>(
             initialValue: _selectedBarangay,
             dropdownColor: bgColor,
             style: TextStyle(color: textColor, fontSize: 15),
             decoration: _inputDecoration(
-                widget.isTaglish ? "Pumili ng Barangay" : "Select Barangay",
-                Icons.map_outlined),
+              widget.isTaglish ? "Pumili ng Barangay" : "Select Barangay",
+              Icons.map_outlined,
+            ),
             items: _marikinaBarangays
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
-            onChanged: (val) => setState(() => _selectedBarangay = val),
+            onChanged: (val) => setState(() {
+              _selectedBarangay = val;
+              _validationMessage = null;
+            }),
           ),
           const SizedBox(height: 20),
           TextField(
             controller: _streetCtrl,
             style: TextStyle(color: textColor, fontSize: 15),
             decoration: _inputDecoration(
-                widget.isTaglish
-                    ? "Kalye o Landmark (Opsyonal)"
-                    : "Street or Landmark (Optional)",
-                Icons.streetview_rounded),
+              widget.isTaglish
+                  ? "Kalye o Landmark (Opsyonal)"
+                  : "Street or Landmark (Optional)",
+              Icons.streetview_rounded,
+            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep1Situation() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-              widget.isTaglish ? "Kasalukuyang Sitwasyon" : "Current Situation",
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
-          const SizedBox(height: 24),
-          Text(
-              widget.isTaglish
-                  ? "Umuulan ba ngayon?"
-                  : "Is it currently raining?",
-              style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                  child: _buildSelectionCard(
-                      widget.isTaglish ? "Oo" : "Yes",
-                      Icons.water_drop_outlined,
-                      _isRaining == true,
-                      () => setState(() => _isRaining = true))),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: _buildSelectionCard(
-                      widget.isTaglish ? "Hindi" : "No",
-                      Icons.cloud_off_rounded,
-                      _isRaining == false,
-                      () => setState(() => _isRaining = false))),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s13),
-          Text(
-              widget.isTaglish
-                  ? "Gaano kataas ang baha?"
-                  : "Estimated Flood Level",
-              style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
-          const SizedBox(height: AppSpacing.s6),
-          _buildSelectionCard(
-              widget.isTaglish ? "Walang Baha" : "No Flood",
-              Icons.do_not_disturb_alt_rounded,
-              _floodLevel == "None",
-              () => setState(() => _floodLevel = "None")),
-          const SizedBox(height: AppSpacing.s4),
-          _buildSelectionCard(
-              widget.isTaglish
-                  ? "Hanggang Binti (<= 0.45m)"
-                  : "Below Knee (<= 0.45m)",
-              Icons.waves_rounded,
-              _floodLevel == "Below Knee",
-              () => setState(() => _floodLevel = "Below Knee")),
-          const SizedBox(height: AppSpacing.s4),
-          _buildSelectionCard(
-              widget.isTaglish
-                  ? "Hanggang Tuhod (0.45m - 0.60m)"
-                  : "Knee Level (0.45m - 0.60m)",
-              Icons.waves_rounded,
-              _floodLevel == "Knee Level",
-              () => setState(() => _floodLevel = "Knee Level")),
-          const SizedBox(height: AppSpacing.s4),
-          _buildSelectionCard(
-              widget.isTaglish
-                  ? "Hanggang Baywang (0.60m - 1.10m)"
-                  : "Waist Level (0.60m - 1.10m)",
-              Icons.waves_rounded,
-              _floodLevel == "Waist Level",
-              () => setState(() => _floodLevel = "Waist Level")),
-          const SizedBox(height: AppSpacing.s4),
-          _buildSelectionCard(
-              widget.isTaglish
-                  ? "Hanggang Ulo (1.10m - 1.75m)"
-                  : "Head Level (1.10m - 1.75m)",
-              Icons.warning_amber_rounded,
-              _floodLevel == "Head Level",
-              () => setState(() => _floodLevel = "Head Level"),
-              activeColor: Colors.orange),
-          const SizedBox(height: AppSpacing.s4),
-          _buildSelectionCard(
-              widget.isTaglish
-                  ? "Lagpas Ulo (> 1.75m)"
-                  : "Above Head (> 1.75m)",
-              Icons.warning_rounded,
-              _floodLevel == "Above Head",
-              () => setState(() => _floodLevel = "Above Head"),
-              activeColor: Colors.red),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep2Safety() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.isTaglish ? "Iyong Kaligtasan" : "Your Safety",
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
-          const SizedBox(height: 8),
-          Text(
-              widget.isTaglish
-                  ? "Kailangan namin malaman kung ligtas ka."
-                  : "Help us ensure you're out of danger.",
-              style: TextStyle(fontSize: 14, color: subTextColor)),
-          const SizedBox(height: 32),
-          Text(
-              widget.isTaglish
-                  ? "Nasa ligtas ka bang lugar ngayon?"
-                  : "Are you currently in a safe location?",
-              style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600, color: textColor)),
-          const SizedBox(height: 16),
-          _buildSelectionCard(
-              widget.isTaglish ? "Oo, ligtas ako" : "Yes, I am safe",
-              Icons.health_and_safety_rounded,
-              _isSafe == true,
-              () => setState(() {
-                    _isSafe = true;
-                    _helpNeeded = null;
-                  }),
-              activeColor: Colors.green),
-          const SizedBox(height: 12),
-          _buildSelectionCard(
-              widget.isTaglish
-                  ? "Hindi, kailangan ko ng tulong"
-                  : "No, I need assistance",
-              Icons.emergency_share_rounded,
-              _isSafe == false,
-              () => setState(() => _isSafe = false),
-              activeColor: const Color(0xFFE53935)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep3Evidence() {
-    final needsHelp = _isSafe == false;
-    return SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-                needsHelp
-                    ? (widget.isTaglish
-                        ? "Uri ng Tulong (Opsyonal)"
-                        : "Kind of Help Needed")
-                    : (widget.isTaglish ? "Kumpirmasyon" : "Confirmation"),
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: textColor)),
-            const SizedBox(height: 8),
-            Text(
-                needsHelp
-                    ? (widget.isTaglish
-                        ? "Anong klaseng tulong ang kailangan ninyo?"
-                        : "What kind of assistance do you require?")
-                    : (widget.isTaglish
-                        ? "Dahil ligtas ka, hindi kailangan pumili ng tulong. Pakisuri ang babala sa ibaba."
-                        : "Since you are safe, no help type is needed. Please review the notice below."),
-                style: TextStyle(fontSize: 14, color: subTextColor)),
-            if (needsHelp) ...[
-              const SizedBox(height: 24),
-              DropdownButtonFormField<String>(
-                initialValue: _helpNeeded,
-                dropdownColor: bgColor,
-                style: TextStyle(color: textColor, fontSize: 15),
-                decoration: _inputDecoration(
-                    widget.isTaglish
-                        ? "Pumili ng tulong"
-                        : "Select help needed",
-                    Icons.medical_services_outlined),
-                items: [
-                  "Immediate Rescue / Evacuation",
-                  "Medical Assistance",
-                  "Food and Water",
-                  "Relief Goods"
-                ]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (val) => setState(() => _helpNeeded = val),
-              ),
-            ],
-            const SizedBox(height: 32),
-            // Legal Warning
-            Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: Colors.red.withValues(alpha: 0.5))),
-                child: Row(children: [
-                  Checkbox(
-                      value: _agreedToLegal,
-                      activeColor: Colors.red,
-                      onChanged: (val) =>
-                          setState(() => _agreedToLegal = val ?? false)),
-                  Expanded(
-                      child: Text(
-                          widget.isTaglish
-                              ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas."
-                              : "I confirm this is a real emergency. False reports delay rescue operations and are punishable under Philippine Law.",
-                          style: TextStyle(
-                              color: widget.isDarkMode
-                                  ? Colors.red.shade300
-                                  : Colors.red.shade900,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)))
-                ]))
-          ],
-        ));
-  }
-
-  Widget _buildStep4Summary() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.isTaglish ? "Buod ng Request" : "Request Summary",
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
-          const SizedBox(height: 8),
-          Text(
-              widget.isTaglish
-                  ? "Paki-check kung tama ang mga detalye."
-                  : "Please review your report before submitting.",
-              style: TextStyle(fontSize: 14, color: subTextColor)),
           const SizedBox(height: 24),
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.gps_fixed_rounded, color: accentColor, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.isTaglish
+                        ? "Ang iyong GPS coordinates ay awtomatikong susuriin sa pag-kumpirma upang magabayan ang rescue team."
+                        : "Your live GPS coordinates will be verified upon confirmation to guide the rescue team directly to you.",
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: textColor,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- STEP 3: Confirmation Summary ---
+
+  Widget _buildStep3Confirmation() {
+    final detailsText = _detailsCtrl.text.trim();
+    final streetText = _streetCtrl.text.trim();
+    final locationText = streetText.isNotEmpty && (_selectedBarangay != null)
+        ? "$streetText, $_selectedBarangay"
+        : (_selectedBarangay ?? "Marikina City");
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.isTaglish
+                ? "Suriin at Kumpirmahin ang Ulat"
+                : "Review & Confirm Help Request",
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.isTaglish
+                ? "Pakisuri ang mga detalye bago ipadala ang saklolo."
+                : "Please review your details carefully before dispatching responders.",
+            style: TextStyle(fontSize: 14, color: subTextColor),
+          ),
+          const SizedBox(height: 20),
+
+          // Summary Card
+          Container(
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: cardColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                  color:
-                      widget.isDarkMode ? Colors.white10 : Colors.grey[200]!),
+                color: widget.isDarkMode ? Colors.white12 : Colors.grey[200]!,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
                 )
               ],
             ),
             child: Column(
               children: [
                 _buildSummaryRow(
-                    Icons.location_on_outlined,
-                    widget.isTaglish ? "Lokasyon" : "Location",
-                    "${_streetCtrl.text.isNotEmpty ? '${_streetCtrl.text}, ' : ''}${_selectedBarangay ?? ''}"),
-                const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1)),
-                _buildSummaryRow(
-                    Icons.water_drop_outlined,
-                    widget.isTaglish ? "Umuulan" : "Raining",
-                    _isRaining == true
-                        ? (widget.isTaglish ? "Oo" : "Yes")
-                        : (widget.isTaglish ? "Hindi" : "No")),
-                const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1)),
-                _buildSummaryRow(
-                    Icons.waves_rounded,
-                    widget.isTaglish ? "Baha" : "Flood Level",
-                    _getFloodLevelDisplay()),
-                const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1)),
-                _buildSummaryRow(
-                    Icons.health_and_safety_outlined,
-                    widget.isTaglish ? "Ligtas" : "Safety",
-                    _isSafe == true
-                        ? (widget.isTaglish ? "Ligtas" : "Safe")
-                        : (widget.isTaglish
-                            ? "Kailangan ng Tulong"
-                            : "Needs Assistance"),
-                    valueColor: _isSafe == true
-                        ? (widget.isDarkMode
-                            ? const Color(0xFF86EFAC)
-                            : const Color(0xFF15803D))
-                        : (widget.isDarkMode
-                            ? const Color(0xFFFCA5A5)
-                            : const Color(0xFFB91C1C))),
-                if (_isSafe == false) ...[
+                  Icons.medical_services_outlined,
+                  widget.isTaglish ? "Uri ng Tulong" : "Help Type",
+                  _helpType ?? "Emergency",
+                  valueColor: emergencyColor,
+                ),
+
+                if (_helpType == 'Medical') ...[
                   const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                      padding: EdgeInsets.symmetric(vertical: 10),
                       child: Divider(height: 1)),
                   _buildSummaryRow(
-                      Icons.medical_services_outlined,
-                      widget.isTaglish ? "Uri ng Tulong" : "Help Needed",
-                      _displayHelpNeeded(_helpNeeded),
-                      valueColor: widget.isDarkMode
-                          ? const Color(0xFFFDBA74)
-                          : const Color(0xFF9A3412)),
+                    Icons.healing_rounded,
+                    widget.isTaglish ? "Kategorya" : "Category",
+                    _medicalType ?? "Not specified",
+                  ),
+                  const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(height: 1)),
+                  _buildSummaryRow(
+                    Icons.crisis_alert_rounded,
+                    widget.isTaglish ? "Urgency" : "Urgency",
+                    _urgency ?? "Immediate",
+                    valueColor: const Color(0xFFDC2626),
+                  ),
                 ],
+
+                if (_helpType == 'Evacuation') ...[
+                  const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(height: 1)),
+                  _buildSummaryRow(
+                    Icons.directions_run_rounded,
+                    widget.isTaglish ? "Dahilan" : "Reason",
+                    _evacuationReason ?? "Evacuation",
+                  ),
+                  if (_waterLevel != null) ...[
+                    const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        child: Divider(height: 1)),
+                    _buildSummaryRow(
+                      Icons.waves_rounded,
+                      widget.isTaglish ? "Antas ng Tubig" : "Water Level",
+                      _waterLevel!,
+                    ),
+                  ],
+                  if (_evacuationObstacle != null) ...[
+                    const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        child: Divider(height: 1)),
+                    _buildSummaryRow(
+                      Icons.block_rounded,
+                      widget.isTaglish ? "Hadlang" : "Obstacle",
+                      _evacuationObstacle!,
+                    ),
+                  ],
+                  if (_vulnerablePerson != null) ...[
+                    const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        child: Divider(height: 1)),
+                    _buildSummaryRow(
+                      Icons.accessible_rounded,
+                      widget.isTaglish ? "Nangangailangan" : "Vulnerable Person",
+                      _vulnerablePerson!,
+                    ),
+                  ],
+                ],
+
+                if (detailsText.isNotEmpty) ...[
+                  const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(height: 1)),
+                  _buildSummaryRow(
+                    Icons.notes_rounded,
+                    widget.isTaglish ? "Mga Detalye" : "Details",
+                    detailsText,
+                  ),
+                ],
+
+                const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: Divider(height: 1)),
+                _buildSummaryRow(
+                  Icons.location_on_outlined,
+                  widget.isTaglish ? "Lokasyon" : "Location",
+                  locationText,
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              const Icon(Icons.info_outline_rounded,
-                  color: Colors.orange, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: Text(
+
+          const SizedBox(height: 18),
+
+          // Legal Notice & Confirmation Checkbox
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: _agreedToLegal,
+                  activeColor: Colors.red,
+                  onChanged: (val) => setState(() {
+                    _agreedToLegal = val ?? false;
+                    _validationMessage = null;
+                  }),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
                       widget.isTaglish
-                          ? "Sigurado ka bang gusto mo ipasa ang ulat na ito?"
-                          : "Are you sure you want to submit this report?",
+                          ? "Kinukumpirma ko na ito ay totoong emergency. Ang mga maling ulat ay mapaparusahan sa ilalim ng batas."
+                          : "I confirm this is a genuine emergency. False reports delay rescue operations and are punishable under Philippine Law.",
                       style: TextStyle(
-                          color: subTextColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600))),
-            ],
-          )
+                        color: widget.isDarkMode
+                            ? Colors.red.shade300
+                            : Colors.red.shade900,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
         ],
       ),
     );
   }
 
-  // --- UTILS ---
-
-  double _getFloodDepthInMeters(String? selectedLevel) {
-    switch (selectedLevel) {
-      case 'Below Knee':
-        return 0.45;
-      case 'Knee Level':
-        return 0.60;
-      case 'Waist Level':
-        return 1.10;
-      case 'Head Level':
-        return 1.75;
-      case 'Above Head':
-        return 2.50; // Representing > 1.75m
-      default:
-        return 0.0;
-    }
-  }
-
-  String _getFloodLevelDisplay() {
-    if (_floodLevel == null) return "";
-    if (!widget.isTaglish) return _floodLevel!;
-    switch (_floodLevel) {
-      case 'None':
-        return 'Walang Baha';
-      case 'Below Knee':
-        return 'Hanggang Binti';
-      case 'Knee Level':
-        return 'Hanggang Tuhod';
-      case 'Waist Level':
-        return 'Hanggang Baywang';
-      case 'Head Level':
-        return 'Hanggang Ulo';
-      case 'Above Head':
-        return 'Lagpas Ulo';
-      default:
-        return _floodLevel!;
-    }
-  }
-
-  String _displayHelpNeeded(String? helpNeeded) {
-    if (helpNeeded == null || helpNeeded.isEmpty) {
-      return widget.isTaglish ? 'Hindi tinukoy' : 'Not specified';
-    }
-    if (!widget.isTaglish) return helpNeeded;
-    return switch (helpNeeded) {
-      'Food and Water' => 'Pagkain at Tubig',
-      'Medical Assistance' => 'Tulong Medikal',
-      'Rescue / Evacuation' => 'Pagsagip / Paglikas',
-      _ => helpNeeded,
-    };
-  }
+  // --- REUSABLE COMPONENTS ---
 
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
@@ -1001,7 +1576,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       labelText: label,
       labelStyle: TextStyle(
-        color: widget.isDarkMode ? Colors.white : const Color(0xFF475569),
+        color: widget.isDarkMode ? Colors.white70 : const Color(0xFF475569),
         fontSize: 14,
         fontWeight: FontWeight.w600,
       ),
@@ -1013,18 +1588,25 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       filled: true,
       fillColor: cardColor,
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-              color: widget.isDarkMode ? Colors.white10 : Colors.transparent)),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(
+          color: widget.isDarkMode ? Colors.white10 : Colors.transparent,
+        ),
+      ),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: accentColor, width: 2)),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: accentColor, width: 2),
+      ),
     );
   }
 
   Widget _buildSelectionCard(
-      String label, IconData icon, bool isSelected, VoidCallback onTap,
-      {Color? activeColor}) {
+    String label,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap, {
+    Color? activeColor,
+  }) {
     final color = activeColor ?? accentColor;
     return GestureDetector(
       onTap: onTap,
@@ -1035,16 +1617,17 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           color: isSelected ? color.withValues(alpha: 0.12) : cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: isSelected
-                  ? color
-                  : (widget.isDarkMode ? Colors.white10 : Colors.transparent),
-              width: 2),
+            color: isSelected
+                ? color
+                : (widget.isDarkMode ? Colors.white10 : Colors.transparent),
+            width: 2,
+          ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: color.withValues(alpha: 0.25),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: color.withValues(alpha: 0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   )
                 ]
               : [],
@@ -1054,37 +1637,48 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             Icon(icon, color: isSelected ? color : subTextColor, size: 22),
             const SizedBox(width: 14),
             Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? color : textColor,
-                        fontSize: 14))),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? color : textColor,
+                  fontSize: 14,
+                ),
+              ),
+            ),
             if (isSelected)
-              Icon(Icons.check_circle_rounded, color: color, size: 20)
+              Icon(Icons.check_circle_rounded, color: color, size: 20),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(IconData icon, String label, String value,
-      {Color? valueColor}) {
+  Widget _buildSummaryRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: subTextColor),
-        const SizedBox(width: 12),
-        Text(label, style: TextStyle(color: subTextColor, fontSize: 14)),
+        Icon(icon, size: 19, color: subTextColor),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(color: subTextColor, fontSize: 13.5),
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.end,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
             style: TextStyle(
-                color: valueColor ?? textColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 14),
+              color: valueColor ?? textColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 13.5,
+            ),
           ),
         ),
       ],

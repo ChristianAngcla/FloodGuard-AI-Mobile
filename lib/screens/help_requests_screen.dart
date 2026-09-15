@@ -355,6 +355,17 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
                 color: textColor,
               ),
             ),
+            if ((request['help_needed'] ?? request['helpNeeded'] ?? request['help_type'] ?? request['helpType']) != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                (request['help_needed'] ?? request['helpNeeded'] ?? request['help_type'] ?? request['helpType']).toString(),
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFC2410C),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               '${widget.isTaglish ? 'Naisumite' : 'Submitted'}: ${_formatDate(submittedAt)}',
@@ -435,6 +446,27 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
                     color: textColor,
                     fontWeight: FontWeight.w600),
               ),
+              if ((request['help_needed'] ?? request['helpNeeded'] ?? request['help_type'] ?? request['helpType']) != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  widget.isTaglish ? 'Kailangang Tulong:' : 'Help Needed:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[500],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  (request['help_needed'] ?? request['helpNeeded'] ?? request['help_type'] ?? request['helpType']).toString(),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFC2410C),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Text(
                 '${widget.isTaglish ? 'Naisumite' : 'Submitted'}: ${_formatDate(submittedAt)}',

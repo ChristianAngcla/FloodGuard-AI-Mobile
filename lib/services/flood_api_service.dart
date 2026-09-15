@@ -654,6 +654,13 @@ class FloodApiService {
     double? longitude,
     String? status,
     String? helpNeeded,
+    String? helpType,
+    String? helpSubtype,
+    String? waterLevel,
+    String? evacuationObstacle,
+    String? vulnerablePerson,
+    String? urgency,
+    String? details,
   }) async {
     lastHelpRequestError = null;
     lastHelpRequestRetryAfterSeconds = null;
@@ -683,6 +690,18 @@ class FloodApiService {
               'helpNeeded': helpNeeded,
               'latitude': latitude,
               'longitude': longitude,
+              'help_type': helpType,
+              'helpType': helpType,
+              'help_subtype': helpSubtype,
+              'helpSubtype': helpSubtype,
+              'water_level': waterLevel,
+              'waterLevel': waterLevel,
+              'evacuation_obstacle': evacuationObstacle,
+              'evacuationObstacle': evacuationObstacle,
+              'vulnerable_person': vulnerablePerson,
+              'vulnerablePerson': vulnerablePerson,
+              'urgency': urgency,
+              'details': details,
             }),
           )
           .timeout(_timeout);

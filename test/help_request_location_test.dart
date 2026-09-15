@@ -113,28 +113,30 @@ void main() {
 
   group('MultistepReportSheet location gate', () {
     Future<void> completeHelpRequestForm(WidgetTester tester) async {
+      // Step 0: Help Type
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Branch specifics
+      await tester.tap(find.text('Injury'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 2: Location
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Nangka').last);
+      await tester.tap(find.text('Barangka').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Yes'));
-      await tester.pump();
-      await tester.tap(find.text('No Flood'));
-      await tester.pump();
-      await tester.tap(find.text('Next'));
+      // Step 3: Legal checkbox on Confirmation step
+      await tester.ensureVisible(find.byType(Checkbox));
       await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Yes, I am safe'));
-      await tester.pump();
-      await tester.tap(find.text('Next'));
-      await tester.pumpAndSettle();
-
       await tester.tap(find.byType(Checkbox));
-      await tester.pump();
-      await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
     }
 
@@ -185,6 +187,13 @@ void main() {
           required double longitude,
           String? status,
           String? helpNeeded,
+          String? helpType,
+          String? helpSubtype,
+          String? waterLevel,
+          String? evacuationObstacle,
+          String? vulnerablePerson,
+          String? urgency,
+          String? details,
         }) async {
           submitted = true;
           return true;
@@ -192,7 +201,7 @@ void main() {
       );
 
       await completeHelpRequestForm(tester);
-      await tester.tap(find.text('Submit Report'));
+      await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
       expect(submitted, isFalse);
@@ -223,6 +232,13 @@ void main() {
           required double longitude,
           String? status,
           String? helpNeeded,
+          String? helpType,
+          String? helpSubtype,
+          String? waterLevel,
+          String? evacuationObstacle,
+          String? vulnerablePerson,
+          String? urgency,
+          String? details,
         }) async {
           submitted = true;
           return true;
@@ -230,7 +246,7 @@ void main() {
       );
 
       await completeHelpRequestForm(tester);
-      await tester.tap(find.text('Submit Report'));
+      await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
       expect(submitted, isFalse);
@@ -272,6 +288,13 @@ void main() {
           required double longitude,
           String? status,
           String? helpNeeded,
+          String? helpType,
+          String? helpSubtype,
+          String? waterLevel,
+          String? evacuationObstacle,
+          String? vulnerablePerson,
+          String? urgency,
+          String? details,
         }) async {
           submitted = true;
           sentLat = latitude;
@@ -281,7 +304,7 @@ void main() {
       );
 
       await completeHelpRequestForm(tester);
-      await tester.tap(find.text('Submit Report'));
+      await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
       expect(submitted, isTrue);

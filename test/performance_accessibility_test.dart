@@ -97,7 +97,7 @@ void main() {
       await tester.tap(nextButton);
       await tester.pump();
 
-      expect(find.text('Please select an option to continue.'), findsOneWidget);
+      expect(find.text('Please select what help you need.'), findsOneWidget);
     });
 
     testWidgets('MultistepReportSheet Taglish validation message displays properly', (WidgetTester tester) async {
@@ -122,7 +122,7 @@ void main() {
       await tester.tap(nextButton);
       await tester.pump();
 
-      expect(find.text('Pakipili ang isang opsyon upang magpatuloy.'), findsOneWidget);
+      expect(find.text('Pakipili kung anong uri ng tulong ang kailangan mo.'), findsOneWidget);
     });
   });
 
