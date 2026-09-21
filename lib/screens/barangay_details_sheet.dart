@@ -383,8 +383,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                 children: [
                   Text(
                     widget.isTaglish
-                        ? 'Pagtatayang Antas ng Tubig:'
-                        : 'Predicted Water Level:',
+                        ? 'Pagtatayang Antas ng Tubig ng Estasyon:'
+                        : 'Predicted Station Water Level:',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

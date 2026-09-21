@@ -476,31 +476,92 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     ],
 
                     if (body.isNotEmpty) ...[
-                      Text(
-                        widget.isTaglish ? "Mensahe ng Alerto:" : "Alert Details:",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.isTaglish ? "IMPORMASYON SA PAGTATAYA NG BAHA" : "PREDICTIVE FLOOD INFORMATION",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              body,
+                              style: TextStyle(fontSize: 14, color: textColor, height: 1.4, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _formatDate(alert['timestamp'] ?? ""),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        body,
-                        style: TextStyle(fontSize: 14.5, color: textColor, height: 1.45),
+                      const SizedBox(height: 10),
+                    ],
+
+                    if (meaning != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.isTaglish ? "BAKIT ITO ANG PANGANIB?" : "WHY THIS RISK?",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              isCritical
+                                  ? (widget.isTaglish
+                                      ? "Ang pagtatayang lebel ng tubig ay umabot o lumagpas sa Critical threshold para sa itinalagang monitoring station."
+                                      : "The predicted water level reaches or exceeds the Critical threshold for the assigned monitoring station.")
+                                  : (isAlarm
+                                      ? (widget.isTaglish
+                                          ? "Ang pagtatayang lebel ng tubig ay nasa Alarm range para sa itinalagang monitoring station."
+                                          : "The predicted water level falls within the Alarm range for the assigned monitoring station.")
+                                      : (widget.isTaglish
+                                          ? "Ang pagtatayang lebel ng tubig ay nasa Alert range para sa itinalagang monitoring station."
+                                          : "The predicted water level falls within the Alert range for the assigned monitoring station.")),
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                height: 1.35,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
                     ],
-
-                    Text(
-                      _formatDate(alert['timestamp'] ?? ""),
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
 
                     Text(
                       "FloodGuard provides barangay-level flood-risk prediction based on the monitoring station assigned to the barangay. It does not predict exact street-level flooding, flood depth, or inundation extent.",

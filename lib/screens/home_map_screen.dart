@@ -723,9 +723,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     : "No immediate action required. Stay informed.")));
 
     final resolvedSensor = sensorKey ?? FloodApiService.barangayToSensor[location] ?? 'sto_nino';
+    final daily = FloodApiService.getDailyForecastForBarangay(location);
+    final forecastDate = daily?.forecastTargetDate ?? '';
     final stationName = resolvedSensor == 'nangka'
-        ? 'Nangka Station'
-        : (resolvedSensor == 'tumana' ? 'Tumana Station' : 'Sto. Niño Station');
+        ? 'Nangka'
+        : (resolvedSensor == 'tumana' ? 'Tumana' : 'Sto. Niño');
 
     final bgCard = _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
     final textPrimary = _isDarkMode ? Colors.white : const Color(0xFF0F172A);
@@ -880,9 +882,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
-                  // Supporting Station Data
+                  // PREDICTIVE FLOOD INFORMATION
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -894,7 +896,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isTaglish ? "Sumusuportang Datos ng Estasyon" : "Supporting Station Data",
+                          _isTaglish ? "IMPORMASYON SA PAGTATAYA NG BAHA" : "PREDICTIVE FLOOD INFORMATION",
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -907,7 +909,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _isTaglish ? "Pagtatayang Lebel ng Tubig:" : "Forecast Water Level:",
+                              _isTaglish ? "Pagtatayang Lebel ng Tubig ng Estasyon:" : "Predicted Station Water Level:",
                               style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
                             ),
                             Text(
@@ -921,7 +923,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _isTaglish ? "Itinalagang Estasyon:" : "Assigned Station:",
+                              _isTaglish ? "Estasyon ng Pagsubaybay:" : "Monitoring Station:",
                               style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
                             ),
                             Text(
@@ -930,6 +932,22 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             ),
                           ],
                         ),
+                        if (forecastDate.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _isTaglish ? "Petsa ng Pagtataya:" : "Forecast Date:",
+                                style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                forecastDate,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -944,12 +962,42 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             ),
                           ],
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // WHY THIS RISK?
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: infoBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: infoBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isTaglish ? "BAKIT ITO ANG PANGANIB?" : "WHY THIS RISK?",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            color: textMuted,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           _isTaglish
-                              ? "Ito ay pagtataya ng FloodGuard para sa susunod na araw, hindi kasalukuyang reading ng PAGASA. Sundin ang opisyal na babala ng PAGASA/MDRRMO."
-                              : "This is a next-day FloodGuard forecast, not a current PAGASA reading. Follow official PAGASA/MDRRMO advisories.",
-                          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: textMuted),
+                              ? "Ang pagtatayang lebel ng tubig ay nasa ${isCritical ? 'Critical' : (isAlarm ? 'Alarm' : (isAlert ? 'Alert' : 'Safe'))} range para sa $stationName monitoring station."
+                              : "The predicted water level falls within the ${isCritical ? 'Critical' : (isAlarm ? 'Alarm' : (isAlert ? 'Alert' : 'Safe'))} range for the $stationName monitoring station.",
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
+                          ),
                         ),
                       ],
                     ),
@@ -2829,7 +2877,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       Expanded(
                         flex: 4,
                         child: Text(
-                          'Sensor: $_dashboardSensorDisplayName',
+                          'Station: $_dashboardSensorDisplayName',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.end,
@@ -2845,7 +2893,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   const SizedBox(height: 12),
 
                   // ── Daily forecast card ──
-                  _buildDashboardTelemetryAndForecastCard(textColor, subColor),
+                  _buildDashboardDailyForecastCard(textColor, subColor),
                   const SizedBox(height: 28),
 
                   // Action Banner
@@ -2920,7 +2968,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     );
   }
 
-  Widget _buildDashboardTelemetryAndForecastCard(
+  Widget _buildDashboardDailyForecastCard(
       Color textColor, Color subColor) {
     final selectedBarangay =
         _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
