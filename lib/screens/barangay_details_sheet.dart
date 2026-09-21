@@ -369,14 +369,64 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
         const SizedBox(height: 14),
 
-        // 4. PREDICTIVE FLOOD INFORMATION (SUPPORTING)
+        // 4. FLOOD PREDICTION DETAILS
         _contentCard(
-          title: widget.isTaglish ? 'IMPORMASYON SA PAGTATAYA (SUPPORTING)' : 'PREDICTIVE FLOOD INFORMATION',
+          title: widget.isTaglish ? 'MGA DETALYE NG PAGTATAYA NG BAHA' : 'FLOOD PREDICTION DETAILS',
           icon: Icons.water_drop_outlined,
           iconColor: const Color(0xFF0284C7),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 1. Predicted Flood Risk (prominent visual priority)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.isTaglish
+                        ? 'Pagtatayang Panganib sa Baha:'
+                        : 'Predicted Flood Risk:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: subColor,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: riskInfo.color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: riskInfo.color, width: 1.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: riskInfo.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          status,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            color: riskInfo.color,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // 2. Predicted Water Level (24px bold)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -384,8 +434,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                 children: [
                   Text(
                     widget.isTaglish
-                        ? 'Pagtatayang Antas ng Tubig ng Estasyon:'
-                        : 'Predicted Station Water Level:',
+                        ? 'Tinatayang Lebel ng Tubig:'
+                        : 'Predicted Water Level:',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -397,23 +447,78 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
-                      color: widget.isDarkMode
-                          ? const Color(0xFF7DD3FC)
-                          : const Color(0xFF0369A1),
+                      color: riskInfo.color,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
+
+              // 3. Monitoring Station (clearly shown)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.isTaglish
+                        ? 'Istasyon ng Pagsubaybay:'
+                        : 'Monitoring Station:',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: subColor,
+                    ),
+                  ),
+                  Text(
+                    _sensorDisplayName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // 4. Forecast Date
+              if (daily.forecastTargetDate.isNotEmpty) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      widget.isTaglish
+                          ? 'Petsa ng Pagtataya:'
+                          : 'Forecast Date:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: subColor,
+                      ),
+                    ),
+                    Text(
+                      daily.forecastTargetDate,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+
+              // 5. Secondary details: Calculation Mode & observations
+              const Divider(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     widget.isTaglish ? 'Paraan ng Pagkalkula:' : 'Calculation Mode:',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: subColor),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: daily.calculationMode == 'primary_model'
                           ? const Color(0xFF0284C7).withValues(alpha: 0.12)
@@ -437,22 +542,13 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   ),
                 ],
               ),
-              if (daily.forecastTargetDate.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  widget.isTaglish
-                      ? 'Pagtataya para sa: ${daily.forecastTargetDate}'
-                      : 'Forecast target: ${daily.forecastTargetDate}',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
-                ),
-              ],
               if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty) ...[
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   widget.isTaglish
                       ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                       : 'Based on observations from: ${daily.sourceDataDate}',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: subColor),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: subColor),
                 ),
               ],
             ],

@@ -233,19 +233,19 @@ class FloodWarningScale extends StatelessWidget {
               child: Stack(
                 children: [
                   Positioned(
-                    left: (totalWidth * 0.25) - 24,
-                    width: 48,
-                    child: _buildBoundaryTick('${thresholds.alert.toStringAsFixed(1)} m', colorAlert),
+                    left: (totalWidth * 0.25) - 28,
+                    width: 56,
+                    child: _buildBoundaryTick('${thresholds.alert.toStringAsFixed(2)} m', colorAlert),
                   ),
                   Positioned(
-                    left: (totalWidth * 0.50) - 24,
-                    width: 48,
-                    child: _buildBoundaryTick('${thresholds.alarm.toStringAsFixed(1)} m', colorAlarm),
+                    left: (totalWidth * 0.50) - 28,
+                    width: 56,
+                    child: _buildBoundaryTick('${thresholds.alarm.toStringAsFixed(2)} m', colorAlarm),
                   ),
                   Positioned(
-                    left: (totalWidth * 0.75) - 24,
-                    width: 48,
-                    child: _buildBoundaryTick('${thresholds.critical.toStringAsFixed(1)} m', colorCritical),
+                    left: (totalWidth * 0.75) - 28,
+                    width: 56,
+                    child: _buildBoundaryTick('${thresholds.critical.toStringAsFixed(2)} m', colorCritical),
                   ),
                 ],
               ),
@@ -254,7 +254,7 @@ class FloodWarningScale extends StatelessWidget {
 
             // ── 5. Dynamic Predicted Water Level Marker & Badge ──
             SizedBox(
-              height: 48,
+              height: 68,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -308,7 +308,7 @@ class FloodWarningScale extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
 
             // ── 6. High-Contrast Direct English Explanation Card ──
             Container(

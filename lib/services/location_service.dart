@@ -311,7 +311,7 @@ const kHelpRequestLocationRequiredEn =
 const kHelpRequestLocationRequiredTl =
     'Para makapagpadala ng Saklolo, mangyaring buksan ang iyong lokasyon upang makumpirma ng FloodGuard na ikaw ay nasa loob ng Lungsod ng Marikina.';
 const kHelpRequestOutsideMarikinaEn =
-    'FloodGuard Help Request is only available for users currently within Marikina City. We cannot process this request because your current location is outside the service area.';
+    'FloodGuard Help Request is only available to users currently within Marikina City. We cannot process this request because your current location is outside the service area.';
 const kHelpRequestOutsideMarikinaTl =
     'Ang FloodGuard Help Request ay para lamang sa mga user na kasalukuyang nasa loob ng Lungsod ng Marikina. Hindi namin maproseso ang kahilingang ito dahil ang iyong lokasyon ay nasa labas ng service area.';
 const kHelpRequestLocationUnavailableEn =

@@ -885,7 +885,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 10),
 
-                  // PREDICTIVE FLOOD INFORMATION
+                  // FLOOD PREDICTION DETAILS
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -896,30 +896,74 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _isTaglish ? "IMPORMASYON SA PAGTATAYA NG BAHA" : "PREDICTIVE FLOOD INFORMATION",
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3,
-                            color: textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _isTaglish ? "Pagtatayang Lebel ng Tubig:" : "Predicted Water Level:",
-                              style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
+                              _isTaglish ? "MGA DETALYE NG PAGTATAYA NG BAHA" : "FLOOD PREDICTION DETAILS",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                                color: textMuted,
+                              ),
                             ),
-                            Text(
-                              "${level.toStringAsFixed(2)} m",
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: riskColor),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: riskColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: riskColor.withValues(alpha: 0.5), width: 1),
+                              ),
+                              child: Text(
+                                norm,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  color: riskColor,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
+
+                        // 1. Predicted Flood Risk
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _isTaglish ? "Pagtatayang Panganib sa Baha:" : "Predicted Flood Risk:",
+                              style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              norm,
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: riskColor),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 2. Predicted Water Level (24px bold)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              _isTaglish ? "Tinatayang Lebel ng Tubig:" : "Predicted Water Level:",
+                              style: TextStyle(fontSize: 12.5, color: textMuted, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              "${level.toStringAsFixed(2)} m",
+                              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: riskColor),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 3. Monitoring Station
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -929,12 +973,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             ),
                             Text(
                               stationName,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: textPrimary),
                             ),
                           ],
                         ),
                         if (forecastDate.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 5),
+                          // 4. Forecast Date
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -949,20 +994,28 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                             ],
                           ),
                         ],
-                        const SizedBox(height: 6),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _isTaglish ? "Mga Threshold ng Estasyon:" : "Station Thresholds:",
-                              style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              "Alert ${thr.alert.toStringAsFixed(1)}m  •  Alarm ${thr.alarm.toStringAsFixed(1)}m  •  Crit ${thr.critical.toStringAsFixed(1)}m",
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
-                            ),
-                          ],
+                        const SizedBox(height: 8),
+
+                        // 5. Secondary Details: Station Thresholds (exact values)
+                        Container(
+                          padding: const EdgeInsets.only(top: 6),
+                          decoration: BoxDecoration(
+                            border: Border(top: BorderSide(color: infoBorder)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _isTaglish ? "Mga Threshold ng Estasyon:" : "Station Thresholds:",
+                                style: TextStyle(fontSize: 11.5, color: textMuted, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "Alert ${thr.alert.toStringAsFixed(2)} m  •  Alarm ${thr.alarm.toStringAsFixed(2)} m  •  Crit ${thr.critical.toStringAsFixed(2)} m",
+                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: textPrimary),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

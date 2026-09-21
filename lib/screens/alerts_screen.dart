@@ -488,7 +488,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.isTaglish ? "IMPORMASYON SA PAGTATAYA NG BAHA" : "PREDICTIVE FLOOD INFORMATION",
+                              widget.isTaglish ? "MGA DETALYE NG PAGTATAYA NG BAHA" : "FLOOD PREDICTION DETAILS",
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
