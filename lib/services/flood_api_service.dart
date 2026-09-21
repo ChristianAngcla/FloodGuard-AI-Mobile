@@ -244,6 +244,23 @@ class FloodApiService {
   static Map<String, dynamic>? getFullDailyForecastData() =>
       _cachedDailyForecastResponse;
 
+  @visibleForTesting
+  static void setMockDailyForecastResponse(Map<String, dynamic>? mock) {
+    _cachedDailyForecastResponse = mock;
+    _lastDailyForecastFetchTime = DateTime.now();
+  }
+
+  @visibleForTesting
+  static void setMockFullResponse(Map<String, dynamic>? mock) {
+    _cachedFullResponse = mock;
+  }
+
+  @visibleForTesting
+  static void setMockData(Map<String, FloodData>? mock) {
+    _cachedData = mock;
+    _lastFetchTime = DateTime.now();
+  }
+
   /// Maps each barangay to its nearest river sensor key.
   /// The API provides 3 sensors: nangka, sto_nino, tumana.
   static const Map<String, String> barangayToSensor = {

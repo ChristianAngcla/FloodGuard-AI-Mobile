@@ -111,6 +111,12 @@ class NotificationService {
   static const String keyPendingCleanupTopic = 'pending_cleanup_topic';
   static const String keySyncStatus = 'fcm_sync_status'; // 'synced' | 'pending'
 
+  static final StreamController<void> onAlertsUpdated =
+      StreamController<void>.broadcast();
+
+  static final StreamController<Map<String, dynamic>> onNotificationTapped =
+      StreamController<Map<String, dynamic>>.broadcast();
+
   @visibleForTesting
   static Future<void> Function(String topic)? testSubscribeToTopic;
 
@@ -215,6 +221,7 @@ class NotificationService {
       if (initialMessage != null) {
         debugPrint('[FCM MOBILE] Initial app launch message: ${initialMessage.messageId}');
         await persistMessage(initialMessage);
+        onNotificationTapped.add(initialMessage.data);
       }
       _initialized = true;
       debugPrint('[FCM MOBILE] NotificationService initialized successfully');
@@ -230,6 +237,13 @@ class NotificationService {
       settings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         debugPrint('[FCM MOBILE] Local notification response clicked: ${response.payload}');
+        Map<String, dynamic> data = {};
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          try {
+            data = jsonDecode(response.payload!) as Map<String, dynamic>;
+          } catch (_) {}
+        }
+        onNotificationTapped.add(data);
       },
     );
     await _localNotifications
@@ -661,6 +675,7 @@ class NotificationService {
     final id = message.messageId ?? '${title}_${DateTime.now().millisecondsSinceEpoch}';
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
       final list = prefs.getStringList('app_alerts') ?? [];
       final alreadyStored = list.any((entry) {
         try {
@@ -694,6 +709,7 @@ class NotificationService {
       }
       await prefs.setStringList('app_alerts', list);
       debugPrint('[FCM MOBILE] Persisted alert id=$id. Total alerts count=${list.length}');
+      onAlertsUpdated.add(null);
     } catch (e) {
       debugPrint('[FCM MOBILE] Failed to persist alert messageId=$id: $e');
     }
@@ -728,6 +744,7 @@ class NotificationService {
   static Future<void> _handleOpenedMessage(RemoteMessage message) async {
     await persistMessage(message);
     debugPrint('[FCM MOBILE] onMessageOpenedApp received: id=${message.messageId}');
+    onNotificationTapped.add(message.data);
   }
 
   static Future<void> dispose() async {

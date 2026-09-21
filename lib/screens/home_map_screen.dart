@@ -39,10 +39,17 @@ class HomeMapScreen extends StatefulWidget {
   // query coordinates without reloading and reparsing the GeoJSON.
   static final Map<String, LatLng> barangayCenters = {};
 
+  final int initialTabIndex;
+  final String? initialSelectedBarangay;
+  final UserProfile? testUserProfile;
+
   const HomeMapScreen({
     super.key,
     this.initialDarkMode = false,
     this.initialTaglish = false,
+    this.initialTabIndex = 1,
+    this.initialSelectedBarangay,
+    this.testUserProfile,
   });
 
   @override
@@ -76,6 +83,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   bool _isLegendExpanded = false;
   LatLng? _currentLocation;
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription<Map<String, dynamic>>? _notificationTapSubscription;
   LatLng? _myLocation;
   final LatLngBounds marikinaBounds = LatLngBounds(
     LatLng(14.62, 121.05), // southwest
@@ -121,6 +129,14 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     WidgetsBinding.instance.addObserver(this);
     _isDarkMode = widget.initialDarkMode;
     _isTaglish = widget.initialTaglish;
+    _currentTabIndex = widget.initialTabIndex;
+    if (widget.initialSelectedBarangay != null) {
+      _dashboardSelectedBarangay = widget.initialSelectedBarangay;
+    }
+    if (widget.testUserProfile != null) {
+      _isLoggedIn = true;
+      _userProfile = widget.testUserProfile;
+    }
 
     // 🌊 Breathing animation for map polygons (rebuild scoped via AnimatedBuilder)
     _pulseController = AnimationController(
@@ -129,6 +145,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     )..repeat(reverse: true);
     _pulseAnimation =
         CurvedAnimation(parent: _pulseController, curve: Curves.easeInOutSine);
+
+    _notificationTapSubscription =
+        NotificationService.onNotificationTapped.stream.listen((payload) {
+      if (mounted) {
+        setState(() {
+          _currentTabIndex = 3; // Switch to Alerts screen
+        });
+      }
+    });
 
     _startAutoRefreshTimer();
     _performInitialLoad();
@@ -191,6 +216,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   }
 
   Future<void> _fetchUserProfile() async {
+    if (widget.testUserProfile != null) {
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = true;
+          _userProfile = widget.testUserProfile;
+        });
+      }
+      return;
+    }
     _isLoggedIn = await AuthService().isLoggedIn();
     if (!_isLoggedIn) {
       if (mounted) setState(() => _userProfile = null);
@@ -1443,6 +1477,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     _autoRefreshTimer?.cancel();
     _pulseController.dispose();
     _positionStream?.cancel();
+    _notificationTapSubscription?.cancel();
     super.dispose();
   }
 
