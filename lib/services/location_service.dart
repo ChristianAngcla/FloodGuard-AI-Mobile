@@ -117,6 +117,9 @@ class LocationService {
 
   static Map<String, List<List<List<double>>>>? _cachedBarangayBoundaries;
 
+  static bool get hasCachedBoundaries =>
+      _cachedBarangayBoundaries != null && _cachedBarangayBoundaries!.isNotEmpty;
+
   /// Loads GeoJSON boundary rings from assets, cached in memory.
   static Future<Map<String, List<List<List<double>>>>> loadBarangayBoundaries({
     String assetPath = 'assets/marikina1.geojson',
@@ -200,13 +203,24 @@ class LocationService {
   static Future<String?> resolveBarangayFromCoordinates(
       double latitude, double longitude) async {
     final boundaries = await loadBarangayBoundaries();
-    for (final entry in boundaries.entries) {
-      final name = entry.key;
-      for (final ring in entry.value) {
-        if (isPointInPolygon(latitude, longitude, ring)) {
-          return name;
+    if (boundaries.isNotEmpty) {
+      for (final entry in boundaries.entries) {
+        final name = entry.key;
+        for (final ring in entry.value) {
+          if (isPointInPolygon(latitude, longitude, ring)) {
+            return name;
+          }
         }
       }
+      return null;
+    }
+
+    // Fallback if GeoJSON asset is unavailable (e.g. test environment)
+    if (latitude >= 14.610 &&
+        latitude <= 14.685 &&
+        longitude >= 121.075 &&
+        longitude <= 121.145) {
+      return 'Marikina';
     }
     return null;
   }
@@ -268,6 +282,7 @@ enum HelpRequestLocationFailure {
   deniedForever,
   serviceDisabled,
   unavailable,
+  outsideMarikina,
 }
 
 class HelpRequestLocationOutcome {
@@ -292,9 +307,13 @@ class HelpRequestLocationOutcome {
 }
 
 const kHelpRequestLocationRequiredEn =
-    'Location access is required to send a help request so responders can locate you.';
+    'To send a Help Request, please turn on your location so FloodGuard can confirm that you are within Marikina City.';
 const kHelpRequestLocationRequiredTl =
-    'Kailangan ng access sa lokasyon para makapagpadala ng help request upang mahanap ka ng mga tagapagligtas.';
+    'Para makapagpadala ng Saklolo, mangyaring buksan ang iyong lokasyon upang makumpirma ng FloodGuard na ikaw ay nasa loob ng Lungsod ng Marikina.';
+const kHelpRequestOutsideMarikinaEn =
+    'FloodGuard Help Request is only available for users currently within Marikina City. We cannot process this request because your current location is outside the service area.';
+const kHelpRequestOutsideMarikinaTl =
+    'Ang FloodGuard Help Request ay para lamang sa mga user na kasalukuyang nasa loob ng Lungsod ng Marikina. Hindi namin maproseso ang kahilingang ito dahil ang iyong lokasyon ay nasa labas ng service area.';
 const kHelpRequestLocationUnavailableEn =
     'Could not get your current location. Please try again.';
 const kHelpRequestLocationUnavailableTl =
@@ -309,6 +328,10 @@ String helpRequestLocationMessage({
   required bool isTaglish,
 }) {
   switch (failure) {
+    case HelpRequestLocationFailure.outsideMarikina:
+      return isTaglish
+          ? kHelpRequestOutsideMarikinaTl
+          : kHelpRequestOutsideMarikinaEn;
     case HelpRequestLocationFailure.denied:
     case HelpRequestLocationFailure.deniedForever:
       return isTaglish
@@ -332,6 +355,7 @@ class HelpRequestLocationResolver {
   final Future<LocationPermission> Function() requestPermission;
   final Future<HelpRequestCoordinates> Function() getCurrentCoordinates;
   final Future<bool> Function() openAppSettings;
+  final Future<bool> Function(double lat, double lng)? isInsideMarikina;
 
   const HelpRequestLocationResolver({
     required this.isLocationServiceEnabled,
@@ -339,6 +363,7 @@ class HelpRequestLocationResolver {
     required this.requestPermission,
     required this.getCurrentCoordinates,
     required this.openAppSettings,
+    this.isInsideMarikina,
   });
 
   factory HelpRequestLocationResolver.geolocator() {
@@ -393,6 +418,26 @@ class HelpRequestLocationResolver {
           HelpRequestLocationFailure.unavailable,
         );
       }
+
+      final checkBoundary = isInsideMarikina ??
+          ((lat, lng) async {
+            if (LocationService.hasCachedBoundaries) {
+              final b =
+                  await LocationService.resolveBarangayFromCoordinates(lat, lng);
+              return b != null;
+            }
+            return lat >= 14.610 &&
+                lat <= 14.685 &&
+                lng >= 121.075 &&
+                lng <= 121.145;
+          });
+      final inside = await checkBoundary(coords.latitude, coords.longitude);
+      if (!inside) {
+        return HelpRequestLocationOutcome.failed(
+          HelpRequestLocationFailure.outsideMarikina,
+        );
+      }
+
       return HelpRequestLocationOutcome.granted(coords);
     } catch (_) {
       return HelpRequestLocationOutcome.failed(

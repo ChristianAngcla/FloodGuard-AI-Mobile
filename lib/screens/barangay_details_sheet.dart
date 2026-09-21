@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/flood_api_service.dart';
 import '../utils/station_thresholds.dart';
+import '../widgets/flood_warning_scale.dart';
 
 /// Bottom sheet showing FloodGuard DailyForecast for the selected barangay,
 /// structured to clearly communicate:
@@ -44,9 +45,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.isDarkMode ? const Color(0xFF1A2B3C) : Colors.white;
-    final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
-    final subColor = widget.isDarkMode ? Colors.white70 : const Color(0xFF475569);
+    final bg = widget.isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final subColor = widget.isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
     final barangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
     return Align(
@@ -330,7 +331,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
 
         // 2. WHAT THIS MEANS CARD
         _contentCard(
@@ -340,15 +341,15 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           child: Text(
             riskInfo.meaning,
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 15,
               fontWeight: FontWeight.w500,
               color: textColor,
-              height: 1.35,
+              height: 1.45,
             ),
           ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
 
         // 3. RECOMMENDED ACTION CARD
         _contentCard(
@@ -358,15 +359,15 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           child: Text(
             riskInfo.action,
             style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
               color: widget.isDarkMode ? Colors.white : const Color(0xFF0F172A),
-              height: 1.35,
+              height: 1.45,
             ),
           ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
 
         // 4. PREDICTIVE FLOOD INFORMATION (SUPPORTING)
         _contentCard(
@@ -386,15 +387,15 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         ? 'Pagtatayang Antas ng Tubig ng Estasyon:'
                         : 'Predicted Station Water Level:',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                       color: subColor,
                     ),
                   ),
                   Text(
                     '${waterLevel.toStringAsFixed(2)} m',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 24,
                       fontWeight: FontWeight.w900,
                       color: widget.isDarkMode
                           ? const Color(0xFF7DD3FC)
@@ -403,16 +404,16 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     widget.isTaglish ? 'Paraan ng Pagkalkula:' : 'Calculation Mode:',
-                    style: TextStyle(fontSize: 12, color: subColor),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                     decoration: BoxDecoration(
                       color: daily.calculationMode == 'primary_model'
                           ? const Color(0xFF0284C7).withValues(alpha: 0.12)
@@ -426,7 +427,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                               ? 'PERSISTENCE'
                               : 'ESTIMATED'),
                       style: TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w800,
                         color: daily.calculationMode == 'primary_model'
                             ? const Color(0xFF0284C7)
@@ -437,48 +438,41 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                 ],
               ),
               if (daily.forecastTargetDate.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   widget.isTaglish
                       ? 'Pagtataya para sa: ${daily.forecastTargetDate}'
                       : 'Forecast target: ${daily.forecastTargetDate}',
-                  style: TextStyle(fontSize: 12, color: subColor),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
                 ),
               ],
               if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty) ...[
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   widget.isTaglish
                       ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                       : 'Based on observations from: ${daily.sourceDataDate}',
-                  style: TextStyle(fontSize: 11.5, color: subColor),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: subColor),
                 ),
               ],
             ],
           ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
 
-        // 5. WHY THIS RISK & STATION THRESHOLDS GAUGE
+        // 5. WHY IS THIS THE FLOOD RISK? (FLOOD WARNING SCALE)
         _contentCard(
-          title: widget.isTaglish ? 'BAKIT ITO ANG ANTAS?' : 'WHY THIS RISK?',
-          icon: Icons.rule_rounded,
+          title: widget.isTaglish ? 'BAKIT ITO ANG ANTAS NG PANGANIB?' : 'WHY IS THIS THE FLOOD RISK?',
+          icon: Icons.stacked_bar_chart_rounded,
           iconColor: const Color(0xFF0284C7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _explainClassification(status, waterLevel, thr),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: textColor,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildThresholdBar(waterLevel, thr),
-            ],
+          child: FloodWarningScale(
+            predictedLevel: waterLevel,
+            thresholds: thr,
+            status: status,
+            stationName: _sensorDisplayName,
+            isDarkMode: widget.isDarkMode,
+            isTaglish: widget.isTaglish,
           ),
         ),
       ],
@@ -488,12 +482,12 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   Widget _buildScopeDisclaimer() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: widget.isDarkMode
             ? Colors.white.withValues(alpha: 0.05)
             : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: widget.isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0),
         ),
@@ -502,20 +496,21 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            Icons.info_outline,
-            size: 16,
-            color: widget.isDarkMode ? Colors.white60 : const Color(0xFF64748B),
+            Icons.info_outline_rounded,
+            size: 18,
+            color: widget.isDarkMode ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               widget.isTaglish
-                  ? 'Nagbibigay ang FloodGuard ng pagtataya sa antas ng panganib sa baha sa antas ng barangay batay sa nakatalagang istasyon. Hindi nito tinutukoy ang tiyak na lalim ng baha sa bawat kalye o bahay.'
-                  : 'FloodGuard provides barangay-level flood-risk prediction based on the monitoring station assigned to the barangay. It does not predict exact street-level flooding, flood depth, or inundation extent.',
+                  ? 'Ipinapakita ng FloodGuard ang inaasahang panganib sa baha para sa barangay. Hindi nito ipinapakita kung aling mga kalye o bahay ang tiyak na babahain o kung gaano kalalim ang tubig-baha.'
+                  : 'FloodGuard shows the predicted flood risk for the barangay. It does not show exactly which streets or houses will flood or how deep the floodwater will be.',
               style: TextStyle(
-                fontSize: 11,
-                height: 1.35,
-                color: widget.isDarkMode ? Colors.white70 : const Color(0xFF475569),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                height: 1.45,
+                color: widget.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
               ),
             ),
           ),
@@ -532,14 +527,15 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: widget.isDarkMode
             ? const Color(0xFF253B50)
             : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: widget.isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0),
+          color: widget.isDarkMode ? Colors.white12 : const Color(0xFFCBD5E1),
+          width: 1.2,
         ),
       ),
       child: Column(
@@ -548,84 +544,24 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 15, color: iconColor),
-              const SizedBox(width: 6),
+              Icon(icon, size: 18, color: iconColor),
+              const SizedBox(width: 8),
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.04,
-                  color: widget.isDarkMode ? Colors.white70 : const Color(0xFF475569),
+                  color: widget.isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           child,
         ],
       ),
     );
-  }
-
-  Widget _buildThresholdBar(double level, StationThresholds thr) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Alert: ${thr.alert.toStringAsFixed(1)}m',
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFD97706))),
-            Text('Alarm: ${thr.alarm.toStringAsFixed(1)}m',
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFEA580C))),
-            Text('Critical: ${thr.critical.toStringAsFixed(1)}m',
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFDC2626))),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Row(
-            children: [
-              Expanded(child: Container(height: 6, color: const Color(0xFF16A34A))),
-              Expanded(child: Container(height: 6, color: const Color(0xFFD97706))),
-              Expanded(child: Container(height: 6, color: const Color(0xFFEA580C))),
-              Expanded(child: Container(height: 6, color: const Color(0xFFDC2626))),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _explainClassification(String status, double level, StationThresholds thr) {
-    final stationName = _sensorDisplayName;
-    if (widget.isTaglish) {
-      switch (status) {
-        case 'CRITICAL':
-          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, lampas sa Critical threshold (${thr.critical.toStringAsFixed(2)}m).';
-        case 'ALARM':
-        case 'WARNING':
-          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, na nasa loob ng Alarm band (${thr.alarm.toStringAsFixed(2)}m – ${thr.critical.toStringAsFixed(2)}m).';
-        case 'ALERT':
-          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, na nasa loob ng Alert band (${thr.alert.toStringAsFixed(2)}m – ${thr.alarm.toStringAsFixed(2)}m).';
-        default:
-          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, mas mababa sa Alert threshold (${thr.alert.toStringAsFixed(2)}m).';
-      }
-    } else {
-      switch (status) {
-        case 'CRITICAL':
-          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, exceeding the Critical threshold of ${thr.critical.toStringAsFixed(2)}m.';
-        case 'ALARM':
-        case 'WARNING':
-          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, falling in the Alarm band (${thr.alarm.toStringAsFixed(2)}m – ${thr.critical.toStringAsFixed(2)}m).';
-        case 'ALERT':
-          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, falling in the Alert band (${thr.alert.toStringAsFixed(2)}m – ${thr.alarm.toStringAsFixed(2)}m).';
-        default:
-          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, remaining below the Alert threshold of ${thr.alert.toStringAsFixed(2)}m.';
-      }
-    }
   }
 
   _RiskLevelInfo _resolveRiskInfo(String status) {
@@ -636,33 +572,33 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             title: 'CRITICAL (Kritikal na Panganib)',
             color: const Color(0xFFDC2626),
             icon: Icons.report_problem_rounded,
-            meaning: 'Napakataas at mapanganib na antas ng tubig-ilog. Matinding banta ng malawakang pagbaha sa mga apektadong lugar.',
-            action: 'Unahin ang kaligtasan. Lumikas agad sa designated centers kung inatasan ng Marikina LGU / DRRMO.',
+            meaning: 'Napakataas at mapanganib na antas ng tubig sa ilog. Matinding banta ng malawakang pagbaha sa mga apektadong lugar.',
+            action: 'Unahin ang kaligtasan. Lumikas agad sa evacuation center kung inatasan ng Marikina LGU / DRRMO.',
           );
         case 'ALARM':
         case 'WARNING':
           return _RiskLevelInfo(
-            title: 'ALARM (Mas Mataas na Panganib)',
+            title: 'ALARM (Mataas na Panganib)',
             color: const Color(0xFFEA580C),
             icon: Icons.warning_amber_rounded,
-            meaning: 'Inaasahan ang mabilis na pagtaas ng tubig-ilog. Posible ang pagbaha sa mga mabababa at tabing-ilog na komunidad.',
-            action: 'Ihanda ang emergency grab bag, i-charge ang mga gamit, at maging handa sa paglikas kapag ipinag-utos ng LGU.',
+            meaning: 'Inaasahan ang mabilis na pagtaas ng tubig sa ilog. Posible ang pagbaha sa mabababang lugar at malapit sa ilog.',
+            action: 'Ihanda ang emergency grab bag, i-charge ang cellphone, at maging handa sa paglikas kung iutos ng pamahalaan.',
           );
         case 'ALERT':
           return _RiskLevelInfo(
             title: 'ALERT (Paunang Babala sa Baha)',
             color: const Color(0xFFD97706),
             icon: Icons.info_outline,
-            meaning: 'Lumalapit na ang tubig-ilog sa alert level. Maaaring magsimula ang pagkaipon ng tubig sa mabababang sektor.',
-            action: 'Maging alerto, ihanda ang mga gamit, at alamin ang pinakamalapit na daan patungong evacuation center.',
+            meaning: 'Lumalapit na ang tubig sa alert level. Maaaring magsimula ang pag-ipon ng tubig sa mabababang lugar.',
+            action: 'Maging alerto, itaas ang mahahalagang gamit, at alamin ang ligtas na daan patungong evacuation center.',
           );
         default:
           return _RiskLevelInfo(
             title: 'SAFE (Mababang Panganib)',
             color: const Color(0xFF16A34A),
             icon: Icons.check_circle_outline,
-            meaning: 'Mababa ang posibilidad ng pag-apaw ng ilog sa barangay na ito sa kasalukuyan.',
-            action: 'Ipagpatuloy ang regular na pagsubaybay sa lagay ng panahon at anunsyo ng komunidad.',
+            meaning: 'Ligtas ang antas ng tubig sa ilog sa barangay na ito sa kasalukuyan.',
+            action: 'Patuloy na subaybayan ang mga anunsyo at balita sa lagay ng panahon.',
           );
       }
     } else {
@@ -672,8 +608,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             title: 'CRITICAL: Dangerous Flood Risk',
             color: const Color(0xFFDC2626),
             icon: Icons.report_problem_rounded,
-            meaning: 'Dangerous river levels predicted. High risk of widespread flood inundation in vulnerable zones.',
-            action: 'Prioritize safety and follow LGU emergency or evacuation instructions when issued.',
+            meaning: 'Dangerous river levels predicted. High risk of severe flooding in vulnerable areas.',
+            action: 'Prioritize safety and follow emergency or evacuation instructions from local authorities.',
           );
         case 'ALARM':
         case 'WARNING':
@@ -681,24 +617,24 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             title: 'ALARM: Higher Flood Risk',
             color: const Color(0xFFEA580C),
             icon: Icons.warning_amber_rounded,
-            meaning: 'Significant river swelling predicted. Flooding in low-lying and riverbank areas is likely.',
-            action: 'Prepare emergency grab bags, charge devices, and be ready to follow LGU evacuation directives.',
+            meaning: 'River water is rising fast. Flooding in low-lying and riverside areas is likely.',
+            action: 'Prepare emergency grab bags, charge your devices, and be ready to evacuate if advised.',
           );
         case 'ALERT':
           return _RiskLevelInfo(
             title: 'ALERT: Early Flood Warning',
             color: const Color(0xFFD97706),
             icon: Icons.info_outline,
-            meaning: 'River levels are approaching warning thresholds. Minor or localized pooling may begin in low-lying sectors.',
-            action: 'Stay aware of changing conditions, secure belongings, and monitor official advisories.',
+            meaning: 'River levels are rising toward warning levels. Water may start pooling in low-lying areas.',
+            action: 'Stay alert, secure important belongings, and monitor official updates.',
           );
         default:
           return _RiskLevelInfo(
             title: 'SAFE: Low Flood Risk',
             color: const Color(0xFF16A34A),
             icon: Icons.check_circle_outline,
-            meaning: 'Conditions currently indicate low probability of river-induced flood inundation in this barangay.',
-            action: 'Monitor daily advisories and check weather updates.',
+            meaning: 'River levels are currently safe. Flooding is not expected in this barangay at this time.',
+            action: 'Stay updated with regular weather and river advisories.',
           );
       }
     }

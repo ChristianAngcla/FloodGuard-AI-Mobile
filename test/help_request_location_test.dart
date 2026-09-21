@@ -103,6 +103,32 @@ void main() {
       );
     });
 
+    test('outside Marikina coordinates return outsideMarikina failure', () async {
+      final outcome = await _resolver(
+        coords: const HelpRequestCoordinates(
+          latitude: 14.5995, // Manila
+          longitude: 120.9842,
+        ),
+      ).resolveForSubmit();
+
+      expect(outcome.canSubmit, isFalse);
+      expect(outcome.failure, HelpRequestLocationFailure.outsideMarikina);
+      expect(
+        helpRequestLocationMessage(
+          failure: outcome.failure!,
+          isTaglish: false,
+        ),
+        kHelpRequestOutsideMarikinaEn,
+      );
+      expect(
+        helpRequestLocationMessage(
+          failure: outcome.failure!,
+          isTaglish: true,
+        ),
+        kHelpRequestOutsideMarikinaTl,
+      );
+    });
+
     test('does not submit when GPS coordinates cannot be obtained', () async {
       final outcome = await _resolver(throwOnCoords: true).resolveForSubmit();
 
@@ -278,6 +304,56 @@ void main() {
       await tester.tap(find.text('Open Settings'));
       await tester.pump();
       expect(openSettings, isNotEmpty);
+    });
+
+    testWidgets('outside Marikina coordinates show Outside Marikina dialog and block submit',
+        (tester) async {
+      var submitted = false;
+      await pumpSheet(
+        tester,
+        resolver: _resolver(
+          coords: const HelpRequestCoordinates(
+            latitude: 14.5995, // Manila
+            longitude: 120.9842,
+          ),
+        ),
+        submit: ({
+          required String location,
+          required bool isRaining,
+          required bool isSafe,
+          required String uid,
+          double? floodDepth,
+          String? floodLevel,
+          String? reporterName,
+          String? reporterPhone,
+          required double latitude,
+          required double longitude,
+          String? status,
+          String? helpNeeded,
+          String? helpType,
+          String? helpSubtype,
+          String? waterLevel,
+          String? evacuationObstacle,
+          String? vulnerablePerson,
+          String? urgency,
+          String? details,
+        }) async {
+          submitted = true;
+          return true;
+        },
+      );
+
+      await completeHelpRequestForm(tester);
+      await tester.tap(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isFalse);
+      expect(find.text('Outside Marikina'), findsOneWidget);
+      expect(find.text(kHelpRequestOutsideMarikinaEn), findsWidgets);
     });
 
     testWidgets('permission allowed sends the request with GPS coordinates',

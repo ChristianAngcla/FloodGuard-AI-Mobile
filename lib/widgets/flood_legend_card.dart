@@ -168,9 +168,9 @@ class FloodLegendCard extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: isDarkMode ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+            color: isDarkMode ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -178,9 +178,10 @@ class FloodLegendCard extends StatelessWidget {
                 ? "Iba-iba ang alert thresholds ng bawat istasyon (Sto. Niño, Nangka, Tumana). Mag-tap ng barangay para sa tiyak na datos."
                 : "Station thresholds vary (Sto. Niño, Nangka, Tumana). Tap any barangay on the map for station-specific thresholds.",
             style: TextStyle(
-              fontSize: 10.5,
-              height: 1.3,
-              color: isDarkMode ? Colors.white70 : const Color(0xFF475569),
+              fontSize: 12,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF1E293B),
             ),
           ),
         ),
@@ -226,8 +227,8 @@ class FloodLegendCard extends StatelessWidget {
                     Text(
                       level,
                       style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
                         color: color,
                       ),
                     ),
@@ -236,9 +237,9 @@ class FloodLegendCard extends StatelessWidget {
                       child: Text(
                         meaning,
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isDarkMode ? Colors.white : Colors.black87,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isDarkMode ? Colors.white : const Color(0xFF0F172A),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -249,8 +250,9 @@ class FloodLegendCard extends StatelessWidget {
                 Text(
                   action,
                   style: TextStyle(
-                    fontSize: 10,
-                    color: isDarkMode ? Colors.white70 : const Color(0xFF475569),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
                   ),
                 ),
               ],

@@ -213,16 +213,16 @@ class WelcomePopup extends StatelessWidget {
                             isTaglish ? "Mababang panganib" : "Low risk",
                             isDarkMode,
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           Text(
                             isTaglish
                                 ? "Paunawa: Nag-iiba ang mga threshold sa bawat monitoring station."
                                 : "Note: Thresholds vary by monitoring station.",
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 10.5,
-                              fontStyle: FontStyle.italic,
-                              color: isDarkMode ? Colors.white54 : const Color(0xFF64748B),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                             ),
                           ),
                         ],
@@ -285,13 +285,13 @@ class WelcomePopup extends StatelessWidget {
   Widget _buildCompactLegendItem(
       Color color, String label, String description, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 10,
-            height: 10,
+            width: 11,
+            height: 11,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
@@ -302,18 +302,18 @@ class WelcomePopup extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 12.5,
-                color: isDark ? Colors.white : Colors.black87,
-                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
           Text(
             description,
             style: TextStyle(
-              fontSize: 11.5,
-              color: isDark ? Colors.white70 : const Color(0xFF64748B),
-              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

@@ -329,30 +329,30 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
                 final String? meaning = isCritical
                     ? (widget.isTaglish
-                        ? "Nasa pinakamataas na panganib ang barangay. Inaasahan ang matinding pagbaha sa mabababang lugar."
-                        : "Severe flooding imminent or actively occurring in vulnerable zones.")
+                        ? "Napakataas at mapanganib na antas ng tubig sa ilog. Matinding banta ng malawakang pagbaha sa mga apektadong lugar."
+                        : "Dangerous river levels predicted. High risk of severe flooding in vulnerable areas.")
                     : (isAlarm
                         ? (widget.isTaglish
-                            ? "Mataas ang panganib ng pagbaha. Maaaring umapaw ang tubig sa kalsada at komunidad."
-                            : "High risk of flooding. Water may overflow into nearby roads and communities.")
+                            ? "Inaasahan ang mabilis na pagtaas ng tubig sa ilog. Posible ang pagbaha sa mabababang lugar at malapit sa ilog."
+                            : "River water is rising fast. Flooding in low-lying and riverside areas is likely.")
                         : (isAlert
                             ? (widget.isTaglish
-                                ? "Tumaas ang lebel ng tubig ng ilog. Maaaring magsimula ang pagbaha sa mabababang lugar."
-                                : "River levels are elevated. Low-lying areas may experience minor flooding.")
+                                ? "Lumalapit na ang tubig sa alert level. Maaaring magsimula ang pag-ipon ng tubig sa mabababang lugar."
+                                : "River levels are rising toward warning levels. Water may start pooling in low-lying areas.")
                             : null));
 
                 final String? action = isCritical
                     ? (widget.isTaglish
-                        ? "Lumikas agad kung pinapayuhan. Tumungo sa itinalagang evacuation center."
-                        : "Evacuate immediately if advised. Move to designated evacuation centers.")
+                        ? "Unahin ang kaligtasan. Lumikas agad sa evacuation center kung inatasan ng Marikina LGU / DRRMO."
+                        : "Prioritize safety and follow emergency or evacuation instructions from local authorities.")
                     : (isAlarm
                         ? (widget.isTaglish
-                            ? "Maghandang lumikas. Ihanda ang emergency grab bag at bantayan ang opisyal na ulat."
-                            : "Be ready to evacuate. Secure valuables and follow local advisories.")
+                            ? "Ihanda ang emergency grab bag, i-charge ang cellphone, at maging handa sa paglikas kung iutos ng pamahalaan."
+                            : "Prepare emergency grab bags, charge your devices, and be ready to evacuate if advised.")
                         : (isAlert
                             ? (widget.isTaglish
-                                ? "Manatiling alerto. Ihanda ang emergency supplies at bantayan ang mga anunsyo."
-                                : "Stay alert. Prepare emergency supplies and monitor announcements.")
+                                ? "Maging alerto, itaas ang mahahalagang gamit, at alamin ang ligtas na daan patungong evacuation center."
+                                : "Stay alert, secure important belongings, and monitor official updates.")
                             : null));
 
                 final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
@@ -564,10 +564,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     ],
 
                     Text(
-                      "FloodGuard provides barangay-level flood-risk prediction based on the monitoring station assigned to the barangay. It does not predict exact street-level flooding, flood depth, or inundation extent.",
+                      widget.isTaglish
+                          ? "Ipinapakita ng FloodGuard ang inaasahang panganib sa baha para sa barangay. Hindi nito ipinapakita kung aling mga kalye o bahay ang tiyak na babahain o kung gaano kalalim ang tubig-baha."
+                          : "FloodGuard shows the predicted flood risk for the barangay. It does not show exactly which streets or houses will flood or how deep the floodwater will be.",
                       style: TextStyle(
-                        fontSize: 10.5,
-                        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                        fontSize: 11,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
                         height: 1.35,
                       ),
                     ),

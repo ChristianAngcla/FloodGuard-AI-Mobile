@@ -481,13 +481,35 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     if (!locationOutcome.canSubmit) {
       final failure =
           locationOutcome.failure ?? HelpRequestLocationFailure.unavailable;
-      _showError(
-        helpRequestLocationMessage(
-          failure: failure,
-          isTaglish: widget.isTaglish,
-        ),
-        needsOpenSettings: locationOutcome.needsOpenSettings,
-      );
+
+      final String title;
+      final String message;
+      if (failure == HelpRequestLocationFailure.outsideMarikina) {
+        title = widget.isTaglish ? "Nasa Labas ng Marikina" : "Outside Marikina";
+        message = widget.isTaglish
+            ? kHelpRequestOutsideMarikinaTl
+            : kHelpRequestOutsideMarikinaEn;
+      } else {
+        title = widget.isTaglish ? "Kailangan ang Lokasyon" : "Location Needed";
+        message = widget.isTaglish
+            ? kHelpRequestLocationRequiredTl
+            : kHelpRequestLocationRequiredEn;
+      }
+
+      FloodGuardModalDialog.show(
+        context,
+        title: title,
+        message: message,
+        variant: FloodGuardModalVariant.warning,
+        confirmLabel: locationOutcome.needsOpenSettings
+            ? (widget.isTaglish ? "Buksan ang Settings" : "Open Settings")
+            : (widget.isTaglish ? "Naintindihan" : "OK"),
+        isDarkMode: widget.isDarkMode,
+      ).then((confirmed) {
+        if (confirmed == true && locationOutcome.needsOpenSettings) {
+          _locationResolver.openAppSettings();
+        }
+      });
       return false;
     }
 
@@ -678,19 +700,17 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               onConfirm: _isSubmitting
                   ? null
                   : () async {
-                      setDialogState(() => _isSubmitting = true);
+                      if (dialogCtx.mounted) {
+                        Navigator.of(dialogCtx).pop(false);
+                      }
                       setState(() => _isSubmitting = true);
 
                       final success = await _executeReportSubmission();
 
                       if (!mounted) return;
-                      setDialogState(() => _isSubmitting = false);
                       setState(() => _isSubmitting = false);
 
                       if (success) {
-                        if (dialogCtx.mounted) {
-                          Navigator.of(dialogCtx).pop(true);
-                        }
                         if (mounted && Navigator.canPop(context)) {
                           Navigator.pop(context);
                         }
@@ -711,10 +731,6 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                             confirmLabel: widget.isTaglish ? "Naintindihan" : "OK",
                             isDarkMode: widget.isDarkMode,
                           );
-                        }
-                      } else {
-                        if (dialogCtx.mounted) {
-                          Navigator.of(dialogCtx).pop(false);
                         }
                       }
                     },
