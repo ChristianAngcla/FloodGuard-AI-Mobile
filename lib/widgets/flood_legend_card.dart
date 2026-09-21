@@ -20,8 +20,8 @@ class FloodLegendCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: isExpanded
-          ? 'Flood level legend. Double tap to collapse.'
-          : 'Flood level legend. Double tap to expand.',
+          ? 'Flood risk levels legend. Double tap to collapse.'
+          : 'Flood risk levels legend. Double tap to expand.',
       child: GestureDetector(
         onTap: onToggle,
         child: AnimatedSize(
@@ -55,7 +55,7 @@ class FloodLegendCard extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
-                width: isExpanded ? 320 : 180,
+                width: isExpanded ? 340 : 180,
                 constraints: const BoxConstraints(minHeight: 48),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -86,14 +86,14 @@ class FloodLegendCard extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
-          Icons.water,
+          Icons.shield_outlined,
           color: isDarkMode ? Colors.white : const Color(0xFF0D47A1),
-          size: 20,
+          size: 18,
         ),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
-            isTaglish ? "Antas ng Baha" : "Flood Level",
+            isTaglish ? "Antas ng Panganib" : "Flood Risk Levels",
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
@@ -109,88 +109,151 @@ class FloodLegendCard extends StatelessWidget {
   Widget _buildExpanded() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          isTaglish ? "Antas ng Baha" : "Flood Levels",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.white : Colors.black87,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                isTaglish ? "Antas ng Panganib sa Baha" : "Flood Risk Levels",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.info_outline,
+              size: 16,
+              color: isDarkMode ? Colors.white54 : Colors.black45,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _legendRiskRow(
+          const Color(0xFFDC2626),
+          "CRITICAL",
+          isTaglish ? "Kritikal na panganib sa baha." : "Critical flood risk predicted.",
+          isTaglish
+              ? "Unahin ang kaligtasan; sundin ang abiso ng LGU."
+              : "Prioritize safety; follow LGU orders.",
+        ),
+        _legendRiskRow(
+          const Color(0xFFEA580C),
+          "ALARM",
+          isTaglish ? "Mas mataas na panganib sa baha." : "Higher flood risk predicted.",
+          isTaglish
+              ? "Maghanda sa paglikas kung kinakailangan."
+              : "Prepare for worsening conditions.",
+        ),
+        _legendRiskRow(
+          const Color(0xFFD97706),
+          "ALERT",
+          isTaglish ? "Paunang babala sa pagbaha." : "Early flood warning.",
+          isTaglish
+              ? "Manatiling alerto at magbantay ng ulat."
+              : "Stay aware of changing conditions.",
+        ),
+        _legendRiskRow(
+          const Color(0xFF16A34A),
+          "SAFE",
+          isTaglish ? "Mababa o walang banta sa ngayon." : "Little to no immediate flood concern.",
+          isTaglish
+              ? "Ipagpatuloy ang pagsubaybay sa updates."
+              : "Continue monitoring updates.",
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDarkMode ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ),
-        const SizedBox(height: 8),
-        // Four-category legend matching new metrics
-        _legendRow(
-          const Color(0xFFD32F2F),
-          isTaglish
-              ? "3rd Alarm (FORCE EVACUATION)"
-              : "3rd ALARM (FORCE EVACUATION)",
-          "≥ 18m",
-        ),
-        _legendRow(
-          const Color(0xFFFF9800),
-          isTaglish
-              ? "2nd Alarm (PREPARE TO EVACUATE)"
-              : "2nd ALARM (PREPARE TO EVACUATE)",
-          "≥ 16m",
-        ),
-        _legendRow(
-          const Color(0xFFFBC02D),
-          isTaglish ? "1st Alarm (ALERT)" : "1st ALARM (ALERT)",
-          "≥ 15m",
-        ),
-        _legendRow(
-          const Color(0xFF4CAF50),
-          isTaglish ? "Normal (SAFE)" : "NORMAL (SAFE)",
-          "< 15m",
+          child: Text(
+            isTaglish
+                ? "Iba-iba ang alert thresholds ng bawat istasyon (Sto. Niño, Nangka, Tumana). Mag-tap ng barangay para sa tiyak na datos."
+                : "Station thresholds vary (Sto. Niño, Nangka, Tumana). Tap any barangay on the map for station-specific thresholds.",
+            style: TextStyle(
+              fontSize: 10.5,
+              height: 1.3,
+              color: isDarkMode ? Colors.white70 : const Color(0xFF475569),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _legendRow(Color color, String label, String value) {
+  Widget _legendRiskRow(Color color, String level, String meaning, String action) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: isDarkMode ? color.withValues(alpha: 0.1) : color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.2),
+        color: isDarkMode ? color.withValues(alpha: 0.12) : color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.28), width: 1),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 12,
-            height: 12,
+            margin: const EdgeInsets.only(top: 3),
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.6),
-                  blurRadius: 6,
+                  color: color.withValues(alpha: 0.5),
+                  blurRadius: 4,
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isDarkMode ? Colors.white : Colors.black87,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              color: color,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      level,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        meaning,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  action,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDarkMode ? Colors.white70 : const Color(0xFF475569),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

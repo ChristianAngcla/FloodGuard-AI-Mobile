@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/flood_api_service.dart';
+import '../utils/station_thresholds.dart';
 
-/// Bottom sheet showing FloodGuard DailyForecast for the selected barangay.
+/// Bottom sheet showing FloodGuard DailyForecast for the selected barangay,
+/// structured to clearly communicate:
+/// PREDICTED BARANGAY FLOOD RISK
+/// → WHAT THE RISK MEANS
+/// → ACTIONABLE FLOOD INFORMATION
+/// → SUPPORTING PREDICTED WATER LEVEL / STATION INFORMATION
 class BarangayDetailsSheet extends StatefulWidget {
   final String barangayName;
   final bool isTaglish;
@@ -40,8 +46,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   Widget build(BuildContext context) {
     final bg = widget.isDarkMode ? const Color(0xFF1A2B3C) : Colors.white;
     final textColor = widget.isDarkMode ? Colors.white : Colors.black87;
-    // Secondary details still need strong contrast for older users.
-    final subColor = widget.isDarkMode ? Colors.white : const Color(0xFF374151);
+    final subColor = widget.isDarkMode ? Colors.white70 : const Color(0xFF475569);
     final barangays = FloodApiService.barangayToSensor.keys.toList()..sort();
 
     return Align(
@@ -52,7 +57,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 550,
-            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.88,
           ),
           child: Material(
             color: bg,
@@ -70,7 +75,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                       child: Container(
                         width: 40,
                         height: 4,
-                        margin: const EdgeInsets.only(bottom: 20),
+                        margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
                           color: widget.isDarkMode
                               ? Colors.grey[600]
@@ -79,26 +84,33 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         ),
                       ),
                     ),
+
+                    // Title
                     Text(
                       widget.isTaglish
-                          ? 'Pagsusuri ng Panganib'
+                          ? 'Pagsusuri ng Panganib sa Baha'
                           : 'Flood Risk Assessment',
                       style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: textColor),
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        color: textColor,
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+
+                    // Barangay Selector Dropdown
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
                         color: widget.isDarkMode
                             ? const Color(0xFF253B50)
                             : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color: widget.isDarkMode
-                                ? Colors.white12
-                                : Colors.grey.shade300),
+                          color: widget.isDarkMode
+                              ? Colors.white12
+                              : Colors.grey.shade300,
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
@@ -110,9 +122,10 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                           icon: Icon(Icons.keyboard_arrow_down_rounded,
                               color: subColor),
                           style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: textColor),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
                           items: barangays
                               .map((name) => DropdownMenuItem(
                                   value: name, child: Text(name)))
@@ -125,36 +138,71 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      '${widget.isTaglish ? 'Sensor' : 'Station'}: $_sensorDisplayName',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: subColor),
-                    ),
+
                     const SizedBox(height: 12),
-                    _buildTelemetryAndDailyCard(textColor, subColor),
-                    const SizedBox(height: 28),
+
+                    // Monitoring Station Indicator
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.sensors_rounded,
+                          size: 16,
+                          color: widget.isDarkMode
+                              ? const Color(0xFF7DD3FC)
+                              : const Color(0xFF0369A1),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${widget.isTaglish ? 'Sensor' : 'Station'}: $_sensorDisplayName',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: subColor,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Risk-First Content Card
+                    _buildForecastAssessmentCard(textColor, subColor),
+
+                    if (FloodApiService.getDailyForecastForBarangay(_selectedBarangay)?.predictedWaterLevel != null) ...[
+                      const SizedBox(height: 14),
+                      _buildScopeDisclaimer(),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // Close Button
                     SizedBox(
                       width: double.infinity,
-                      height: 52,
+                      height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: widget.isDarkMode
                               ? const Color(0xFF3784DF)
-                              : const Color(0xFFF4F9FF),
+                              : const Color(0xFFF1F5F9),
                           foregroundColor: widget.isDarkMode
                               ? Colors.white
-                              : const Color(0xFF1769AA),
+                              : const Color(0xFF0F172A),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: () => Navigator.pop(context),
-                        child: Text(widget.isTaglish ? 'Isara' : 'Close',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
+                        child: Text(
+                          widget.isTaglish ? 'Isara' : 'Close',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -167,150 +215,508 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     );
   }
 
-  Widget _buildTelemetryAndDailyCard(Color textColor, Color subColor) {
+  Widget _buildForecastAssessmentCard(Color textColor, Color subColor) {
     final daily =
         FloodApiService.getDailyForecastForBarangay(_selectedBarangay);
-    final cardColor =
-        widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC);
 
-    // DEFECT G: only claim "next calendar day" when the dates actually say so.
-    final nextDayVerified = daily?.nextCalendarDayVerified ?? false;
-    final forecastHeading = nextDayVerified
-        ? (widget.isTaglish
-            ? 'PAGTATAYA SA SUSUNOD NA ARAW'
-            : 'NEXT-CALENDAR-DAY FORECAST')
-        : (widget.isTaglish ? 'PANG-ARAW NA PAGTATAYA' : 'DAILY FORECAST');
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionLabel(forecastHeading, subColor),
-        const SizedBox(height: 6),
-        _dataPanel(
-          widget.isDarkMode ? cardColor : const Color(0xFFF0F9FF),
-          _buildDailyForecastContent(daily, textColor, subColor),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDailyForecastContent(
-      DailyForecastItem? daily, Color textColor, Color subColor) {
     if (daily == null ||
         daily.isUnavailable ||
         daily.predictedWaterLevel == null) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.isTaglish
-                ? 'Hindi available ang pagtataya'
-                : 'Forecast unavailable',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: textColor,
-            ),
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: widget.isDarkMode ? Colors.white12 : Colors.grey.shade200,
           ),
-          if (daily?.fallbackReason != null &&
-              daily!.fallbackReason!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              daily.fallbackReason!,
-              style: TextStyle(
-                fontSize: 15,
-                color: subColor,
-                height: 1.3,
-              ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule_rounded,
+                  size: 20,
+                  color: widget.isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.isTaglish
+                        ? 'Hindi available ang pagtataya'
+                        : 'Forecast unavailable',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (daily?.fallbackReason != null &&
+                daily!.fallbackReason!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                daily.fallbackReason!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: subColor,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       );
     }
 
     final status = daily.statusBand.trim().toUpperCase();
-    final levelColor = widget.isDarkMode
-        ? const Color(0xFF7DD3FC)
-        : const Color(0xFF0369A1);
-    final statusColor = switch (status) {
-      'SAFE' || 'NORMAL' =>
-        widget.isDarkMode ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
-      'ALERT' =>
-        widget.isDarkMode ? const Color(0xFFFDE047) : const Color(0xFFB8860B),
-      'ALARM' || 'WARNING' =>
-        widget.isDarkMode ? const Color(0xFFFBBF24) : const Color(0xFFC2410C),
-      'CRITICAL' =>
-        widget.isDarkMode ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
-      _ => levelColor,
-    };
+    final riskInfo = _resolveRiskInfo(status);
+    final waterLevel = daily.predictedWaterLevel!;
+    final thr = StationThresholds.forSensor(_sensorKey);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            color: levelColor,
+        // 1. PREDICTED BARANGAY FLOOD RISK BANNER
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: riskInfo.color.withValues(alpha: widget.isDarkMode ? 0.2 : 0.1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: riskInfo.color.withValues(alpha: 0.4), width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(riskInfo.icon, color: riskInfo.color, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.isTaglish ? 'ANTAS NG PANGANIB' : 'PREDICTED FLOOD RISK',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.05,
+                            color: riskInfo.color,
+                          ),
+                        ),
+                        Text(
+                          riskInfo.title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: widget.isDarkMode ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          '${daily.statusBand} · ${daily.modeDisplayLabel}',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: statusColor,
+
+        const SizedBox(height: 10),
+
+        // 2. WHAT THIS MEANS CARD
+        _contentCard(
+          title: widget.isTaglish ? 'ANO ANG IBIG SABIHIN NITO' : 'WHAT THIS MEANS',
+          icon: Icons.lightbulb_outline_rounded,
+          iconColor: const Color(0xFF0284C7),
+          child: Text(
+            riskInfo.meaning,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+              height: 1.35,
+            ),
           ),
         ),
-        if (daily.forecastTargetDate.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              widget.isTaglish
-                  ? 'Para sa: ${daily.forecastTargetDate}'
-                  : 'For: ${daily.forecastTargetDate}',
-              style: TextStyle(
-                color: subColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+
+        const SizedBox(height: 10),
+
+        // 3. RECOMMENDED ACTION CARD
+        _contentCard(
+          title: widget.isTaglish ? 'INIREREKOMENDANG AKSYON' : 'RECOMMENDED ACTION',
+          icon: Icons.campaign_outlined,
+          iconColor: riskInfo.color,
+          child: Text(
+            riskInfo.action,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: widget.isDarkMode ? Colors.white : const Color(0xFF0F172A),
+              height: 1.35,
             ),
           ),
-        if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              widget.isTaglish
-                  ? 'Batay sa datos ng: ${daily.sourceDataDate}'
-                  : 'Based on observations from: ${daily.sourceDataDate}',
-              style: TextStyle(
-                color: subColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        ),
+
+        const SizedBox(height: 10),
+
+        // 4. PREDICTIVE FLOOD INFORMATION (SUPPORTING)
+        _contentCard(
+          title: widget.isTaglish ? 'IMPORMASYON SA PAGTATAYA (SUPPORTING)' : 'PREDICTIVE FLOOD INFORMATION',
+          icon: Icons.water_drop_outlined,
+          iconColor: const Color(0xFF0284C7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    widget.isTaglish
+                        ? 'Pagtatayang Antas ng Tubig:'
+                        : 'Predicted Water Level:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: subColor,
+                    ),
+                  ),
+                  Text(
+                    '${waterLevel.toStringAsFixed(2)} m',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: widget.isDarkMode
+                          ? const Color(0xFF7DD3FC)
+                          : const Color(0xFF0369A1),
+                    ),
+                  ),
+                ],
               ),
-            ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.isTaglish ? 'Paraan ng Pagkalkula:' : 'Calculation Mode:',
+                    style: TextStyle(fontSize: 12, color: subColor),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: daily.calculationMode == 'primary_model'
+                          ? const Color(0xFF0284C7).withValues(alpha: 0.12)
+                          : const Color(0xFFD97706).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      daily.calculationMode == 'primary_model'
+                          ? 'PRIMARY MODEL'
+                          : (daily.calculationMode == 'persistence_fallback'
+                              ? 'PERSISTENCE'
+                              : 'ESTIMATED'),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: daily.calculationMode == 'primary_model'
+                            ? const Color(0xFF0284C7)
+                            : const Color(0xFFD97706),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (daily.forecastTargetDate.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.isTaglish
+                      ? 'Pagtataya para sa: ${daily.forecastTargetDate}'
+                      : 'Forecast target: ${daily.forecastTargetDate}',
+                  style: TextStyle(fontSize: 12, color: subColor),
+                ),
+              ],
+              if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  widget.isTaglish
+                      ? 'Batay sa datos ng: ${daily.sourceDataDate}'
+                      : 'Based on observations from: ${daily.sourceDataDate}',
+                  style: TextStyle(fontSize: 11.5, color: subColor),
+                ),
+              ],
+            ],
           ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // 5. WHY THIS RISK & STATION THRESHOLDS GAUGE
+        _contentCard(
+          title: widget.isTaglish ? 'BAKIT ITO ANG ANTAS?' : 'WHY THIS RISK?',
+          icon: Icons.rule_rounded,
+          iconColor: const Color(0xFF0284C7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _explainClassification(status, waterLevel, thr),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: textColor,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildThresholdBar(waterLevel, thr),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Widget _sectionLabel(String text, Color color) => Text(text,
-      style:
-          TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color));
-
-  Widget _dataPanel(Color color, Widget child) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: widget.isDarkMode ? Colors.white12 : Colors.grey.shade200),
+  Widget _buildScopeDisclaimer() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: widget.isDarkMode
+            ? Colors.white.withValues(alpha: 0.05)
+            : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: widget.isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0),
         ),
-        child: child,
-      );
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 16,
+            color: widget.isDarkMode ? Colors.white60 : const Color(0xFF64748B),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.isTaglish
+                  ? 'Nagbibigay ang FloodGuard ng pagtataya sa antas ng panganib sa baha sa antas ng barangay batay sa nakatalagang istasyon. Hindi nito tinutukoy ang tiyak na lalim ng baha sa bawat kalye o bahay.'
+                  : 'FloodGuard provides barangay-level flood-risk prediction based on the monitoring station assigned to the barangay. It does not predict exact street-level flooding, flood depth, or inundation extent.',
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.35,
+                color: widget.isDarkMode ? Colors.white70 : const Color(0xFF475569),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contentCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.isDarkMode
+            ? const Color(0xFF253B50)
+            : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: widget.isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 15, color: iconColor),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.04,
+                  color: widget.isDarkMode ? Colors.white70 : const Color(0xFF475569),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThresholdBar(double level, StationThresholds thr) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Alert: ${thr.alert.toStringAsFixed(1)}m',
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFD97706))),
+            Text('Alarm: ${thr.alarm.toStringAsFixed(1)}m',
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFEA580C))),
+            Text('Critical: ${thr.critical.toStringAsFixed(1)}m',
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFFDC2626))),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Row(
+            children: [
+              Expanded(child: Container(height: 6, color: const Color(0xFF16A34A))),
+              Expanded(child: Container(height: 6, color: const Color(0xFFD97706))),
+              Expanded(child: Container(height: 6, color: const Color(0xFFEA580C))),
+              Expanded(child: Container(height: 6, color: const Color(0xFFDC2626))),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _explainClassification(String status, double level, StationThresholds thr) {
+    final stationName = _sensorDisplayName;
+    if (widget.isTaglish) {
+      switch (status) {
+        case 'CRITICAL':
+          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, lampas sa Critical threshold (${thr.critical.toStringAsFixed(2)}m).';
+        case 'ALARM':
+        case 'WARNING':
+          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, na nasa loob ng Alarm band (${thr.alarm.toStringAsFixed(2)}m – ${thr.critical.toStringAsFixed(2)}m).';
+        case 'ALERT':
+          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, na nasa loob ng Alert band (${thr.alert.toStringAsFixed(2)}m – ${thr.alarm.toStringAsFixed(2)}m).';
+        default:
+          return 'Ang hula para sa $stationName ay ${level.toStringAsFixed(2)}m, mas mababa sa Alert threshold (${thr.alert.toStringAsFixed(2)}m).';
+      }
+    } else {
+      switch (status) {
+        case 'CRITICAL':
+          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, exceeding the Critical threshold of ${thr.critical.toStringAsFixed(2)}m.';
+        case 'ALARM':
+        case 'WARNING':
+          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, falling in the Alarm band (${thr.alarm.toStringAsFixed(2)}m – ${thr.critical.toStringAsFixed(2)}m).';
+        case 'ALERT':
+          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, falling in the Alert band (${thr.alert.toStringAsFixed(2)}m – ${thr.alarm.toStringAsFixed(2)}m).';
+        default:
+          return '$stationName is predicted at ${level.toStringAsFixed(2)}m, remaining below the Alert threshold of ${thr.alert.toStringAsFixed(2)}m.';
+      }
+    }
+  }
+
+  _RiskLevelInfo _resolveRiskInfo(String status) {
+    if (widget.isTaglish) {
+      switch (status) {
+        case 'CRITICAL':
+          return _RiskLevelInfo(
+            title: 'CRITICAL (Kritikal na Panganib)',
+            color: const Color(0xFFDC2626),
+            icon: Icons.report_problem_rounded,
+            meaning: 'Napakataas at mapanganib na antas ng tubig-ilog. Matinding banta ng malawakang pagbaha sa mga apektadong lugar.',
+            action: 'Unahin ang kaligtasan. Lumikas agad sa designated centers kung inatasan ng Marikina LGU / DRRMO.',
+          );
+        case 'ALARM':
+        case 'WARNING':
+          return _RiskLevelInfo(
+            title: 'ALARM (Mas Mataas na Panganib)',
+            color: const Color(0xFFEA580C),
+            icon: Icons.warning_amber_rounded,
+            meaning: 'Inaasahan ang mabilis na pagtaas ng tubig-ilog. Posible ang pagbaha sa mga mabababa at tabing-ilog na komunidad.',
+            action: 'Ihanda ang emergency grab bag, i-charge ang mga gamit, at maging handa sa paglikas kapag ipinag-utos ng LGU.',
+          );
+        case 'ALERT':
+          return _RiskLevelInfo(
+            title: 'ALERT (Paunang Babala sa Baha)',
+            color: const Color(0xFFD97706),
+            icon: Icons.info_outline,
+            meaning: 'Lumalapit na ang tubig-ilog sa alert level. Maaaring magsimula ang pagkaipon ng tubig sa mabababang sektor.',
+            action: 'Maging alerto, ihanda ang mga gamit, at alamin ang pinakamalapit na daan patungong evacuation center.',
+          );
+        default:
+          return _RiskLevelInfo(
+            title: 'SAFE (Mababang Panganib)',
+            color: const Color(0xFF16A34A),
+            icon: Icons.check_circle_outline,
+            meaning: 'Mababa ang posibilidad ng pag-apaw ng ilog sa barangay na ito sa kasalukuyan.',
+            action: 'Ipagpatuloy ang regular na pagsubaybay sa lagay ng panahon at anunsyo ng komunidad.',
+          );
+      }
+    } else {
+      switch (status) {
+        case 'CRITICAL':
+          return _RiskLevelInfo(
+            title: 'CRITICAL: Dangerous Flood Risk',
+            color: const Color(0xFFDC2626),
+            icon: Icons.report_problem_rounded,
+            meaning: 'Dangerous river levels predicted. High risk of widespread flood inundation in vulnerable zones.',
+            action: 'Prioritize safety and follow LGU emergency or evacuation instructions when issued.',
+          );
+        case 'ALARM':
+        case 'WARNING':
+          return _RiskLevelInfo(
+            title: 'ALARM: Higher Flood Risk',
+            color: const Color(0xFFEA580C),
+            icon: Icons.warning_amber_rounded,
+            meaning: 'Significant river swelling predicted. Flooding in low-lying and riverbank areas is likely.',
+            action: 'Prepare emergency grab bags, charge devices, and be ready to follow LGU evacuation directives.',
+          );
+        case 'ALERT':
+          return _RiskLevelInfo(
+            title: 'ALERT: Early Flood Warning',
+            color: const Color(0xFFD97706),
+            icon: Icons.info_outline,
+            meaning: 'River levels are approaching warning thresholds. Minor or localized pooling may begin in low-lying sectors.',
+            action: 'Stay aware of changing conditions, secure belongings, and monitor official advisories.',
+          );
+        default:
+          return _RiskLevelInfo(
+            title: 'SAFE: Low Flood Risk',
+            color: const Color(0xFF16A34A),
+            icon: Icons.check_circle_outline,
+            meaning: 'Conditions currently indicate low probability of river-induced flood inundation in this barangay.',
+            action: 'Monitor daily advisories and check weather updates.',
+          );
+      }
+    }
+  }
+}
+
+class _RiskLevelInfo {
+  final String title;
+  final Color color;
+  final IconData icon;
+  final String meaning;
+  final String action;
+
+  _RiskLevelInfo({
+    required this.title,
+    required this.color,
+    required this.icon,
+    required this.meaning,
+    required this.action,
+  });
 }

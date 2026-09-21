@@ -172,8 +172,8 @@ class WelcomePopup extends StatelessWidget {
                         children: [
                           Text(
                             isTaglish
-                                ? "Antas ng Baha (Legend)"
-                                : "Flood Levels Legend",
+                                ? "Mga Antas ng Panganib sa Baha"
+                                : "Flood Risk Levels",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
@@ -184,34 +184,46 @@ class WelcomePopup extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _buildCompactLegendItem(
-                            const Color(0xFFD32F2F),
+                            const Color(0xFFDC2626),
                             isTaglish
-                                ? "3RD ALARM — LUMIKAS"
-                                : "3RD ALARM — EVACUATE",
-                            "≥ 18m",
+                                ? "CRITICAL — LUMIKAS"
+                                : "CRITICAL — EVACUATE",
+                            isTaglish ? "Malubhang panganib" : "Severe risk",
                             isDarkMode,
                           ),
                           _buildCompactLegendItem(
-                            const Color(0xFFFF9800),
+                            const Color(0xFFEA580C),
                             isTaglish
-                                ? "2ND ALARM — MAGHANDA"
-                                : "2ND ALARM — PREPARE",
-                            "≥ 16m",
+                                ? "ALARM — MAGHANDA"
+                                : "ALARM — PREPARE",
+                            isTaglish ? "Mataas na panganib" : "High risk",
                             isDarkMode,
                           ),
                           _buildCompactLegendItem(
-                            const Color(0xFFFBC02D),
+                            const Color(0xFFD97706),
                             isTaglish
-                                ? "1ST ALARM — ALERTO"
-                                : "1ST ALARM — ALERT",
-                            "≥ 15m",
+                                ? "ALERT — MAGING ALERTO"
+                                : "ALERT — STAY ALERT",
+                            isTaglish ? "Katamtamang panganib" : "Moderate risk",
                             isDarkMode,
                           ),
                           _buildCompactLegendItem(
-                            const Color(0xFF4CAF50),
-                            isTaglish ? "NORMAL — LIGTAS" : "NORMAL — SAFE",
-                            "< 15m",
+                            const Color(0xFF16A34A),
+                            isTaglish ? "SAFE — LIGTAS" : "SAFE — LOW RISK",
+                            isTaglish ? "Mababang panganib" : "Low risk",
                             isDarkMode,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            isTaglish
+                                ? "Paunawa: Nag-iiba ang mga threshold sa bawat monitoring station."
+                                : "Note: Thresholds vary by monitoring station.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontStyle: FontStyle.italic,
+                              color: isDarkMode ? Colors.white54 : const Color(0xFF64748B),
+                            ),
                           ),
                         ],
                       ),
@@ -271,15 +283,15 @@ class WelcomePopup extends StatelessWidget {
 }
 
   Widget _buildCompactLegendItem(
-      Color color, String label, String value, bool isDark) {
+      Color color, String label, String description, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
@@ -290,18 +302,18 @@ class WelcomePopup extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 13,
-                color: isDark ? Colors.white : Colors.black,
+                fontSize: 12.5,
+                color: isDark ? Colors.white : Colors.black87,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
           Text(
-            value,
+            description,
             style: TextStyle(
-              fontSize: 14,
-              color: color,
-              fontWeight: FontWeight.w900,
+              fontSize: 11.5,
+              color: isDark ? Colors.white70 : const Color(0xFF64748B),
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

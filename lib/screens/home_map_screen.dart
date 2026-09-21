@@ -656,96 +656,363 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     String statusLabel,
     double level,
     String location,
-    StationThresholds thr,
-  ) {
+    StationThresholds thr, {
+    String? sensorKey,
+  }) {
+    final norm = statusLabel.toUpperCase().trim();
+    final bool isCritical = norm == 'CRITICAL';
+    final bool isAlarm = norm == 'ALARM' || norm == 'WARNING';
+    final bool isAlert = norm == 'ALERT';
+
+    final Color riskColor = isCritical
+        ? const Color(0xFFDC2626)
+        : (isAlarm ? const Color(0xFFEA580C) : (isAlert ? const Color(0xFFD97706) : const Color(0xFF16A34A)));
+
+    final Color badgeBg = isCritical
+        ? (_isDarkMode ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+        : (isAlarm
+            ? (_isDarkMode ? const Color(0xFF431407) : const Color(0xFFFFF7ED))
+            : (isAlert
+                ? (_isDarkMode ? const Color(0xFF451A03) : const Color(0xFFFEFCE8))
+                : (_isDarkMode ? const Color(0xFF052E16) : const Color(0xFFF0FDF4))));
+
+    final IconData riskIcon = isCritical
+        ? Icons.crisis_alert_rounded
+        : (isAlarm
+            ? Icons.warning_amber_rounded
+            : (isAlert ? Icons.notifications_active_outlined : Icons.check_circle_outline_rounded));
+
+    final String riskTitle = isCritical
+        ? (_isTaglish ? "CRITICAL: Malubhang Panganib ng Baha" : "CRITICAL: Severe Flood Emergency")
+        : (isAlarm
+            ? (_isTaglish ? "ALARM: Babala sa Mataas na Panganib" : "ALARM: High Flood Risk Advisory")
+            : (isAlert
+                ? (_isTaglish ? "ALERT: Maagang Babala sa Baha" : "ALERT: Early Flood Warning")
+                : (_isTaglish ? "SAFE: Mababang Panganib" : "SAFE: Low Flood Risk")));
+
+    final String meaning = isCritical
+        ? (_isTaglish
+            ? "Nasa pinakamataas na panganib ang barangay. Inaasahan ang matinding pagbaha sa mabababang lugar."
+            : "Severe flooding imminent or actively occurring in vulnerable zones.")
+        : (isAlarm
+            ? (_isTaglish
+                ? "Mataas ang panganib ng pagbaha. Maaaring umapaw ang tubig sa kalsada at komunidad."
+                : "High risk of flooding. Water may overflow into nearby roads and communities.")
+            : (isAlert
+                ? (_isTaglish
+                    ? "Tumaas ang lebel ng tubig ng ilog. Maaaring magsimula ang pagbaha sa mabababang lugar."
+                    : "River levels are elevated. Low-lying areas may experience minor flooding.")
+                : (_isTaglish
+                    ? "Mababa ang panganib ng pagbaha. Normal ang lebel ng ilog."
+                    : "Low risk of flooding. River levels within normal capacity.")));
+
+    final String action = isCritical
+        ? (_isTaglish
+            ? "Lumikas agad kung pinapayuhan. Tumungo sa itinalagang evacuation center."
+            : "Evacuate immediately if advised. Move to designated evacuation centers.")
+        : (isAlarm
+            ? (_isTaglish
+                ? "Maghandang lumikas. Ihanda ang emergency grab bag at bantayan ang opisyal na ulat."
+                : "Be ready to evacuate. Secure valuables and follow local advisories.")
+            : (isAlert
+                ? (_isTaglish
+                    ? "Manatiling alerto. Ihanda ang emergency supplies at bantayan ang anunsyo."
+                    : "Stay alert. Prepare emergency supplies and monitor announcements.")
+                : (_isTaglish
+                    ? "Walang agarang aksyon na kailangan. Manatiling may alam."
+                    : "No immediate action required. Stay informed.")));
+
+    final resolvedSensor = sensorKey ?? FloodApiService.barangayToSensor[location] ?? 'sto_nino';
+    final stationName = resolvedSensor == 'nangka'
+        ? 'Nangka Station'
+        : (resolvedSensor == 'tumana' ? 'Tumana Station' : 'Sto. Niño Station');
+
+    final bgCard = _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+    final textPrimary = _isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = _isDarkMode ? Colors.white70 : const Color(0xFF475569);
+    final infoBg = _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final infoBorder = _isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0);
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: Colors.white,
-        title: Row(
-          children: [
-            const Icon(Icons.warning_rounded, color: Colors.red, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                t("earlyWarningTitle"),
-                style: const TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            decoration: BoxDecoration(
+              color: bgCard,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: infoBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: _isDarkMode ? 0.4 : 0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _isTaglish
-                  ? 'Pagtataya ng FloodGuard ($statusLabel): ${level.toStringAsFixed(2)} m para sa $location.\n'
-                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
-                      'Ito ay pagtataya para sa susunod na araw, hindi kasalukuyang reading ng PAGASA. Sundin ang opisyal na babala ng PAGASA/MDRRMO.'
-                  : 'FloodGuard forecast ($statusLabel): ${level.toStringAsFixed(2)} m for $location.\n'
-                      'Alert ${thr.alert.toStringAsFixed(2)} · Alarm ${thr.alarm.toStringAsFixed(2)} · Critical ${thr.critical.toStringAsFixed(2)} m.\n'
-                      'This is a next-day FloodGuard forecast, not a current PAGASA reading. Follow official PAGASA/MDRRMO advisories.',
-              style: const TextStyle(fontSize: 16, height: 1.5),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEE),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFFCDD2)),
-              ),
-              child: Row(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: Colors.red, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _isTaglish
-                          ? "Pinapayuhan ang paghahanda at pagiging alerto."
-                          : "Preparation and monitoring is strongly advised.",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.red[900],
+                  // Top Circular Risk Badge
+                  Center(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: riskColor.withValues(alpha: 0.35), width: 1.5),
+                      ),
+                      child: Center(
+                        child: Icon(riskIcon, color: riskColor, size: 30),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Risk Level Title & Barangay
+                  Text(
+                    riskTitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: riskColor,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    location,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // What This Means
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: badgeBg.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: riskColor.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 16, color: riskColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isTaglish ? "Ano ang Ibig Sabihin Nito?" : "What This Means",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: riskColor,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          meaning,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Recommended Action
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: infoBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: infoBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.checklist_rounded, size: 16, color: riskColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isTaglish ? "Inirerekomendang Aksyon" : "Recommended Action",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: riskColor,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          action,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Supporting Station Data
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: infoBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: infoBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isTaglish ? "Sumusuportang Datos ng Estasyon" : "Supporting Station Data",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            color: textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _isTaglish ? "Pagtatayang Lebel ng Tubig:" : "Forecast Water Level:",
+                              style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              "${level.toStringAsFixed(2)} m",
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: riskColor),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _isTaglish ? "Itinalagang Estasyon:" : "Assigned Station:",
+                              style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              stationName,
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _isTaglish ? "Mga Threshold ng Estasyon:" : "Station Thresholds:",
+                              style: TextStyle(fontSize: 12, color: textMuted, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              "Alert ${thr.alert.toStringAsFixed(1)}m · Alarm ${thr.alarm.toStringAsFixed(1)}m · Crit ${thr.critical.toStringAsFixed(1)}m",
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textMuted),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _isTaglish
+                              ? "Ito ay pagtataya ng FloodGuard para sa susunod na araw, hindi kasalukuyang reading ng PAGASA. Sundin ang opisyal na babala ng PAGASA/MDRRMO."
+                              : "This is a next-day FloodGuard forecast, not a current PAGASA reading. Follow official PAGASA/MDRRMO advisories.",
+                          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Mandatory Scope Disclaimer
+                  Text(
+                    "FloodGuard provides barangay-level flood-risk prediction based on the monitoring station assigned to the barangay. It does not predict exact street-level flooding, flood depth, or inundation extent.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: textMuted,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: infoBorder),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            t("dismiss"),
+                            style: TextStyle(color: textMuted, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: riskColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showBarangayDetails(location);
+                            _showPreparednessGuide();
+                          },
+                          child: Text(
+                            _isTaglish ? "Mga Gabay" : "View Guides",
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              t("dismiss"),
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _showBarangayDetails(location);
-              _showPreparednessGuide();
-            },
-            child: Text(t("beReady")),
-          ),
-        ],
       ),
     );
   }

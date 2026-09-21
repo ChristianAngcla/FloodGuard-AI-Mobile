@@ -112,6 +112,17 @@ void main() {
   });
 
   group('MultistepReportSheet location gate', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({
+        'user_data': jsonEncode({
+          'uid': 'test-uid',
+          'firstName': 'Test',
+          'lastName': 'User',
+          'phone': '09171234567',
+        }),
+      });
+    });
+
     Future<void> completeHelpRequestForm(WidgetTester tester) async {
       // Step 0: Help Type
       await tester.tap(find.text('Medical'));
@@ -137,6 +148,9 @@ void main() {
       await tester.ensureVisible(find.byType(Checkbox));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('CONFIRM'));
       await tester.pumpAndSettle();
     }
 
@@ -204,6 +218,10 @@ void main() {
       await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
       expect(submitted, isFalse);
       expect(find.text(kHelpRequestLocationRequiredEn), findsOneWidget);
       expect(find.text('Open Settings'), findsNothing);
@@ -247,6 +265,10 @@ void main() {
 
       await completeHelpRequestForm(tester);
       await tester.tap(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
       await tester.pumpAndSettle();
 
       expect(submitted, isFalse);
@@ -305,6 +327,10 @@ void main() {
 
       await completeHelpRequestForm(tester);
       await tester.tap(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
       await tester.pumpAndSettle();
 
       expect(submitted, isTrue);

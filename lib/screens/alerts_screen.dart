@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/wave_background.dart';
+import '../widgets/floodguard_modal_dialog.dart';
 
 class AlertsScreen extends StatefulWidget {
   final bool isTaglish;
@@ -164,74 +165,21 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                   tooltip: widget.isTaglish
                                       ? "Burahin Lahat"
                                       : "Clear All",
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (dialogCtx) {
-                                        bool isClearing = false;
-                                        return StatefulBuilder(
-                                          builder: (dialogCtx, setDialogState) => AlertDialog(
-                                            backgroundColor: isDark
-                                                ? const Color(0xFF253B50)
-                                                : Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16)),
-                                            title: Text(
-                                                widget.isTaglish
-                                                    ? "Burahin Lahat?"
-                                                    : "Clear All Alerts?",
-                                                style: TextStyle(color: textColor)),
-                                            content: Text(
-                                                widget.isTaglish
-                                                    ? "Sigurado ka ba? Hindi na ito mababawi."
-                                                    : "Are you sure? This cannot be undone.",
-                                                style: TextStyle(color: textColor)),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: isClearing ? null : () => Navigator.pop(dialogCtx),
-                                                child: Text(
-                                                    widget.isTaglish
-                                                        ? "Kanselahin"
-                                                        : "Cancel",
-                                                    style: TextStyle(
-                                                        color: isDark
-                                                            ? Colors.white54
-                                                            : Colors.grey[700])),
-                                              ),
-                                              ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.red),
-                                                onPressed: isClearing
-                                                    ? null
-                                                    : () async {
-                                                        setDialogState(() => isClearing = true);
-                                                        await _clearAll();
-                                                        if (dialogCtx.mounted) {
-                                                          Navigator.pop(dialogCtx);
-                                                        }
-                                                      },
-                                                child: isClearing
-                                                    ? const SizedBox(
-                                                        width: 16,
-                                                        height: 16,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: Colors.white,
-                                                        ),
-                                                      )
-                                                    : Text(
-                                                        widget.isTaglish
-                                                            ? "Burahin"
-                                                            : "Clear",
-                                                        style: const TextStyle(
-                                                            color: Colors.white)),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
+                                  onPressed: () async {
+                                    final confirmed = await FloodGuardModalDialog.show(
+                                      context,
+                                      title: widget.isTaglish ? "Burahin Lahat?" : "Clear All Alerts?",
+                                      message: widget.isTaglish
+                                          ? "Sigurado ka ba? Mabubura ang lahat ng nakaimbak na abiso at hindi na ito mababawi."
+                                          : "Are you sure? All stored emergency alerts will be permanently removed.",
+                                      variant: FloodGuardModalVariant.destructive,
+                                      confirmLabel: widget.isTaglish ? "Burahin" : "Clear All",
+                                      cancelLabel: widget.isTaglish ? "Kanselahin" : "Cancel",
+                                      isDarkMode: isDark,
                                     );
+                                    if (confirmed == true) {
+                                      await _clearAll();
+                                    }
                                   },
                                 )
                               : const SizedBox(width: 48),
@@ -349,47 +297,223 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+              const SizedBox(height: 16),
+              Builder(builder: (context) {
+                final title = alert['title'] ?? "Alert";
+                final body = alert['body'] ?? "";
+                final fullText = "$title $body ${alert['data']?['status'] ?? ''}".toUpperCase();
+
+                final bool isCritical = fullText.contains("CRITICAL");
+                final bool isAlarm = fullText.contains("ALARM") || fullText.contains("WARNING");
+                final bool isAlert = fullText.contains("ALERT");
+
+                final Color riskColor = isCritical
+                    ? const Color(0xFFDC2626)
+                    : (isAlarm
+                        ? const Color(0xFFEA580C)
+                        : (isAlert ? const Color(0xFFD97706) : const Color(0xFF0284C7)));
+
+                final Color badgeBg = isCritical
+                    ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+                    : (isAlarm
+                        ? (isDark ? const Color(0xFF431407) : const Color(0xFFFFF7ED))
+                        : (isAlert
+                            ? (isDark ? const Color(0xFF451A03) : const Color(0xFFFEFCE8))
+                            : (isDark ? const Color(0xFF0C4A6E) : const Color(0xFFF0F9FF))));
+
+                final IconData riskIcon = isCritical
+                    ? Icons.crisis_alert_rounded
+                    : (isAlarm
+                        ? Icons.warning_amber_rounded
+                        : (isAlert ? Icons.notifications_active_outlined : Icons.shield_outlined));
+
+                final String? meaning = isCritical
+                    ? (widget.isTaglish
+                        ? "Nasa pinakamataas na panganib ang barangay. Inaasahan ang matinding pagbaha sa mabababang lugar."
+                        : "Severe flooding imminent or actively occurring in vulnerable zones.")
+                    : (isAlarm
+                        ? (widget.isTaglish
+                            ? "Mataas ang panganib ng pagbaha. Maaaring umapaw ang tubig sa kalsada at komunidad."
+                            : "High risk of flooding. Water may overflow into nearby roads and communities.")
+                        : (isAlert
+                            ? (widget.isTaglish
+                                ? "Tumaas ang lebel ng tubig ng ilog. Maaaring magsimula ang pagbaha sa mabababang lugar."
+                                : "River levels are elevated. Low-lying areas may experience minor flooding.")
+                            : null));
+
+                final String? action = isCritical
+                    ? (widget.isTaglish
+                        ? "Lumikas agad kung pinapayuhan. Tumungo sa itinalagang evacuation center."
+                        : "Evacuate immediately if advised. Move to designated evacuation centers.")
+                    : (isAlarm
+                        ? (widget.isTaglish
+                            ? "Maghandang lumikas. Ihanda ang emergency grab bag at bantayan ang opisyal na ulat."
+                            : "Be ready to evacuate. Secure valuables and follow local advisories.")
+                        : (isAlert
+                            ? (widget.isTaglish
+                                ? "Manatiling alerto. Ihanda ang emergency supplies at bantayan ang mga anunsyo."
+                                : "Stay alert. Prepare emergency supplies and monitor announcements.")
+                            : null));
+
+                final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+                final cardBorder = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: badgeBg,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: riskColor.withValues(alpha: 0.35), width: 1.5),
+                          ),
+                          child: Center(
+                            child: Icon(riskIcon, color: riskColor, size: 24),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: riskColor,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.warning_rounded,
-                        color: Colors.red, size: 28),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      alert['title'] ?? "Alert",
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
+                    const SizedBox(height: 18),
+
+                    if (meaning != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: badgeBg.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: riskColor.withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded, size: 16, color: riskColor),
+                                const SizedBox(width: 6),
+                                Text(
+                                  widget.isTaglish ? "Ano ang Ibig Sabihin Nito?" : "What This Means",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: riskColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              meaning,
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    if (action != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.checklist_rounded, size: 16, color: riskColor),
+                                const SizedBox(width: 6),
+                                Text(
+                                  widget.isTaglish ? "Inirerekomendang Aksyon" : "Recommended Action",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: riskColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              action,
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    if (body.isNotEmpty) ...[
+                      Text(
+                        widget.isTaglish ? "Mensahe ng Alerto:" : "Alert Details:",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        body,
+                        style: TextStyle(fontSize: 14.5, color: textColor, height: 1.45),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    Text(
+                      _formatDate(alert['timestamp'] ?? ""),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Text(
-                alert['body'] ?? "",
-                style: TextStyle(fontSize: 16, color: textColor, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                _formatDate(alert['timestamp'] ?? ""),
-                style: TextStyle(
-                    fontSize: 14,
-                    color: isDark
-                        ? const Color(0xFFE2E8F0)
-                        : const Color(0xFF475569),
-                    fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 32),
+                    const SizedBox(height: 14),
+
+                    Text(
+                      "FloodGuard provides barangay-level flood-risk prediction based on the monitoring station assigned to the barangay. It does not predict exact street-level flooding, flood depth, or inundation extent.",
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                );
+              }),
+              const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -397,13 +521,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     backgroundColor: const Color(0xFF3784DF),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () => Navigator.pop(context),
                   child: Text(widget.isTaglish ? "Isara" : "Close",
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold)),
                 ),
               ),

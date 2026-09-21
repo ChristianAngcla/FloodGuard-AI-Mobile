@@ -6,6 +6,7 @@ import '../services/flood_api_service.dart';
 import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import '../theme/app_spacing.dart';
+import 'floodguard_modal_dialog.dart';
 
 typedef HelpRequestSubmitHook = Future<bool> Function({
   required String location,
@@ -312,24 +313,171 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     return 'Emergency Assistance';
   }
 
-  Future<void> _submitReport() async {
-    if (_isSubmitting) return;
+  Widget _buildModalSummaryItem(
+    String label,
+    String value,
+    Color labelColor,
+    Color valColor, {
+    bool isBold = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 105,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: valColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-    if (!_agreedToLegal) {
-      _showError(widget.isTaglish
-          ? "Kailangan mong sumang-ayon sa emergency notice upang magpatuloy."
-          : "Please agree to the emergency notice to continue.");
-      return;
-    }
+  Widget _buildConfirmationModalSummary(bool isDark) {
+    final detailsText = _detailsCtrl.text.trim();
+    final streetText = _streetCtrl.text.trim();
+    final locationText = streetText.isNotEmpty && (_selectedBarangay != null)
+        ? "$streetText, $_selectedBarangay"
+        : (_selectedBarangay ?? "Marikina City");
 
-    setState(() {
-      _isSubmitting = true;
-      _validationMessage = null;
-      _needsOpenSettings = false;
-    });
+    final summaryBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
+    final labelColor = isDark ? Colors.white60 : const Color(0xFF64748B);
+    final valColor = isDark ? Colors.white : const Color(0xFF0F172A);
 
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: summaryBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildModalSummaryItem(
+            widget.isTaglish ? "Uri ng Tulong:" : "Help Type:",
+            _helpType ?? "Emergency",
+            labelColor,
+            const Color(0xFFDC2626),
+            isBold: true,
+          ),
+          if (_helpType == 'Medical') ...[
+            const SizedBox(height: 6),
+            _buildModalSummaryItem(
+              widget.isTaglish ? "Medikal:" : "Medical:",
+              _medicalType ?? "Not specified",
+              labelColor,
+              valColor,
+            ),
+            if (_urgency != null) ...[
+              const SizedBox(height: 6),
+              _buildModalSummaryItem(
+                widget.isTaglish ? "Urgency:" : "Urgency:",
+                _urgency!,
+                labelColor,
+                const Color(0xFFDC2626),
+              ),
+            ],
+          ],
+          if (_helpType == 'Evacuation') ...[
+            if (_evacuationReason != null) ...[
+              const SizedBox(height: 6),
+              _buildModalSummaryItem(
+                widget.isTaglish ? "Dahilan:" : "Reason:",
+                _evacuationReason!,
+                labelColor,
+                valColor,
+              ),
+            ],
+            if (_evacuationReason == 'I cannot safely leave') ...[
+              const SizedBox(height: 6),
+              _buildModalSummaryItem(
+                widget.isTaglish ? "Kalagayan:" : "Status:",
+                widget.isTaglish ? "Hindi makalikas nang ligtas" : "Cannot safely leave",
+                labelColor,
+                const Color(0xFFDC2626),
+              ),
+            ],
+            if (_evacuationObstacle != null) ...[
+              const SizedBox(height: 6),
+              _buildModalSummaryItem(
+                widget.isTaglish ? "Balakid:" : "Obstacle:",
+                _evacuationObstacle!,
+                labelColor,
+                valColor,
+              ),
+            ],
+            if (_vulnerablePerson != null) ...[
+              const SizedBox(height: 6),
+              _buildModalSummaryItem(
+                widget.isTaglish ? "Vulnerable:" : "Vulnerable:",
+                _vulnerablePerson!,
+                labelColor,
+                valColor,
+              ),
+            ],
+            if (_waterLevel != null) ...[
+              const SizedBox(height: 6),
+              _buildModalSummaryItem(
+                widget.isTaglish ? "Antas ng Tubig:" : "Water Level:",
+                _waterLevel!,
+                labelColor,
+                valColor,
+              ),
+            ],
+          ],
+          if (_helpType == 'Other Emergency' && detailsText.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _buildModalSummaryItem(
+              widget.isTaglish ? "Detalye:" : "Details:",
+              detailsText,
+              labelColor,
+              valColor,
+            ),
+          ],
+          const SizedBox(height: 6),
+          _buildModalSummaryItem(
+            widget.isTaglish ? "Lokasyon:" : "Location:",
+            locationText,
+            labelColor,
+            valColor,
+          ),
+          if (_urgency != null && _helpType != 'Medical') ...[
+            const SizedBox(height: 6),
+            _buildModalSummaryItem(
+              widget.isTaglish ? "Urgency:" : "Urgency:",
+              _urgency!,
+              labelColor,
+              const Color(0xFFDC2626),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _executeReportSubmission() async {
     final locationOutcome = await _locationResolver.resolveForSubmit();
-    if (!mounted) return;
+    if (!mounted) return false;
     if (!locationOutcome.canSubmit) {
       final failure =
           locationOutcome.failure ?? HelpRequestLocationFailure.unavailable;
@@ -340,8 +488,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         ),
         needsOpenSettings: locationOutcome.needsOpenSettings,
       );
-      setState(() => _isSubmitting = false);
-      return;
+      return false;
     }
 
     final lat = locationOutcome.coordinates!.latitude;
@@ -373,11 +520,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
 
       // PHONE VERIFICATION CHECK
       if (reporterPhone.isEmpty) {
-        setState(() => _isSubmitting = false);
         _showError(widget.isTaglish
             ? "Kailangan ng verified na numero ng telepono sa profile para makapag-ulat."
             : "A verified phone number in your profile is required to ask for help.");
-        return;
+        return false;
       }
     } catch (e) {
       debugPrint('Could not load user profile for report: $e');
@@ -456,14 +602,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     );
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
-      if (success) {
-        Navigator.pop(context);
-        SharedPreferences.getInstance().then((p) =>
-            p.setString('last_report_time', DateTime.now().toIso8601String()));
-        widget.onSuccess();
-        widget.onUnsafe();
-      } else {
+      if (!success) {
         final apiMessage = widget.submitFloodReport == null
             ? FloodApiService.lastHelpRequestError
             : null;
@@ -473,6 +612,117 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                 : "Failed to submit report. Please try again."));
       }
     }
+
+    return success;
+  }
+
+  Future<void> _submitReport() async {
+    if (_isSubmitting) return;
+
+    if (!_agreedToLegal) {
+      _showError(widget.isTaglish
+          ? "Kailangan mong sumang-ayon sa emergency notice upang magpatuloy."
+          : "Please agree to the emergency notice to continue.");
+      return;
+    }
+
+    setState(() {
+      _validationMessage = null;
+      _needsOpenSettings = false;
+    });
+
+    // Check verified phone before opening confirmation dialog
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString('user_data');
+      String reporterPhone = '';
+      if (userDataString != null) {
+        final userData = jsonDecode(userDataString);
+        reporterPhone = formatPhMobileNumber(userData['phone'] ?? '');
+      }
+      if (reporterPhone.isEmpty) {
+        _showError(widget.isTaglish
+            ? "Kailangan ng verified na numero ng telepono sa profile para makapag-ulat."
+            : "A verified phone number in your profile is required to ask for help.");
+        return;
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    final rootNav = Navigator.of(context, rootNavigator: true);
+
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: !_isSubmitting,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return FloodGuardModalDialog(
+              title: widget.isTaglish
+                  ? "Ipadala ang Saklolo?"
+                  : "Send Help Request?",
+              message: widget.isTaglish
+                  ? "Pakisuri ang iyong impormasyon bago ito ipadala sa LGU."
+                  : "Please review your information before sending this request to the LGU.",
+              content: _buildConfirmationModalSummary(widget.isDarkMode),
+              variant: FloodGuardModalVariant.warning,
+              cancelLabel: widget.isTaglish ? "Bumalik" : "Cancel",
+              confirmLabel: widget.isTaglish
+                  ? "Kumpirmahin at Ipadala"
+                  : "Confirm & Send",
+              isDarkMode: widget.isDarkMode,
+              isLoading: _isSubmitting,
+              onCancel: _isSubmitting
+                  ? null
+                  : () => Navigator.of(dialogCtx).pop(false),
+              onConfirm: _isSubmitting
+                  ? null
+                  : () async {
+                      setDialogState(() => _isSubmitting = true);
+                      setState(() => _isSubmitting = true);
+
+                      final success = await _executeReportSubmission();
+
+                      if (!mounted) return;
+                      setDialogState(() => _isSubmitting = false);
+                      setState(() => _isSubmitting = false);
+
+                      if (success) {
+                        if (dialogCtx.mounted) {
+                          Navigator.of(dialogCtx).pop(true);
+                        }
+                        if (mounted && Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                        SharedPreferences.getInstance().then((p) =>
+                            p.setString('last_report_time', DateTime.now().toIso8601String()));
+                        widget.onSuccess();
+                        widget.onUnsafe();
+                        if (rootNav.context.mounted) {
+                          FloodGuardModalDialog.show(
+                            rootNav.context,
+                            title: widget.isTaglish
+                                ? "Naipadala na ang Saklolo"
+                                : "Help Request Sent",
+                            message: widget.isTaglish
+                                ? "Ang iyong kahilingan ay naisumite na sa LGU."
+                                : "Your request has been submitted to the LGU.",
+                            variant: FloodGuardModalVariant.success,
+                            confirmLabel: widget.isTaglish ? "Naintindihan" : "OK",
+                            isDarkMode: widget.isDarkMode,
+                          );
+                        }
+                      } else {
+                        if (dialogCtx.mounted) {
+                          Navigator.of(dialogCtx).pop(false);
+                        }
+                      }
+                    },
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -1404,8 +1654,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           const SizedBox(height: 8),
           Text(
             widget.isTaglish
-                ? "Pakisuri ang mga detalye bago ipadala ang saklolo."
-                : "Please review your details carefully before dispatching responders.",
+                ? "Pakisuri nang mabuti ang mga detalye bago ipadala ang kahilingan sa LGU."
+                : "Please review your details carefully before sending this request to the LGU.",
             style: TextStyle(fontSize: 14, color: subTextColor),
           ),
           const SizedBox(height: 20),

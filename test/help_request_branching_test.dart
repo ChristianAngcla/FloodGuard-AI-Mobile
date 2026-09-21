@@ -222,6 +222,10 @@ void main() {
       await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
       expect(captured['isSafe'], isFalse);
       expect(captured['helpType'], 'Medical');
       expect(captured['helpSubtype'], 'Injury');
@@ -317,6 +321,10 @@ void main() {
       await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
       expect(captured['isSafe'], isFalse);
       expect(captured['helpType'], 'Evacuation');
       expect(captured['helpSubtype'], 'Floodwater is rising');
@@ -401,6 +409,10 @@ void main() {
       await tester.tap(find.text('CONFIRM'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
       expect(captured['isSafe'], isFalse);
       expect(captured['helpType'], 'Evacuation');
       expect(captured['helpSubtype'], 'Need assistance for a vulnerable person');
@@ -471,6 +483,110 @@ void main() {
       expect(find.text('Incident Location'), findsOneWidget);
       expect(find.text('CONFIRM'), findsNothing);
       expect(find.text('Next'), findsOneWidget);
+    });
+  });
+
+  group('Help Request Flow - Confirmation Modal & Clean Success State', () {
+    testWidgets(
+        'Modal shows branch details, Cancel preserves form, Confirm submits and shows success dialog without responder dispatch claims',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      int submitCount = 0;
+      await tester.pumpWidget(_buildTestApp(
+        submitHook: ({
+          required String location,
+          required bool isRaining,
+          required bool isSafe,
+          required String uid,
+          double? floodDepth,
+          String? floodLevel,
+          String? reporterName,
+          String? reporterPhone,
+          required double latitude,
+          required double longitude,
+          String? status,
+          String? helpNeeded,
+          String? helpType,
+          String? helpSubtype,
+          String? waterLevel,
+          String? evacuationObstacle,
+          String? vulnerablePerson,
+          String? urgency,
+          String? details,
+        }) async {
+          submitCount++;
+          return true;
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      // Step 0: Medical
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Injury
+      await tester.tap(find.text('Injury'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 2: Location
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Barangka').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 3: Confirmation
+      // Tap legal agreement
+      await tester.ensureVisible(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+
+      // Tap CONFIRM
+      await tester.ensureVisible(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+
+      // Verify modal dialog appears
+      expect(find.text('Send Help Request?'), findsOneWidget);
+      expect(find.text('Please review your information before sending this request to the LGU.'), findsOneWidget);
+      expect(find.text('Medical:'), findsOneWidget);
+      expect(find.text('Injury'), findsWidgets);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Confirm & Send'), findsOneWidget);
+
+      // Verify Cancel keeps sheet intact and does not submit
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(submitCount, 0);
+      expect(find.text('Send Help Request?'), findsNothing);
+      expect(find.text('Review & Confirm Help Request'), findsOneWidget);
+      expect(find.text('CONFIRM'), findsOneWidget);
+
+      // Tap CONFIRM again
+      await tester.tap(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+
+      // Tap Confirm & Send
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
+      expect(submitCount, 1);
+      // Clean success state
+      expect(find.text('Help Request Sent'), findsOneWidget);
+      expect(find.text('Your request has been submitted to the LGU.'), findsOneWidget);
+      // Must NOT claim responders dispatched
+      expect(find.textContaining('responders dispatched'), findsNothing);
+      expect(find.textContaining('help is on the way'), findsNothing);
     });
   });
 }
