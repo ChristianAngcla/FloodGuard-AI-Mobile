@@ -79,7 +79,7 @@ class FloodGuardModalDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          padding: const EdgeInsets.fromLTRB(20, 26, 20, 20),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(24),
@@ -160,9 +160,10 @@ class FloodGuardModalDialog extends StatelessWidget {
                   if (cancelLabel != null) ...[
                     Expanded(
                       child: SizedBox(
-                        height: 46,
+                        height: 48,
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                             foregroundColor: isDarkMode ? Colors.white70 : const Color(0xFF475569),
                             side: BorderSide(
                               color: isDarkMode ? Colors.white24 : const Color(0xFFCBD5E1),
@@ -172,9 +173,14 @@ class FloodGuardModalDialog extends StatelessWidget {
                             ),
                           ),
                           onPressed: isLoading ? null : (onCancel ?? () => Navigator.of(context).pop(false)),
-                          child: Text(
-                            cancelLabel!,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          child: Center(
+                            child: Text(
+                              cancelLabel!,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
                           ),
                         ),
                       ),
@@ -183,9 +189,10 @@ class FloodGuardModalDialog extends StatelessWidget {
                   ],
                   Expanded(
                     child: SizedBox(
-                      height: 46,
+                      height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                           backgroundColor: config.accentColor,
                           foregroundColor: Colors.white,
                           elevation: 0,
@@ -194,19 +201,28 @@ class FloodGuardModalDialog extends StatelessWidget {
                           ),
                         ),
                         onPressed: isLoading ? null : (onConfirm ?? () => Navigator.of(context).pop(true)),
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
+                        child: Center(
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  confirmLabel ?? 'OK',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    letterSpacing: -0.2,
+                                  ),
                                 ),
-                              )
-                            : Text(
-                                confirmLabel ?? 'OK',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                              ),
+                        ),
                       ),
                     ),
                   ),

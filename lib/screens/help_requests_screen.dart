@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/flood_api_service.dart';
 import '../utils/help_request_status.dart';
+import '../widgets/floodguard_modal_dialog.dart';
 import '../widgets/wave_background.dart';
 
 class HelpRequestsScreen extends StatefulWidget {
@@ -41,9 +43,17 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
     }
     try {
       final rows = await FloodApiService.fetchMyHelpRequests();
+      final prefs = await SharedPreferences.getInstance();
+      final hiddenIds =
+          prefs.getStringList('hidden_help_request_ids')?.toSet() ?? <String>{};
+      final visibleRows = rows.where((r) {
+        final id = (r['_id'] ?? r['id'] ?? '').toString();
+        return id.isEmpty || !hiddenIds.contains(id);
+      }).toList();
+
       if (!mounted) return;
       setState(() {
-        _requests = rows;
+        _requests = visibleRows;
         _isLoading = false;
       });
     } catch (e) {
@@ -58,6 +68,64 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
                 ? 'Hindi ma-load ang mga help request. Subukan muli.'
                 : 'Could not load your help requests. Please try again.');
       });
+    }
+  }
+
+  Future<void> _confirmAndDeleteRequest(Map<String, dynamic> request) async {
+    final id = (request['_id'] ?? request['id'] ?? '').toString();
+    if (id.isEmpty) return;
+
+    final confirmed = await FloodGuardModalDialog.show(
+      context,
+      title: widget.isTaglish
+          ? 'Burahin ang Help Request?'
+          : 'Delete Help Request?',
+      message: widget.isTaglish
+          ? 'Sigurado ka bang nais mong tanggalin ang request na ito mula sa iyong history?'
+          : 'Are you sure you want to remove this request from your history?',
+      confirmLabel: widget.isTaglish ? 'Burahin' : 'Delete',
+      cancelLabel: widget.isTaglish ? 'Kanselahin' : 'Cancel',
+      variant: FloodGuardModalVariant.destructive,
+      isDarkMode: widget.isDarkMode,
+    );
+
+    if (confirmed != true) return;
+
+    // 1. Immediately hide locally and persist in SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hidden =
+          prefs.getStringList('hidden_help_request_ids') ?? <String>[];
+      if (!hidden.contains(id)) {
+        hidden.add(id);
+        await prefs.setStringList('hidden_help_request_ids', hidden);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error saving hidden help request ID: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _requests.removeWhere(
+            (r) => (r['_id'] ?? r['id'] ?? '').toString() == id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isTaglish
+                ? 'Naalis na ang help request sa iyong history.'
+                : 'Help request removed from your history.',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    // 2. Call backend soft-delete endpoint (hides from citizen, keeps LGU audit)
+    try {
+      await FloodApiService.deleteHelpRequest(id);
+    } catch (e) {
+      debugPrint('⚠️ Backend delete request failed (hidden locally): $e');
     }
   }
 
@@ -338,13 +406,33 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              HelpRequestStatus.label(status, isTaglish: widget.isTaglish),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    HelpRequestStatus.label(status, isTaglish: widget.isTaglish),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 20,
+                    color: isDark ? Colors.white60 : Colors.grey[500],
+                  ),
+                  tooltip: widget.isTaglish ? 'Burahin' : 'Delete',
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed: () => _confirmAndDeleteRequest(request),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -512,23 +600,51 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3784DF),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+              const SizedBox(height: 28),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(
+                            color: Color(0xFFDC2626), width: 1.5),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _confirmAndDeleteRequest(request);
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      label: Text(
+                        widget.isTaglish ? 'Burahin' : 'Delete',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14.5),
+                      ),
+                    ),
                   ),
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(widget.isTaglish ? 'Isara' : 'Close',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold)),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3784DF),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        widget.isTaglish ? 'Isara' : 'Close',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

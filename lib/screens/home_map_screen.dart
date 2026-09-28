@@ -29,6 +29,7 @@ import '../widgets/flood_warning_scale.dart';
 import 'alerts_screen.dart';
 import 'help_requests_screen.dart';
 import '../widgets/wave_background.dart';
+import '../widgets/typhoon_update_card.dart';
 import '../config/api_config.dart';
 
 class HomeMapScreen extends StatefulWidget {
@@ -492,6 +493,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         final results = await Future.wait([
           FloodApiService.getAllBarangayFloodData(forceRefresh: forceRefresh),
           FloodApiService.fetchDailyForecasts(forceRefresh: forceRefresh),
+          FloodApiService.fetchTyphoonStatus(forceRefresh: forceRefresh),
         ]);
         apiData = results[0] as Map<String, FloodData>;
         if (apiData.isEmpty && mounted) {
@@ -3174,6 +3176,24 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          TyphoonUpdateCard(
+            typhoonStatus: FloodApiService.getCachedTyphoonStatus(),
+            isDarkMode: _isDarkMode,
+            isTaglish: _isTaglish,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            _isTaglish
+                ? 'Ipinapakita ng FloodGuard ang inaasahang panganib sa baha para sa barangay. Hindi nito ipinapakita kung aling mga kalye o bahay ang tiyak na babahain o kung gaano kalalim ang tubig-baha.'
+                : 'FloodGuard shows the predicted flood risk for the barangay. It does not show exactly which streets or houses will flood or how deep the floodwater will be.',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: subColor,
+              height: 1.4,
+            ),
+          ),
         ],
       );
     }
@@ -3194,8 +3214,12 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         : (isAlarm
             ? (_isDarkMode ? const Color(0xFF431407) : const Color(0xFFFFF7ED))
             : (isAlert
-                ? (_isDarkMode ? const Color(0xFF451A03) : const Color(0xFFFEFCE8))
-                : (_isDarkMode ? const Color(0xFF052E16) : const Color(0xFFF0FDF4))));
+                ? (_isDarkMode
+                    ? const Color(0xFF451A03)
+                    : const Color(0xFFFEFCE8))
+                : (_isDarkMode
+                    ? const Color(0xFF052E16)
+                    : const Color(0xFFF0FDF4))));
 
     final IconData riskIcon = isCritical
         ? Icons.report_problem_rounded
@@ -3204,12 +3228,20 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             : (isAlert ? Icons.info_outline : Icons.check_circle_outline));
 
     final String riskTitle = isCritical
-        ? (_isTaglish ? "CRITICAL (Kritikal na Panganib)" : "CRITICAL: Dangerous Flood Risk")
+        ? (_isTaglish
+            ? "CRITICAL (Kritikal na Panganib)"
+            : "CRITICAL: Dangerous Flood Risk")
         : (isAlarm
-            ? (_isTaglish ? "ALARM (Mataas na Panganib)" : "ALARM: Higher Flood Risk")
+            ? (_isTaglish
+                ? "ALARM (Mataas na Panganib)"
+                : "ALARM: Higher Flood Risk")
             : (isAlert
-                ? (_isTaglish ? "ALERT (Paunang Babala sa Baha)" : "ALERT: Early Flood Warning")
-                : (_isTaglish ? "SAFE (Mababang Panganib)" : "SAFE: Low Flood Risk")));
+                ? (_isTaglish
+                    ? "ALERT (Paunang Babala sa Baha)"
+                    : "ALERT: Early Flood Warning")
+                : (_isTaglish
+                    ? "SAFE (Mababang Panganib)"
+                    : "SAFE: Low Flood Risk")));
 
     final String meaning = isCritical
         ? (_isTaglish
@@ -3244,19 +3276,22 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     : "Stay updated with regular weather and river advisories.")));
 
     final sectionBg = _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
-    final sectionBorder = _isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0);
+    final sectionBorder =
+        _isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0);
+    final typhoon = FloodApiService.getCachedTyphoonStatus();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Prominent Flood Risk Banner
+        // 1. PREDICTED BARANGAY FLOOD RISK BANNER
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: badgeBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: riskColor.withValues(alpha: 0.5), width: 1.8),
+            border:
+                Border.all(color: riskColor.withValues(alpha: 0.5), width: 1.8),
           ),
           child: Row(
             children: [
@@ -3281,7 +3316,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: _isDarkMode ? Colors.white : const Color(0xFF0F172A),
+                        color: _isDarkMode
+                            ? Colors.white
+                            : const Color(0xFF0F172A),
                       ),
                     ),
                   ],
@@ -3292,7 +3329,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         const SizedBox(height: 14),
 
-        // 2. Compact Predictive Details (Water Level & Mode)
+        // 2. FLOOD PREDICTION DETAILS
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -3308,7 +3345,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _isTaglish ? 'Pagtatayang Lebel ng Tubig:' : 'Predicted Water Level:',
+                    _isTaglish
+                        ? 'Pagtatayang Lebel ng Tubig:'
+                        : 'Predicted Water Level:',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -3330,11 +3369,39 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
+                    _isTaglish
+                        ? 'Istasyon ng Pagsubaybay:'
+                        : 'Monitoring Station:',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: subColor,
+                    ),
+                  ),
+                  Text(
+                    _dashboardSensorDisplayName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
                     _isTaglish ? 'Paraan ng Pagkalkula:' : 'Calculation Mode:',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: subColor),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3.5),
                     decoration: BoxDecoration(
                       color: daily.calculationMode == 'primary_model'
                           ? const Color(0xFF0284C7).withValues(alpha: 0.12)
@@ -3364,16 +3431,23 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   _isTaglish
                       ? 'Para sa: ${daily.forecastTargetDate}'
                       : 'Forecast target: ${daily.forecastTargetDate}',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: subColor),
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: subColor),
                 ),
               ],
-              if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty) ...[
+              if (daily.sourceDataDate != null &&
+                  daily.sourceDataDate!.isNotEmpty) ...[
                 const SizedBox(height: 3),
                 Text(
                   _isTaglish
                       ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                       : 'Based on observations from: ${daily.sourceDataDate}',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: subColor),
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: subColor),
                 ),
               ],
             ],
@@ -3381,7 +3455,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         const SizedBox(height: 14),
 
-        // 3. What This Means
+        // 3. WHAT THIS MEANS CARD
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -3395,10 +3469,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.lightbulb_outline_rounded, size: 18, color: Color(0xFF0284C7)),
+                  const Icon(Icons.lightbulb_outline_rounded,
+                      size: 18, color: Color(0xFF0284C7)),
                   const SizedBox(width: 8),
                   Text(
-                    _isTaglish ? 'ANO ANG IBIG SABIHIN NITO' : 'WHAT THIS MEANS',
+                    _isTaglish
+                        ? 'ANO ANG IBIG SABIHIN NITO'
+                        : 'WHAT THIS MEANS',
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
@@ -3423,7 +3500,68 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         const SizedBox(height: 14),
 
-        // 4. What You Should Do
+        // 4. CURRENT TYPHOON INFORMATION
+        TyphoonUpdateCard(
+          typhoonStatus: typhoon,
+          isDarkMode: _isDarkMode,
+          isTaglish: _isTaglish,
+        ),
+        const SizedBox(height: 14),
+
+        // 5. WEATHER / TYPHOON REMINDER (STAY UPDATED)
+        StayUpdatedReminderCard(
+          status: status,
+          hasActiveTyphoon: typhoon?.hasActiveTyphoon == true,
+          isDarkMode: _isDarkMode,
+          isTaglish: _isTaglish,
+        ),
+        const SizedBox(height: 14),
+
+        // 6. WHY IS THIS THE FLOOD RISK? (FLOOD WARNING SCALE)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: sectionBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: sectionBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.stacked_bar_chart_rounded,
+                      size: 18, color: Color(0xFF0284C7)),
+                  const SizedBox(width: 8),
+                  Text(
+                    _isTaglish
+                        ? 'BAKIT ITO ANG ANTAS NG PANGANIB?'
+                        : 'WHY IS THIS THE FLOOD RISK?',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.04,
+                      color: subColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              FloodWarningScale(
+                predictedLevel: daily.predictedWaterLevel!,
+                thresholds: StationThresholds.forSensor(_dashboardSensorKey),
+                status: daily.statusBand,
+                stationName: _dashboardSensorDisplayName,
+                isDarkMode: _isDarkMode,
+                isTaglish: _isTaglish,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // 7. WHAT YOU SHOULD DO
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -3440,7 +3578,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   Icon(Icons.campaign_outlined, size: 18, color: riskColor),
                   const SizedBox(width: 8),
                   Text(
-                    _isTaglish ? 'INIREREKOMENDANG AKSYON' : 'WHAT YOU SHOULD DO',
+                    _isTaglish
+                        ? 'INIREREKOMENDANG AKSYON'
+                        : 'WHAT YOU SHOULD DO',
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
@@ -3465,74 +3605,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ),
         const SizedBox(height: 14),
 
-        // 5. Why is this the flood risk? (Flood Warning Scale)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: sectionBg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: sectionBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.stacked_bar_chart_rounded, size: 18, color: Color(0xFF0284C7)),
-                  const SizedBox(width: 8),
-                  Text(
-                    _isTaglish ? 'BAKIT ITO ANG ANTAS NG PANGANIB?' : 'WHY IS THIS THE FLOOD RISK?',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.04,
-                      color: subColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              FloodWarningScale(
-                predictedLevel: daily.predictedWaterLevel!,
-                thresholds: StationThresholds.forSensor(_dashboardSensorKey),
-                status: daily.statusBand,
-                stationName: _dashboardSensorDisplayName,
-                isDarkMode: _isDarkMode,
-                isTaglish: _isTaglish,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // 6. View Details Button
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              side: BorderSide(color: const Color(0xFF0284C7).withValues(alpha: 0.6), width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () {
-              final barangay = _dashboardSelectedBarangay ?? _userProfile?.barangay ?? 'Santo Niño';
-              _showBarangayDetails(barangay);
-            },
-            icon: const Icon(Icons.open_in_new_rounded, size: 18, color: Color(0xFF0284C7)),
-            label: Text(
-              _isTaglish ? 'Tingnan ang Detalyadong Pagsusuri' : 'View Detailed Station Analysis',
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0284C7),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // 7. Scope disclaimer
+        // 8. ABOUT THIS PREDICTION
         Text(
           _isTaglish
               ? 'Ipinapakita ng FloodGuard ang inaasahang panganib sa baha para sa barangay. Hindi nito ipinapakita kung aling mga kalye o bahay ang tiyak na babahain o kung gaano kalalim ang tubig-baha.'
@@ -3542,6 +3615,40 @@ class _HomeMapScreenState extends State<HomeMapScreen>
             fontWeight: FontWeight.w500,
             color: subColor,
             height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // View Details Button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              side: BorderSide(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.6),
+                  width: 1.5),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              final barangay = _dashboardSelectedBarangay ??
+                  _userProfile?.barangay ??
+                  'Santo Niño';
+              _showBarangayDetails(barangay);
+            },
+            icon: const Icon(Icons.open_in_new_rounded,
+                size: 18, color: Color(0xFF0284C7)),
+            label: Text(
+              _isTaglish
+                  ? 'Tingnan ang Detalyadong Pagsusuri'
+                  : 'View Detailed Station Analysis',
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0284C7),
+              ),
+            ),
           ),
         ),
       ],

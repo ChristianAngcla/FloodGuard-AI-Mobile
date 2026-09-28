@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import '../services/flood_api_service.dart';
 import '../utils/station_thresholds.dart';
 import '../widgets/flood_warning_scale.dart';
+import '../widgets/typhoon_update_card.dart';
 
 /// Bottom sheet showing FloodGuard DailyForecast for the selected barangay,
-/// structured to clearly communicate:
-/// PREDICTED BARANGAY FLOOD RISK
-/// → WHAT THE RISK MEANS
-/// → ACTIONABLE FLOOD INFORMATION
-/// → SUPPORTING PREDICTED WATER LEVEL / STATION INFORMATION
+/// structured in the 8-item order:
+/// 1. PREDICTED FLOOD RISK
+/// 2. FLOOD PREDICTION DETAILS
+/// 3. WHAT THIS MEANS
+/// 4. CURRENT TYPHOON INFORMATION
+/// 5. WEATHER / TYPHOON REMINDER (Stay Updated)
+/// 6. WHY IS THIS THE FLOOD RISK?
+/// 7. WHAT YOU SHOULD DO
+/// 8. ABOUT THIS PREDICTION
 class BarangayDetailsSheet extends StatefulWidget {
   final String barangayName;
   final bool isTaglish;
@@ -38,7 +43,10 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   void initState() {
     super.initState();
     _selectedBarangay = widget.barangayName;
-    FloodApiService.fetchDailyForecasts().then((_) {
+    Future.wait([
+      FloodApiService.fetchDailyForecasts(),
+      FloodApiService.fetchTyphoonStatus(),
+    ]).then((_) {
       if (mounted) setState(() {});
     });
   }
@@ -169,13 +177,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
                     const SizedBox(height: 14),
 
-                    // Risk-First Content Card
+                    // Content Card (8-item order)
                     _buildForecastAssessmentCard(textColor, subColor),
-
-                    if (FloodApiService.getDailyForecastForBarangay(_selectedBarangay)?.predictedWaterLevel != null) ...[
-                      const SizedBox(height: 14),
-                      _buildScopeDisclaimer(),
-                    ],
 
                     const SizedBox(height: 16),
 
@@ -227,7 +230,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: widget.isDarkMode ? const Color(0xFF253B50) : const Color(0xFFF8FAFC),
+          color: widget.isDarkMode
+              ? const Color(0xFF253B50)
+              : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: widget.isDarkMode ? Colors.white12 : Colors.grey.shade200,
@@ -280,6 +285,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
     final riskInfo = _resolveRiskInfo(status);
     final waterLevel = daily.predictedWaterLevel!;
     final thr = StationThresholds.forSensor(_sensorKey);
+    final typhoon = FloodApiService.getCachedTyphoonStatus();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,9 +296,11 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: riskInfo.color.withValues(alpha: widget.isDarkMode ? 0.2 : 0.1),
+            color:
+                riskInfo.color.withValues(alpha: widget.isDarkMode ? 0.2 : 0.1),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: riskInfo.color.withValues(alpha: 0.4), width: 1.5),
+            border: Border.all(
+                color: riskInfo.color.withValues(alpha: 0.4), width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,7 +314,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.isTaglish ? 'ANTAS NG PANGANIB' : 'PREDICTED FLOOD RISK',
+                          widget.isTaglish
+                              ? 'ANTAS NG PANGANIB'
+                              : 'PREDICTED FLOOD RISK',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -319,7 +329,9 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
-                            color: widget.isDarkMode ? Colors.white : const Color(0xFF0F172A),
+                            color: widget.isDarkMode
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                           ),
                         ),
                       ],
@@ -333,51 +345,17 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
         const SizedBox(height: 14),
 
-        // 2. WHAT THIS MEANS CARD
+        // 2. FLOOD PREDICTION DETAILS
         _contentCard(
-          title: widget.isTaglish ? 'ANO ANG IBIG SABIHIN NITO' : 'WHAT THIS MEANS',
-          icon: Icons.lightbulb_outline_rounded,
-          iconColor: const Color(0xFF0284C7),
-          child: Text(
-            riskInfo.meaning,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: textColor,
-              height: 1.45,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // 3. RECOMMENDED ACTION CARD
-        _contentCard(
-          title: widget.isTaglish ? 'INIREREKOMENDANG AKSYON' : 'RECOMMENDED ACTION',
-          icon: Icons.campaign_outlined,
-          iconColor: riskInfo.color,
-          child: Text(
-            riskInfo.action,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: widget.isDarkMode ? Colors.white : const Color(0xFF0F172A),
-              height: 1.45,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // 4. FLOOD PREDICTION DETAILS
-        _contentCard(
-          title: widget.isTaglish ? 'MGA DETALYE NG PAGTATAYA NG BAHA' : 'FLOOD PREDICTION DETAILS',
+          title: widget.isTaglish
+              ? 'MGA DETALYE NG PAGTATAYA NG BAHA'
+              : 'FLOOD PREDICTION DETAILS',
           icon: Icons.water_drop_outlined,
           iconColor: const Color(0xFF0284C7),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Predicted Flood Risk (prominent visual priority)
+              // Predicted Flood Risk (prominent visual priority)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -392,7 +370,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: riskInfo.color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
@@ -426,7 +405,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               ),
               const SizedBox(height: 10),
 
-              // 2. Predicted Water Level (24px bold)
+              // Predicted Water Level (24px bold)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -454,7 +433,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               ),
               const SizedBox(height: 8),
 
-              // 3. Monitoring Station (clearly shown)
+              // Monitoring Station (clearly shown)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -480,7 +459,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
               ),
               const SizedBox(height: 6),
 
-              // 4. Forecast Date
+              // Forecast Date
               if (daily.forecastTargetDate.isNotEmpty) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -508,17 +487,23 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                 const SizedBox(height: 8),
               ],
 
-              // 5. Secondary details: Calculation Mode & observations
+              // Secondary details: Calculation Mode & observations
               const Divider(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.isTaglish ? 'Paraan ng Pagkalkula:' : 'Calculation Mode:',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: subColor),
+                    widget.isTaglish
+                        ? 'Paraan ng Pagkalkula:'
+                        : 'Calculation Mode:',
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: subColor),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: daily.calculationMode == 'primary_model'
                           ? const Color(0xFF0284C7).withValues(alpha: 0.12)
@@ -542,13 +527,17 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   ),
                 ],
               ),
-              if (daily.sourceDataDate != null && daily.sourceDataDate!.isNotEmpty) ...[
+              if (daily.sourceDataDate != null &&
+                  daily.sourceDataDate!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
                   widget.isTaglish
                       ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                       : 'Based on observations from: ${daily.sourceDataDate}',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: subColor),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: subColor),
                 ),
               ],
             ],
@@ -557,9 +546,50 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
 
         const SizedBox(height: 14),
 
-        // 5. WHY IS THIS THE FLOOD RISK? (FLOOD WARNING SCALE)
+        // 3. WHAT THIS MEANS CARD
         _contentCard(
-          title: widget.isTaglish ? 'BAKIT ITO ANG ANTAS NG PANGANIB?' : 'WHY IS THIS THE FLOOD RISK?',
+          title: widget.isTaglish
+              ? 'ANO ANG IBIG SABIHIN NITO'
+              : 'WHAT THIS MEANS',
+          icon: Icons.lightbulb_outline_rounded,
+          iconColor: const Color(0xFF0284C7),
+          child: Text(
+            riskInfo.meaning,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+              height: 1.45,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // 4. CURRENT TYPHOON INFORMATION
+        TyphoonUpdateCard(
+          typhoonStatus: typhoon,
+          isDarkMode: widget.isDarkMode,
+          isTaglish: widget.isTaglish,
+        ),
+
+        const SizedBox(height: 14),
+
+        // 5. WEATHER / TYPHOON REMINDER (STAY UPDATED)
+        StayUpdatedReminderCard(
+          status: status,
+          hasActiveTyphoon: typhoon?.hasActiveTyphoon == true,
+          isDarkMode: widget.isDarkMode,
+          isTaglish: widget.isTaglish,
+        ),
+
+        const SizedBox(height: 14),
+
+        // 6. WHY IS THIS THE FLOOD RISK? (FLOOD WARNING SCALE)
+        _contentCard(
+          title: widget.isTaglish
+              ? 'BAKIT ITO ANG ANTAS NG PANGANIB?'
+              : 'WHY IS THIS THE FLOOD RISK?',
           icon: Icons.stacked_bar_chart_rounded,
           iconColor: const Color(0xFF0284C7),
           child: FloodWarningScale(
@@ -571,6 +601,30 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
             isTaglish: widget.isTaglish,
           ),
         ),
+
+        const SizedBox(height: 14),
+
+        // 7. WHAT YOU SHOULD DO
+        _contentCard(
+          title:
+              widget.isTaglish ? 'ANO ANG DAPAT GAWIN' : 'WHAT YOU SHOULD DO',
+          icon: Icons.campaign_outlined,
+          iconColor: riskInfo.color,
+          child: Text(
+            riskInfo.action,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: widget.isDarkMode ? Colors.white : const Color(0xFF0F172A),
+              height: 1.45,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // 8. ABOUT THIS PREDICTION
+        _buildScopeDisclaimer(),
       ],
     );
   }

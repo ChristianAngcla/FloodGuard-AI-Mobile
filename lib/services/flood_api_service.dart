@@ -787,6 +787,72 @@ class FloodApiService {
         .toList();
   }
 
+  /// 🗑️ Delete (hide from citizen history) a help request.
+  /// Backend strictly marks hiddenByCitizen = true and preserves LGU operational & audit logs.
+  static Future<bool> deleteHelpRequest(String id) async {
+    try {
+      final token = await AuthService().getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('not_authenticated');
+      }
+      final response = await http.delete(
+        Uri.parse('$dbBaseUrl/reports/$id'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(_timeout);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('not_authenticated');
+      }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data is Map && data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('⚠️ Error deleting help request: $e');
+      rethrow;
+    }
+  }
+
+  // 🌀 Official DOST-PAGASA Typhoon status cache
+  static TyphoonStatus? _cachedTyphoonStatus;
+  static DateTime? _lastTyphoonFetchTime;
+
+  /// Returns cached typhoon status without network call
+  static TyphoonStatus? getCachedTyphoonStatus() => _cachedTyphoonStatus;
+
+  /// 🌀 Fetch official read-only DOST-PAGASA tropical cyclone / PAR status
+  static Future<TyphoonStatus?> fetchTyphoonStatus({bool forceRefresh = false}) async {
+    try {
+      if (!forceRefresh &&
+          _cachedTyphoonStatus != null &&
+          _lastTyphoonFetchTime != null) {
+        final age = DateTime.now().difference(_lastTyphoonFetchTime!);
+        if (age.inMinutes < 5) {
+          return _cachedTyphoonStatus;
+        }
+      }
+
+      debugPrint('🌀 Fetching DOST-PAGASA typhoon status from $baseUrl/typhoon/current');
+      final response = await http
+          .get(Uri.parse('$baseUrl/typhoon/current'))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded['success'] == true) {
+          _cachedTyphoonStatus = TyphoonStatus.fromJson(decoded);
+          _lastTyphoonFetchTime = DateTime.now();
+          return _cachedTyphoonStatus;
+        }
+      }
+      return _cachedTyphoonStatus;
+    } catch (e) {
+      debugPrint('⚠️ Failed to fetch typhoon status: $e');
+      return _cachedTyphoonStatus;
+    }
+  }
+
   /// 📅 Fetch authoritative daily forecasts from GET /api/forecasts/daily
   static Future<Map<String, dynamic>?> fetchDailyForecasts(
       {bool forceRefresh = false}) async {
@@ -1093,3 +1159,66 @@ class DailyForecastItem {
     };
   }
 }
+
+/// 🌀 Official DOST-PAGASA Tropical Cyclone Status (Read-Only)
+class TyphoonStatus {
+  final bool hasActiveTyphoon;
+  final bool isUnavailable;
+  final String title;
+  final String summary;
+  final String? updatedAt;
+  final String? name;
+  final String? internationalName;
+  final String? classification;
+  final String? location;
+  final String? movement;
+  final String? maximumWinds;
+  final String? gustiness;
+  final String? heavyRainInfo;
+  final String source;
+
+  TyphoonStatus({
+    required this.hasActiveTyphoon,
+    required this.isUnavailable,
+    required this.title,
+    required this.summary,
+    this.updatedAt,
+    this.name,
+    this.internationalName,
+    this.classification,
+    this.location,
+    this.movement,
+    this.maximumWinds,
+    this.gustiness,
+    this.heavyRainInfo,
+    this.source = 'DOST-PAGASA Tropical Cyclone Bulletin',
+  });
+
+  factory TyphoonStatus.fromJson(Map<String, dynamic> json) {
+    final hasActive = json['hasActiveTyphoon'] == true;
+    final isUnavail = json['isUnavailable'] == true;
+    final display = json['display'] as Map<String, dynamic>?;
+    final typhoon = json['typhoon'] as Map<String, dynamic>?;
+
+    return TyphoonStatus(
+      hasActiveTyphoon: hasActive,
+      isUnavailable: isUnavail,
+      title: display?['title']?.toString() ?? 'Typhoon Update',
+      summary: display?['summary']?.toString() ??
+          (hasActive
+              ? 'An active tropical cyclone is inside the Philippine Area of Responsibility.'
+              : 'No active typhoon inside the Philippine Area of Responsibility at this time.'),
+      updatedAt: typhoon?['updatedAt']?.toString() ?? display?['updatedAt']?.toString(),
+      name: typhoon?['name']?.toString(),
+      internationalName: typhoon?['internationalName']?.toString(),
+      classification: typhoon?['classification']?.toString(),
+      location: typhoon?['location']?.toString(),
+      movement: typhoon?['movement']?.toString(),
+      maximumWinds: typhoon?['maximumWinds']?.toString(),
+      gustiness: typhoon?['gustiness']?.toString(),
+      heavyRainInfo: typhoon?['heavyRainInfo']?.toString(),
+      source: json['source']?.toString() ?? 'DOST-PAGASA Tropical Cyclone Bulletin',
+    );
+  }
+}
+
