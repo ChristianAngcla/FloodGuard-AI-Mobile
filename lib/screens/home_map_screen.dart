@@ -3512,6 +3512,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         StayUpdatedReminderCard(
           status: status,
           hasActiveTyphoon: typhoon?.hasActiveTyphoon == true,
+          activeCount: typhoon?.activeCount ?? 0,
           isDarkMode: _isDarkMode,
           isTaglish: _isTaglish,
         ),

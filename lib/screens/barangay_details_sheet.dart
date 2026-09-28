@@ -579,6 +579,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         StayUpdatedReminderCard(
           status: status,
           hasActiveTyphoon: typhoon?.hasActiveTyphoon == true,
+          activeCount: typhoon?.activeCount ?? 0,
           isDarkMode: widget.isDarkMode,
           isTaglish: widget.isTaglish,
         ),

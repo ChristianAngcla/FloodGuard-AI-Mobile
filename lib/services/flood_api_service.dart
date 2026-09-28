@@ -1160,13 +1160,65 @@ class DailyForecastItem {
   }
 }
 
+/// 🌀 Single Typhoon item inside TyphoonStatus
+class TyphoonItem {
+  final String name;
+  final String displayName;
+  final String? internationalName;
+  final String? classification;
+  final String? location;
+  final String? movement;
+  final String? maximumWinds;
+  final String? gustiness;
+  final String? heavyRainInfo;
+  final String? updatedAt;
+
+  TyphoonItem({
+    required this.name,
+    required this.displayName,
+    this.internationalName,
+    this.classification,
+    this.location,
+    this.movement,
+    this.maximumWinds,
+    this.gustiness,
+    this.heavyRainInfo,
+    this.updatedAt,
+  });
+
+  factory TyphoonItem.fromJson(Map<String, dynamic> json) {
+    final name = json['name']?.toString() ?? 'Tropical Cyclone';
+    final classification = json['classification']?.toString();
+    final dispName = json['displayName']?.toString() ??
+        (classification != null &&
+                !name.toLowerCase().contains(classification.toLowerCase())
+            ? '$classification $name'
+            : name);
+
+    return TyphoonItem(
+      name: name,
+      displayName: dispName,
+      internationalName: json['internationalName']?.toString(),
+      classification: classification,
+      location: json['location']?.toString(),
+      movement: json['movement']?.toString(),
+      maximumWinds: json['maximumWinds']?.toString(),
+      gustiness: json['gustiness']?.toString(),
+      heavyRainInfo: json['heavyRainInfo']?.toString(),
+      updatedAt: json['updatedAt']?.toString(),
+    );
+  }
+}
+
 /// 🌀 Official DOST-PAGASA Tropical Cyclone Status (Read-Only)
 class TyphoonStatus {
   final bool hasActiveTyphoon;
+  final int activeCount;
   final bool isUnavailable;
   final String title;
   final String summary;
   final String? updatedAt;
+  final List<TyphoonItem> typhoons;
   final String? name;
   final String? internationalName;
   final String? classification;
@@ -1179,10 +1231,12 @@ class TyphoonStatus {
 
   TyphoonStatus({
     required this.hasActiveTyphoon,
+    int? activeCount,
     required this.isUnavailable,
     required this.title,
     required this.summary,
     this.updatedAt,
+    List<TyphoonItem>? typhoons,
     this.name,
     this.internationalName,
     this.classification,
@@ -1192,31 +1246,83 @@ class TyphoonStatus {
     this.gustiness,
     this.heavyRainInfo,
     this.source = 'DOST-PAGASA Tropical Cyclone Bulletin',
-  });
+  })  : activeCount = activeCount ??
+            (typhoons != null && typhoons.isNotEmpty
+                ? typhoons.length
+                : (hasActiveTyphoon ? 1 : 0)),
+        typhoons = (typhoons != null && typhoons.isNotEmpty)
+            ? typhoons
+            : (hasActiveTyphoon && name != null
+                ? [
+                    TyphoonItem(
+                      name: name,
+                      displayName: classification != null &&
+                              !name
+                                  .toLowerCase()
+                                  .contains(classification.toLowerCase())
+                          ? '$classification $name'
+                          : name,
+                      internationalName: internationalName,
+                      classification: classification,
+                      location: location,
+                      movement: movement,
+                      maximumWinds: maximumWinds,
+                      gustiness: gustiness,
+                      heavyRainInfo: heavyRainInfo,
+                      updatedAt: updatedAt,
+                    )
+                  ]
+                : const []);
 
   factory TyphoonStatus.fromJson(Map<String, dynamic> json) {
     final hasActive = json['hasActiveTyphoon'] == true;
     final isUnavail = json['isUnavailable'] == true;
     final display = json['display'] as Map<String, dynamic>?;
+    final rawTyphoons = json['typhoons'] as List<dynamic>?;
     final typhoon = json['typhoon'] as Map<String, dynamic>?;
+
+    final List<TyphoonItem> items = [];
+    if (rawTyphoons != null && rawTyphoons.isNotEmpty) {
+      for (final t in rawTyphoons) {
+        if (t is Map<String, dynamic>) {
+          items.add(TyphoonItem.fromJson(t));
+        }
+      }
+    } else if (typhoon != null) {
+      items.add(TyphoonItem.fromJson(typhoon));
+    }
+
+    final primary = items.isNotEmpty ? items.first : null;
+    final count = json['activeCount'] is int
+        ? json['activeCount'] as int
+        : (hasActive ? (items.isNotEmpty ? items.length : 1) : 0);
 
     return TyphoonStatus(
       hasActiveTyphoon: hasActive,
+      activeCount: count,
       isUnavailable: isUnavail,
       title: display?['title']?.toString() ?? 'Typhoon Update',
       summary: display?['summary']?.toString() ??
           (hasActive
-              ? 'An active tropical cyclone is inside the Philippine Area of Responsibility.'
+              ? (count > 1
+                  ? '$count active weather systems inside the Philippine Area of Responsibility.'
+                  : '1 active weather system inside the Philippine Area of Responsibility.')
               : 'No active typhoon inside the Philippine Area of Responsibility at this time.'),
-      updatedAt: typhoon?['updatedAt']?.toString() ?? display?['updatedAt']?.toString(),
-      name: typhoon?['name']?.toString(),
-      internationalName: typhoon?['internationalName']?.toString(),
-      classification: typhoon?['classification']?.toString(),
-      location: typhoon?['location']?.toString(),
-      movement: typhoon?['movement']?.toString(),
-      maximumWinds: typhoon?['maximumWinds']?.toString(),
-      gustiness: typhoon?['gustiness']?.toString(),
-      heavyRainInfo: typhoon?['heavyRainInfo']?.toString(),
+      updatedAt: primary?.updatedAt ??
+          typhoon?['updatedAt']?.toString() ??
+          display?['updatedAt']?.toString(),
+      typhoons: items,
+      name: primary?.name ?? typhoon?['name']?.toString(),
+      internationalName:
+          primary?.internationalName ?? typhoon?['internationalName']?.toString(),
+      classification:
+          primary?.classification ?? typhoon?['classification']?.toString(),
+      location: primary?.location ?? typhoon?['location']?.toString(),
+      movement: primary?.movement ?? typhoon?['movement']?.toString(),
+      maximumWinds: primary?.maximumWinds ?? typhoon?['maximumWinds']?.toString(),
+      gustiness: primary?.gustiness ?? typhoon?['gustiness']?.toString(),
+      heavyRainInfo:
+          primary?.heavyRainInfo ?? typhoon?['heavyRainInfo']?.toString(),
       source: json['source']?.toString() ?? 'DOST-PAGASA Tropical Cyclone Bulletin',
     );
   }
