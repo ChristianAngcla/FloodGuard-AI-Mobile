@@ -65,7 +65,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   // Level 2: Branch Details
   // Medical
   String? _medicalType; // 'Injury', 'Medical emergency', 'Help for another person'
-  String? _urgency = 'Immediate / Life-threatening';
+  String? _urgency; // Explicit user selection required; unselected by default
 
   // Evacuation
   String? _evacuationReason; // 'Floodwater is rising', 'I cannot safely leave', 'Need assistance for a vulnerable person', 'Other'
@@ -73,8 +73,13 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   String? _evacuationObstacle; // 'Floodwater blocking the way', 'No transportation', 'Physical difficulty', 'Other'
   String? _vulnerablePerson; // 'Child', 'Elderly person', 'Person with disability', 'Injured person'
 
-  // Details text for notes / Other
-  final TextEditingController _detailsCtrl = TextEditingController();
+  // Category-specific details controllers to prevent cross-category text leaks
+  final TextEditingController _injuryDetailsCtrl = TextEditingController();
+  final TextEditingController _medicalEmergencyDetailsCtrl = TextEditingController();
+  final TextEditingController _anotherPersonDetailsCtrl = TextEditingController();
+  final TextEditingController _medicalGeneralDetailsCtrl = TextEditingController();
+  final TextEditingController _evacuationDetailsCtrl = TextEditingController();
+  final TextEditingController _otherEmergencyDetailsCtrl = TextEditingController();
 
   // Location
   String? _selectedBarangay;
@@ -129,8 +134,82 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   void dispose() {
     _pageController.dispose();
     _streetCtrl.dispose();
-    _detailsCtrl.dispose();
+    _injuryDetailsCtrl.dispose();
+    _medicalEmergencyDetailsCtrl.dispose();
+    _anotherPersonDetailsCtrl.dispose();
+    _medicalGeneralDetailsCtrl.dispose();
+    _evacuationDetailsCtrl.dispose();
+    _otherEmergencyDetailsCtrl.dispose();
     super.dispose();
+  }
+
+  TextEditingController _getActiveDetailsCtrl() {
+    if (_helpType == 'Medical') {
+      if (_medicalType == 'Injury') return _injuryDetailsCtrl;
+      if (_medicalType == 'Help for another person') return _anotherPersonDetailsCtrl;
+      if (_medicalType == 'Medical emergency') return _medicalEmergencyDetailsCtrl;
+      return _medicalGeneralDetailsCtrl;
+    }
+    if (_helpType == 'Evacuation') {
+      return _evacuationDetailsCtrl;
+    }
+    if (_helpType == 'Other Emergency') {
+      return _otherEmergencyDetailsCtrl;
+    }
+    return _medicalGeneralDetailsCtrl;
+  }
+
+  String _getActiveDetailsText() {
+    return _getActiveDetailsCtrl().text.trim();
+  }
+
+  void _onHelpTypeSelected(String newType) {
+    if (_helpType == newType) return;
+    setState(() {
+      _helpType = newType;
+      _validationMessage = null;
+      _needsOpenSettings = false;
+
+      // Reset dependent selections of other categories
+      if (newType == 'Medical') {
+        _evacuationReason = null;
+        _waterLevel = null;
+        _evacuationObstacle = null;
+        _vulnerablePerson = null;
+      } else if (newType == 'Evacuation') {
+        _medicalType = null;
+        _urgency = null;
+      } else if (newType == 'Other Emergency') {
+        _medicalType = null;
+        _urgency = null;
+        _evacuationReason = null;
+        _waterLevel = null;
+        _evacuationObstacle = null;
+        _vulnerablePerson = null;
+      }
+    });
+  }
+
+  void _resetForm() {
+    _helpType = null;
+    _medicalType = null;
+    _urgency = null;
+    _evacuationReason = null;
+    _waterLevel = null;
+    _evacuationObstacle = null;
+    _vulnerablePerson = null;
+    _selectedBarangay = null;
+    _agreedToLegal = false;
+    _validationMessage = null;
+    _needsOpenSettings = false;
+    _currentStep = 0;
+    _injuryDetailsCtrl.clear();
+    _medicalEmergencyDetailsCtrl.clear();
+    _anotherPersonDetailsCtrl.clear();
+    _medicalGeneralDetailsCtrl.clear();
+    _evacuationDetailsCtrl.clear();
+    _otherEmergencyDetailsCtrl.clear();
+    _streetCtrl.clear();
   }
 
   void _nextStep() {
@@ -151,6 +230,12 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           _showError(widget.isTaglish
               ? "Pakipili ang uri ng medikal na tulong."
               : "Please select the type of medical assistance needed.");
+          return;
+        }
+        if (_urgency == null) {
+          _showError(widget.isTaglish
+              ? "Pakipili ang antas ng pangangailangan (urgency level)."
+              : "Please select an urgency level.");
           return;
         }
       } else if (_helpType == 'Evacuation') {
@@ -182,7 +267,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             return;
           }
         } else if (_evacuationReason == 'Other') {
-          if (_detailsCtrl.text.trim().isEmpty) {
+          if (_evacuationDetailsCtrl.text.trim().isEmpty) {
             _showError(widget.isTaglish
                 ? "Pakisaad ang mga detalye ng iyong paglikas."
                 : "Please provide details for the evacuation request.");
@@ -190,7 +275,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           }
         }
       } else if (_helpType == 'Other Emergency') {
-        if (_detailsCtrl.text.trim().isEmpty) {
+        if (_otherEmergencyDetailsCtrl.text.trim().isEmpty) {
           _showError(widget.isTaglish
               ? "Pakilarawan ang emergency situation."
               : "Please describe your emergency situation.");
@@ -282,7 +367,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   }
 
   String _buildCompositeHelpNeeded() {
-    final details = _detailsCtrl.text.trim();
+    final details = _getActiveDetailsText();
     if (_helpType == 'Medical') {
       final parts = <String>['Medical'];
       if (_medicalType != null) parts.add(_medicalType!);
@@ -350,7 +435,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   }
 
   Widget _buildConfirmationModalSummary(bool isDark) {
-    final detailsText = _detailsCtrl.text.trim();
+    final detailsText = _getActiveDetailsText();
     final streetText = _streetCtrl.text.trim();
     final locationText = streetText.isNotEmpty && (_selectedBarangay != null)
         ? "$streetText, $_selectedBarangay"
@@ -551,10 +636,17 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       debugPrint('Could not load user profile for report: $e');
     }
 
-    final detailsText = _detailsCtrl.text.trim();
+    final detailsText = _getActiveDetailsText();
     final compositeHelp = _buildCompositeHelpNeeded();
-    final floodDepth = _getWaterLevelDepth(_waterLevel);
-    final floodLevel = _getWaterLevelLabel(_waterLevel);
+
+    final bool isMedical = _helpType == 'Medical';
+    final bool isEvac = _helpType == 'Evacuation';
+    final bool isRising = isEvac && _evacuationReason == 'Floodwater is rising';
+    final bool isTrapped = isEvac && _evacuationReason == 'I cannot safely leave';
+    final bool isVulnerable = isEvac && _evacuationReason == 'Need assistance for a vulnerable person';
+
+    final double? floodDepth = isRising ? _getWaterLevelDepth(_waterLevel) : null;
+    final String? floodLevel = isRising ? _getWaterLevelLabel(_waterLevel) : null;
 
     final submit = widget.submitFloodReport ??
         ({
@@ -616,10 +708,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
       helpNeeded: compositeHelp,
       helpType: _helpType,
       helpSubtype: _getHelpSubtype(),
-      waterLevel: _waterLevel,
-      evacuationObstacle: _evacuationObstacle,
-      vulnerablePerson: _vulnerablePerson,
-      urgency: _urgency,
+      waterLevel: isRising ? _waterLevel : null,
+      evacuationObstacle: isTrapped ? _evacuationObstacle : null,
+      vulnerablePerson: isVulnerable ? _vulnerablePerson : null,
+      urgency: isMedical ? _urgency : null,
       details: detailsText.isNotEmpty ? detailsText : null,
     );
 
@@ -711,6 +803,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                       setState(() => _isSubmitting = false);
 
                       if (success) {
+                        _resetForm();
                         if (mounted && Navigator.canPop(context)) {
                           Navigator.pop(context);
                         }
@@ -1059,12 +1152,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             taglishSubtitle: "Pinsala, medikal na emergency, o saklolo",
             icon: Icons.medical_services_rounded,
             isSelected: _helpType == 'Medical',
-            onTap: () {
-              setState(() {
-                _helpType = 'Medical';
-                _validationMessage = null;
-              });
-            },
+            onTap: () => _onHelpTypeSelected('Medical'),
             color: const Color(0xFFEF4444),
           ),
           const SizedBox(height: 14),
@@ -1075,12 +1163,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             taglishSubtitle: "Tumataas ang baha, naipit, o may kailangang ilikas",
             icon: Icons.directions_run_rounded,
             isSelected: _helpType == 'Evacuation',
-            onTap: () {
-              setState(() {
-                _helpType = 'Evacuation';
-                _validationMessage = null;
-              });
-            },
+            onTap: () => _onHelpTypeSelected('Evacuation'),
             color: const Color(0xFFF97316),
           ),
           const SizedBox(height: 14),
@@ -1091,12 +1174,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             taglishSubtitle: "Iba pang kagyat o mapanganib na sitwasyon",
             icon: Icons.warning_amber_rounded,
             isSelected: _helpType == 'Other Emergency',
-            onTap: () {
-              setState(() {
-                _helpType = 'Other Emergency';
-                _validationMessage = null;
-              });
-            },
+            onTap: () => _onHelpTypeSelected('Other Emergency'),
             color: const Color(0xFF8B5CF6),
           ),
         ],
@@ -1115,6 +1193,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     required Color color,
   }) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -1223,7 +1302,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             widget.isTaglish ? "Pinsala / Sugat" : "Injury",
             Icons.healing_rounded,
             _medicalType == 'Injury',
-            () => setState(() => _medicalType = 'Injury'),
+            () => setState(() {
+              _medicalType = 'Injury';
+              _validationMessage = null;
+            }),
             activeColor: const Color(0xFFEF4444),
           ),
           const SizedBox(height: 10),
@@ -1231,7 +1313,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             widget.isTaglish ? "Medikal na Emergency" : "Medical emergency",
             Icons.local_hospital_rounded,
             _medicalType == 'Medical emergency',
-            () => setState(() => _medicalType = 'Medical emergency'),
+            () => setState(() {
+              _medicalType = 'Medical emergency';
+              _validationMessage = null;
+            }),
             activeColor: const Color(0xFFEF4444),
           ),
           const SizedBox(height: 10),
@@ -1239,7 +1324,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             widget.isTaglish ? "Tulong para sa Ibang Tao" : "Help for another person",
             Icons.person_add_alt_1_rounded,
             _medicalType == 'Help for another person',
-            () => setState(() => _medicalType = 'Help for another person'),
+            () => setState(() {
+              _medicalType = 'Help for another person';
+              _validationMessage = null;
+            }),
             activeColor: const Color(0xFFEF4444),
           ),
           const SizedBox(height: 24),
@@ -1257,7 +1345,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                 : "Immediate / Life-threatening",
             Icons.crisis_alert_rounded,
             _urgency == 'Immediate / Life-threatening',
-            () => setState(() => _urgency = 'Immediate / Life-threatening'),
+            () => setState(() {
+              _urgency = 'Immediate / Life-threatening';
+              _validationMessage = null;
+            }),
             activeColor: const Color(0xFFDC2626),
           ),
           const SizedBox(height: 8),
@@ -1265,7 +1356,10 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
             widget.isTaglish ? "Kagyat / Malubha" : "Urgent / Serious",
             Icons.priority_high_rounded,
             _urgency == 'Urgent / Serious',
-            () => setState(() => _urgency = 'Urgent / Serious'),
+            () => setState(() {
+              _urgency = 'Urgent / Serious';
+              _validationMessage = null;
+            }),
             activeColor: const Color(0xFFEA580C),
           ),
           const SizedBox(height: 8),
@@ -1275,12 +1369,16 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                 : "Non-life threatening",
             Icons.info_outline_rounded,
             _urgency == 'Non-life threatening',
-            () => setState(() => _urgency = 'Non-life threatening'),
+            () => setState(() {
+              _urgency = 'Non-life threatening';
+              _validationMessage = null;
+            }),
             activeColor: const Color(0xFF0284C7),
           ),
           const SizedBox(height: 20),
           TextField(
-            controller: _detailsCtrl,
+            key: ValueKey('medical_details_$_medicalType'),
+            controller: _getActiveDetailsCtrl(),
             maxLines: 2,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: _inputDecoration(
@@ -1508,7 +1606,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
 
           const SizedBox(height: 20),
           TextField(
-            controller: _detailsCtrl,
+            key: ValueKey('evac_details_$_evacuationReason'),
+            controller: _evacuationDetailsCtrl,
             maxLines: 2,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: _inputDecoration(
@@ -1550,7 +1649,8 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           ),
           const SizedBox(height: 24),
           TextField(
-            controller: _detailsCtrl,
+            key: const ValueKey('other_emergency_details'),
+            controller: _otherEmergencyDetailsCtrl,
             maxLines: 4,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: _inputDecoration(
@@ -1649,7 +1749,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   // --- STEP 3: Confirmation Summary ---
 
   Widget _buildStep3Confirmation() {
-    final detailsText = _detailsCtrl.text.trim();
+    final detailsText = _getActiveDetailsText();
     final streetText = _streetCtrl.text.trim();
     final locationText = streetText.isNotEmpty && (_selectedBarangay != null)
         ? "$streetText, $_selectedBarangay"
@@ -1717,7 +1817,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                   _buildSummaryRow(
                     Icons.crisis_alert_rounded,
                     widget.isTaglish ? "Urgency" : "Urgency",
-                    _urgency ?? "Immediate",
+                    _urgency ?? (widget.isTaglish ? "Hindi natukoy" : "Not specified"),
                     valueColor: const Color(0xFFDC2626),
                   ),
                 ],
@@ -1875,6 +1975,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   }) {
     final color = activeColor ?? accentColor;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

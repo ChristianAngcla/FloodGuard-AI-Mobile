@@ -188,6 +188,10 @@ void main() {
 
       await tester.tap(find.text('Injury'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
@@ -460,6 +464,10 @@ void main() {
       // Step 1: Injury
       await tester.tap(find.text('Injury'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
@@ -531,6 +539,10 @@ void main() {
       // Step 1: Injury
       await tester.tap(find.text('Injury'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
@@ -587,6 +599,406 @@ void main() {
       // Must NOT claim responders dispatched
       expect(find.textContaining('responders dispatched'), findsNothing);
       expect(find.textContaining('help is on the way'), findsNothing);
+    });
+  });
+
+  group('Help Request State Isolation & Explicit Selection (Hotfix QA)', () {
+    testWidgets('TEST A: Open Ask for Help -> Medical -> second-step options have nothing preselected',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildTestApp(submitHook: ({
+        required String location,
+        required bool isRaining,
+        required bool isSafe,
+        required String uid,
+        double? floodDepth,
+        String? floodLevel,
+        String? reporterName,
+        String? reporterPhone,
+        required double latitude,
+        required double longitude,
+        String? status,
+        String? helpNeeded,
+        String? helpType,
+        String? helpSubtype,
+        String? waterLevel,
+        String? evacuationObstacle,
+        String? vulnerablePerson,
+        String? urgency,
+        String? details,
+      }) async => true));
+      await tester.pumpAndSettle();
+
+      // Step 0: Tap Medical
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Nothing preselected
+      expect(find.text('Medical Assistance Details'), findsOneWidget);
+
+      // Attempt Next without selecting subtype
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Please select the type of medical assistance needed.'), findsOneWidget);
+
+      // Select subtype only (no urgency yet)
+      await tester.tap(find.text('Medical emergency'));
+      await tester.pumpAndSettle();
+
+      // Attempt Next without selecting urgency
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Please select an urgency level.'), findsOneWidget);
+
+      // Explicitly select urgency
+      await tester.ensureVisible(find.text('Urgent / Serious'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Urgent / Serious'));
+      await tester.pumpAndSettle();
+
+      // Now Next succeeds
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Incident Location'), findsOneWidget);
+    });
+
+    testWidgets('TEST B: Medical -> type "difficulty breathing" -> choose Injury -> Injury description does NOT contain "difficulty breathing"',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildTestApp(submitHook: ({
+        required String location,
+        required bool isRaining,
+        required bool isSafe,
+        required String uid,
+        double? floodDepth,
+        String? floodLevel,
+        String? reporterName,
+        String? reporterPhone,
+        required double latitude,
+        required double longitude,
+        String? status,
+        String? helpNeeded,
+        String? helpType,
+        String? helpSubtype,
+        String? waterLevel,
+        String? evacuationObstacle,
+        String? vulnerablePerson,
+        String? urgency,
+        String? details,
+      }) async => true));
+      await tester.pumpAndSettle();
+
+      // Step 0: Medical
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Select Medical emergency and type details
+      await tester.tap(find.text('Medical emergency'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'difficulty breathing');
+      await tester.pumpAndSettle();
+
+      // Switch to Injury within Medical
+      await tester.ensureVisible(find.text('Injury'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Injury'));
+      await tester.pumpAndSettle();
+
+      // Injury description must NOT contain "difficulty breathing"
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      final textFieldInjury = tester.widget<TextField>(find.byType(TextField));
+      expect(textFieldInjury.controller!.text, isEmpty);
+
+      // Switch back to Medical emergency -> draft is preserved
+      await tester.ensureVisible(find.text('Medical emergency'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Medical emergency'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      final textFieldMed = tester.widget<TextField>(find.byType(TextField));
+      expect(textFieldMed.controller!.text, 'difficulty breathing');
+    });
+
+    testWidgets('TEST C: Medical -> type text -> go back -> choose Other Type of Help -> Please Specify is empty',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildTestApp(submitHook: ({
+        required String location,
+        required bool isRaining,
+        required bool isSafe,
+        required String uid,
+        double? floodDepth,
+        String? floodLevel,
+        String? reporterName,
+        String? reporterPhone,
+        required double latitude,
+        required double longitude,
+        String? status,
+        String? helpNeeded,
+        String? helpType,
+        String? helpSubtype,
+        String? waterLevel,
+        String? evacuationObstacle,
+        String? vulnerablePerson,
+        String? urgency,
+        String? details,
+      }) async => true));
+      await tester.pumpAndSettle();
+
+      // Step 0: Medical
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Select Medical emergency and type text
+      await tester.tap(find.text('Medical emergency'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'patient needs oxygen');
+      await tester.pumpAndSettle();
+
+      // Go back to Step 0
+      await tester.ensureVisible(find.text('Back'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // Choose Other Emergency
+      await tester.ensureVisible(find.text('Other Emergency'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Other Emergency'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Description field in Other Emergency must be empty
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      final textFieldOther = tester.widget<TextField>(find.byType(TextField));
+      expect(textFieldOther.controller!.text, isEmpty);
+    });
+
+    testWidgets('TEST D: Other -> type "need transport assistance" -> switch to Medical -> Medical description does not contain Other text',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildTestApp(submitHook: ({
+        required String location,
+        required bool isRaining,
+        required bool isSafe,
+        required String uid,
+        double? floodDepth,
+        String? floodLevel,
+        String? reporterName,
+        String? reporterPhone,
+        required double latitude,
+        required double longitude,
+        String? status,
+        String? helpNeeded,
+        String? helpType,
+        String? helpSubtype,
+        String? waterLevel,
+        String? evacuationObstacle,
+        String? vulnerablePerson,
+        String? urgency,
+        String? details,
+      }) async => true));
+      await tester.pumpAndSettle();
+
+      // Step 0: Other Emergency
+      await tester.ensureVisible(find.text('Other Emergency'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Other Emergency'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Type Other description
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'need transport assistance');
+      await tester.pumpAndSettle();
+
+      // Go back to Step 0
+      await tester.ensureVisible(find.text('Back'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // Switch to Medical
+      await tester.ensureVisible(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Select Injury
+      await tester.ensureVisible(find.text('Injury'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Injury'));
+      await tester.pumpAndSettle();
+
+      // Medical description must NOT contain "need transport assistance"
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.pumpAndSettle();
+      final textFieldMed = tester.widget<TextField>(find.byType(TextField));
+      expect(textFieldMed.controller!.text, isEmpty);
+    });
+
+    testWidgets('TEST E: Select a Medical subtype -> change parent help category -> old Medical subtype is cleared/not submitted',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      Map<String, dynamic> submittedPayload = {};
+
+      await tester.pumpWidget(_buildTestApp(submitHook: ({
+        required String location,
+        required bool isRaining,
+        required bool isSafe,
+        required String uid,
+        double? floodDepth,
+        String? floodLevel,
+        String? reporterName,
+        String? reporterPhone,
+        required double latitude,
+        required double longitude,
+        String? status,
+        String? helpNeeded,
+        String? helpType,
+        String? helpSubtype,
+        String? waterLevel,
+        String? evacuationObstacle,
+        String? vulnerablePerson,
+        String? urgency,
+        String? details,
+      }) async {
+        submittedPayload = {
+          'helpType': helpType,
+          'helpSubtype': helpSubtype,
+          'urgency': urgency,
+          'waterLevel': waterLevel,
+          'details': details,
+        };
+        return true;
+      }));
+      await tester.pumpAndSettle();
+
+      // Step 0: Medical
+      await tester.tap(find.text('Medical'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 1: Select Injury and Urgency
+      await tester.tap(find.text('Injury'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
+
+      // Go back to Step 0
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // Change parent help category to Evacuation
+      await tester.tap(find.text('Evacuation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Select Evacuation specifics
+      await tester.tap(find.text('Floodwater is rising'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Below knee'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Below knee'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 2: Location
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tumana').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // Step 3: Legal checkbox and submit
+      await tester.ensureVisible(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('CONFIRM'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm & Send'));
+      await tester.pumpAndSettle();
+
+      // Verify payload: old Medical subtype & urgency were completely cleared and NOT submitted
+      expect(submittedPayload['helpType'], 'Evacuation');
+      expect(submittedPayload['helpSubtype'], 'Floodwater is rising');
+      expect(submittedPayload['urgency'], isNull);
+      expect(submittedPayload['waterLevel'], 'Below knee');
+    });
+
+    testWidgets('TEST F: Submit/cancel and open a fresh Help Request -> no stale category, subtype, or description is automatically populated',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_buildTestApp(submitHook: ({
+        required String location,
+        required bool isRaining,
+        required bool isSafe,
+        required String uid,
+        double? floodDepth,
+        String? floodLevel,
+        String? reporterName,
+        String? reporterPhone,
+        required double latitude,
+        required double longitude,
+        String? status,
+        String? helpNeeded,
+        String? helpType,
+        String? helpSubtype,
+        String? waterLevel,
+        String? evacuationObstacle,
+        String? vulnerablePerson,
+        String? urgency,
+        String? details,
+      }) async => true));
+      await tester.pumpAndSettle();
+
+      // Step 0: Ensure fresh state has nothing selected
+      expect(find.text('Medical'), findsOneWidget);
+      expect(find.text('Evacuation'), findsOneWidget);
+      expect(find.text('Other Emergency'), findsOneWidget);
+
+      // Attempt Next on fresh screen
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Please select what help you need.'), findsOneWidget);
     });
   });
 }

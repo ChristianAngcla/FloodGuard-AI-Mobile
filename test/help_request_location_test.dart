@@ -159,6 +159,10 @@ void main() {
       // Step 1: Branch specifics
       await tester.tap(find.text('Injury'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Immediate / Life-threatening'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
