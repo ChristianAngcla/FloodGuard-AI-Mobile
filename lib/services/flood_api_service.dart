@@ -80,6 +80,20 @@ class FloodData {
       'FloodData($barangay: statusOrdinal=$riskLevel, WL=$waterLevel, peak=$peakPredictedLevel)';
 }
 
+/// Exception thrown when a backend endpoint responds with HTTP 429 Too Many Requests.
+class RateLimitException implements Exception {
+  final String message;
+  final int? retryAfterSeconds;
+
+  RateLimitException({
+    required this.message,
+    this.retryAfterSeconds,
+  });
+
+  @override
+  String toString() => message;
+}
+
 /// 🔗 Flood API Service - Talks to the FloodGuard analytics engine.
 ///
 /// Data flow: PAGASA-reported telemetry → server-side OLS → this service → Flutter UI
@@ -101,8 +115,111 @@ class FloodApiService {
   static const Duration _timeout =
       Duration(seconds: 60); // 🚀 Increased to 60s for Render cold-starts
 
+  // 🛡️ Rate limit tracking and backend message capture
   static String? lastHelpRequestError;
   static int? lastHelpRequestRetryAfterSeconds;
+  static String? lastRateLimitMessage;
+  static int? lastRateLimitRetryAfterSeconds;
+  static bool lastStatusRateLimited = false;
+  static String? lastProfileSaveError;
+  static bool lastProfileSaveRateLimited = false;
+
+  // 🔒 In-flight locks & Future coalescing to prevent accidental duplicate requests
+  static bool _isHelpReportInFlight = false;
+  static bool get isHelpReportInFlight => _isHelpReportInFlight;
+
+  static bool _isProfileSaveInFlight = false;
+  static bool get isProfileSaveInFlight => _isProfileSaveInFlight;
+
+  static Future<Map<String, FloodData>>? _inFlightFloodDataFetch;
+  static Future<TyphoonStatus?>? _inFlightTyphoonFetch;
+  static Future<Map<String, dynamic>?>? _inFlightDailyForecastFetch;
+  static Future<List<Map<String, dynamic>>>? _inFlightHelpRequestsFetch;
+
+  /// Extracts user-safe message from HTTP 429 response.
+  static String extract429Message(http.Response response,
+      {String? defaultMessage}) {
+    try {
+      final body = response.body.trim();
+      if (body.startsWith('{') && body.endsWith('}')) {
+        final data = jsonDecode(body);
+        if (data is Map &&
+            data['message'] != null &&
+            data['message'].toString().trim().isNotEmpty) {
+          return data['message'].toString().trim();
+        }
+      }
+    } catch (_) {}
+    return defaultMessage ??
+        'Too many requests. Please wait a moment and try again.';
+  }
+
+  /// Extracts retry-after seconds from response headers or JSON payload.
+  static int? extractRetryAfterSeconds(http.Response response) {
+    try {
+      final retryHeader = response.headers['retry-after'];
+      if (retryHeader != null) {
+        final parsed = int.tryParse(retryHeader.trim());
+        if (parsed != null) return parsed;
+      }
+      final resetHeader = response.headers['ratelimit-reset'];
+      if (resetHeader != null) {
+        final parsed = int.tryParse(resetHeader.trim());
+        if (parsed != null) return parsed;
+      }
+      final body = response.body.trim();
+      if (body.startsWith('{') && body.endsWith('}')) {
+        final data = jsonDecode(body);
+        if (data is Map && data['retryAfterSeconds'] != null) {
+          return int.tryParse(data['retryAfterSeconds'].toString());
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  @visibleForTesting
+  static http.Client? client;
+
+  static Future<http.Response> _httpGet(Uri uri,
+      {Map<String, String>? headers, Duration? timeout}) async {
+    final reqTimeout = timeout ?? _timeout;
+    if (client != null) {
+      return client!.get(uri, headers: headers).timeout(reqTimeout);
+    }
+    return http.get(uri, headers: headers).timeout(reqTimeout);
+  }
+
+  static Future<http.Response> _httpPost(Uri uri,
+      {Map<String, String>? headers, Object? body, Duration? timeout}) async {
+    final reqTimeout = timeout ?? _timeout;
+    if (client != null) {
+      return client!
+          .post(uri, headers: headers, body: body)
+          .timeout(reqTimeout);
+    }
+    return http.post(uri, headers: headers, body: body).timeout(reqTimeout);
+  }
+
+  static Future<http.Response> _httpPut(Uri uri,
+      {Map<String, String>? headers, Object? body, Duration? timeout}) async {
+    final reqTimeout = timeout ?? _timeout;
+    if (client != null) {
+      return client!
+          .put(uri, headers: headers, body: body)
+          .timeout(reqTimeout);
+    }
+    return http.put(uri, headers: headers, body: body).timeout(reqTimeout);
+  }
+
+  static Future<http.Response> _httpDelete(Uri uri,
+      {Map<String, String>? headers, Duration? timeout}) async {
+    final reqTimeout = timeout ?? _timeout;
+    if (client != null) {
+      return client!.delete(uri, headers: headers).timeout(reqTimeout);
+    }
+    return http.delete(uri, headers: headers).timeout(reqTimeout);
+  }
 
   // 💾 CACHE: Store data here so we don't fetch different random numbers
   static Map<String, FloodData>? _cachedData;
@@ -334,7 +451,7 @@ class FloodApiService {
       debugPrint('🔗 Checking API health at $baseUrl/status');
 
       final response =
-          await http.get(Uri.parse('$baseUrl/status')).timeout(_timeout);
+          await _httpGet(Uri.parse('$baseUrl/status'), timeout: _timeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -384,8 +501,25 @@ class FloodApiService {
   /// Used by: HomeMapScreen to populate entire map with real data
   static Future<Map<String, FloodData>> getAllBarangayFloodData(
       {bool forceRefresh = false}) async {
+    if (_inFlightFloodDataFetch != null) {
+      debugPrint('⚡ [Service] Coalescing in-flight flood data fetch');
+      return _inFlightFloodDataFetch!;
+    }
+
+    final future =
+        _fetchAllBarangayFloodDataInternal(forceRefresh: forceRefresh);
+    _inFlightFloodDataFetch = future;
     try {
-      // 1. Check if we have valid cached data (less than 2 minutes old)
+      return await future;
+    } finally {
+      _inFlightFloodDataFetch = null;
+    }
+  }
+
+  static Future<Map<String, FloodData>> _fetchAllBarangayFloodDataInternal(
+      {bool forceRefresh = false}) async {
+    try {
+      // 1. Check if we have valid cached data (less than 10 minutes old)
       if (!forceRefresh && _cachedData != null && _lastFetchTime != null) {
         final age = DateTime.now().difference(_lastFetchTime!);
         if (age.inMinutes < 10) {
@@ -399,9 +533,22 @@ class FloodApiService {
 
       // Use /status because the new API structure provides river data here
       final response =
-          await http.get(Uri.parse('$baseUrl/status')).timeout(_timeout);
+          await _httpGet(Uri.parse('$baseUrl/status'), timeout: _timeout);
+
+      if (response.statusCode == 429) {
+        lastStatusRateLimited = true;
+        lastRateLimitMessage = extract429Message(response);
+        lastRateLimitRetryAfterSeconds = extractRetryAfterSeconds(response);
+        debugPrint(
+            '⚠️ [Service] 429 Rate limited on /status: $lastRateLimitMessage');
+        if (_cachedData != null && _cachedData!.isNotEmpty) {
+          return _cachedData!;
+        }
+        return {};
+      }
 
       if (response.statusCode == 200) {
+        lastStatusRateLimited = false;
         final dynamic decoded = jsonDecode(response.body);
         final Map<String, FloodData> map = {};
 
@@ -512,20 +659,23 @@ class FloodApiService {
 
         return map;
       } else if (response.statusCode == 404) {
+        lastStatusRateLimited = false;
         debugPrint(
             '⚠️ 404 Not Found: Server is running but endpoint is missing.');
         debugPrint(
             '   👉 Your main.py seems to be missing the expected endpoint.');
         return {};
       } else {
+        lastStatusRateLimited = false;
         debugPrint('⚠️ Failed to load flood data: HTTP ${response.statusCode}');
         debugPrint('   Response body: ${response.body}');
         return {};
       }
     } catch (e) {
+      lastStatusRateLimited = false;
       debugPrint('❌ Error fetching all flood data: $e');
       debugPrint('💡 TIP: Check if server is running on 0.0.0.0 and port 5000');
-      return {};
+      return _cachedData ?? {};
     }
   }
 
@@ -581,6 +731,14 @@ class FloodApiService {
     required String zipCode,
     required String country,
   }) async {
+    if (_isProfileSaveInFlight) {
+      debugPrint('⚠️ [Service] Profile save already in flight, ignoring duplicate call');
+      return false;
+    }
+    _isProfileSaveInFlight = true;
+    lastProfileSaveRateLimited = false;
+    lastProfileSaveError = null;
+
     try {
       debugPrint('🔗 Saving user profile to database...');
       final payload = jsonEncode({
@@ -606,13 +764,18 @@ class FloodApiService {
       final headers = await _jsonHeaders(withAuth: true);
 
       // Try PUT /user/profile first
-      var response = await http
-          .put(
-            Uri.parse('$dbBaseUrl/user/profile'),
-            headers: headers,
-            body: payload,
-          )
-          .timeout(_timeout);
+      var response = await _httpPut(
+        Uri.parse('$dbBaseUrl/user/profile'),
+        headers: headers,
+        body: payload,
+        timeout: _timeout,
+      );
+
+      if (response.statusCode == 429) {
+        lastProfileSaveRateLimited = true;
+        lastProfileSaveError = extract429Message(response);
+        return false;
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         debugPrint('✅ User profile saved to MongoDB successfully.');
@@ -620,13 +783,18 @@ class FloodApiService {
       }
 
       // Fallback 1: POST /user/profile
-      response = await http
-          .post(
-            Uri.parse('$dbBaseUrl/user/profile'),
-            headers: headers,
-            body: payload,
-          )
-          .timeout(_timeout);
+      response = await _httpPost(
+        Uri.parse('$dbBaseUrl/user/profile'),
+        headers: headers,
+        body: payload,
+        timeout: _timeout,
+      );
+
+      if (response.statusCode == 429) {
+        lastProfileSaveRateLimited = true;
+        lastProfileSaveError = extract429Message(response);
+        return false;
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         debugPrint('✅ User profile saved to MongoDB successfully.');
@@ -634,11 +802,13 @@ class FloodApiService {
       }
 
       debugPrint('⚠️ User profile save failed (HTTP ${response.statusCode}).');
-      return true; // Return true so user changes in local profile are never lost
+      return true; // Return true so user changes in local profile are never lost on non-429 server error
     } catch (e) {
       debugPrint(
           '⚠️ Network error saving profile to remote: $e (using local profile cache)');
       return true; // Return true so user updates locally regardless of remote network status
+    } finally {
+      _isProfileSaveInFlight = false;
     }
   }
 
@@ -679,49 +849,55 @@ class FloodApiService {
     String? urgency,
     String? details,
   }) async {
+    if (_isHelpReportInFlight) {
+      lastHelpRequestError =
+          'A help request is already being submitted. Please wait.';
+      return false;
+    }
+    _isHelpReportInFlight = true;
     lastHelpRequestError = null;
     lastHelpRequestRetryAfterSeconds = null;
+
     try {
       debugPrint('🔗 Submitting flood report to database...');
       debugPrint('   📝 Reporter: $reporterName, Phone: $reporterPhone');
       debugPrint('   📝 Flood Level: $floodLevel, Depth: ${floodDepth}m');
       debugPrint('   📝 Help needed: $helpNeeded');
-      final response = await http
-          .post(
-            Uri.parse('$dbBaseUrl/reports'),
-            headers: await _jsonHeaders(withAuth: true),
-            body: jsonEncode({
-              'location': location,
-              'is_raining': isRaining,
-              'is_safe': isSafe,
-              'uid': uid,
-              'flood_depth': floodDepth,
-              'flood_level': floodLevel ?? 'Unknown',
-              'reporter_name': reporterName ?? 'Unknown Reporter',
-              'reporter_phone': reporterPhone ?? '',
-              'help_needed': helpNeeded,
-              'floodDepth': floodDepth,
-              'floodLevel': floodLevel ?? 'Unknown',
-              'reporterName': reporterName ?? 'Unknown Reporter',
-              'reporterPhone': reporterPhone ?? '',
-              'helpNeeded': helpNeeded,
-              'latitude': latitude,
-              'longitude': longitude,
-              'help_type': helpType,
-              'helpType': helpType,
-              'help_subtype': helpSubtype,
-              'helpSubtype': helpSubtype,
-              'water_level': waterLevel,
-              'waterLevel': waterLevel,
-              'evacuation_obstacle': evacuationObstacle,
-              'evacuationObstacle': evacuationObstacle,
-              'vulnerable_person': vulnerablePerson,
-              'vulnerablePerson': vulnerablePerson,
-              'urgency': urgency,
-              'details': details,
-            }),
-          )
-          .timeout(_timeout);
+      final response = await _httpPost(
+        Uri.parse('$dbBaseUrl/reports'),
+        headers: await _jsonHeaders(withAuth: true),
+        body: jsonEncode({
+          'location': location,
+          'is_raining': isRaining,
+          'is_safe': isSafe,
+          'uid': uid,
+          'flood_depth': floodDepth,
+          'flood_level': floodLevel ?? 'Unknown',
+          'reporter_name': reporterName ?? 'Unknown Reporter',
+          'reporterPhone': reporterPhone ?? '',
+          'reporter_phone': reporterPhone ?? '',
+          'help_needed': helpNeeded,
+          'floodDepth': floodDepth,
+          'floodLevel': floodLevel ?? 'Unknown',
+          'reporterName': reporterName ?? 'Unknown Reporter',
+          'helpNeeded': helpNeeded,
+          'latitude': latitude,
+          'longitude': longitude,
+          'help_type': helpType,
+          'helpType': helpType,
+          'help_subtype': helpSubtype,
+          'helpSubtype': helpSubtype,
+          'water_level': waterLevel,
+          'waterLevel': waterLevel,
+          'evacuation_obstacle': evacuationObstacle,
+          'evacuationObstacle': evacuationObstacle,
+          'vulnerable_person': vulnerablePerson,
+          'vulnerablePerson': vulnerablePerson,
+          'urgency': urgency,
+          'details': details,
+        }),
+        timeout: _timeout,
+      );
 
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
@@ -732,13 +908,17 @@ class FloodApiService {
         return false;
       }
 
-      final data = jsonDecode(response.body);
       if (response.statusCode == 429) {
-        lastHelpRequestRetryAfterSeconds =
-            int.tryParse('${data['retryAfterSeconds'] ?? ''}');
-        lastHelpRequestError = data['message']?.toString();
+        lastHelpRequestRetryAfterSeconds = extractRetryAfterSeconds(response);
+        lastHelpRequestError = extract429Message(
+          response,
+          defaultMessage:
+              'Too many requests. Please wait a moment and try again.',
+        );
         return false;
       }
+
+      final data = jsonDecode(response.body);
       if (response.statusCode == 201 ||
           (response.statusCode == 200 && data['success'] == true)) {
         debugPrint('✅ Flood report submitted successfully.');
@@ -755,20 +935,43 @@ class FloodApiService {
       lastHelpRequestError =
           'Could not send your help request. Please try again.';
       return false;
+    } finally {
+      _isHelpReportInFlight = false;
     }
   }
 
   static Future<List<Map<String, dynamic>>> fetchMyHelpRequests() async {
+    if (_inFlightHelpRequestsFetch != null) {
+      return _inFlightHelpRequestsFetch!;
+    }
+
+    final future = _fetchMyHelpRequestsInternal();
+    _inFlightHelpRequestsFetch = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightHelpRequestsFetch = null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>>
+      _fetchMyHelpRequestsInternal() async {
     final token = await AuthService().getAuthToken();
     if (token == null || token.isEmpty) {
       throw Exception('not_authenticated');
     }
-    final response = await http.get(
+    final response = await _httpGet(
       Uri.parse('$dbBaseUrl/reports/mine'),
       headers: {
         'Authorization': 'Bearer $token',
       },
-    ).timeout(_timeout);
+      timeout: _timeout,
+    );
+    if (response.statusCode == 429) {
+      final msg = extract429Message(response);
+      final retry = extractRetryAfterSeconds(response);
+      throw RateLimitException(message: msg, retryAfterSeconds: retry);
+    }
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw Exception('not_authenticated');
     }
@@ -795,12 +998,18 @@ class FloodApiService {
       if (token == null || token.isEmpty) {
         throw Exception('not_authenticated');
       }
-      final response = await http.delete(
+      final response = await _httpDelete(
         Uri.parse('$dbBaseUrl/reports/$id'),
         headers: {
           'Authorization': 'Bearer $token',
         },
-      ).timeout(_timeout);
+        timeout: _timeout,
+      );
+      if (response.statusCode == 429) {
+        final msg = extract429Message(response);
+        final retry = extractRetryAfterSeconds(response);
+        throw RateLimitException(message: msg, retryAfterSeconds: retry);
+      }
       if (response.statusCode == 401 || response.statusCode == 403) {
         throw Exception('not_authenticated');
       }
@@ -823,7 +1032,23 @@ class FloodApiService {
   static TyphoonStatus? getCachedTyphoonStatus() => _cachedTyphoonStatus;
 
   /// 🌀 Fetch official read-only DOST-PAGASA tropical cyclone / PAR status
-  static Future<TyphoonStatus?> fetchTyphoonStatus({bool forceRefresh = false}) async {
+  static Future<TyphoonStatus?> fetchTyphoonStatus(
+      {bool forceRefresh = false}) async {
+    if (_inFlightTyphoonFetch != null) {
+      return _inFlightTyphoonFetch!;
+    }
+
+    final future = _fetchTyphoonStatusInternal(forceRefresh: forceRefresh);
+    _inFlightTyphoonFetch = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightTyphoonFetch = null;
+    }
+  }
+
+  static Future<TyphoonStatus?> _fetchTyphoonStatusInternal(
+      {bool forceRefresh = false}) async {
     try {
       if (!forceRefresh &&
           _cachedTyphoonStatus != null &&
@@ -834,10 +1059,18 @@ class FloodApiService {
         }
       }
 
-      debugPrint('🌀 Fetching DOST-PAGASA typhoon status from $baseUrl/typhoon/current');
-      final response = await http
-          .get(Uri.parse('$baseUrl/typhoon/current'))
-          .timeout(const Duration(seconds: 15));
+      debugPrint(
+          '🌀 Fetching DOST-PAGASA typhoon status from $baseUrl/typhoon/current');
+      final response = await _httpGet(
+        Uri.parse('$baseUrl/typhoon/current'),
+        timeout: const Duration(seconds: 15),
+      );
+      if (response.statusCode == 429) {
+        lastRateLimitMessage = extract429Message(response);
+        lastRateLimitRetryAfterSeconds = extractRetryAfterSeconds(response);
+        debugPrint('⚠️ [Service] 429 Rate limited on /typhoon/current');
+        return _cachedTyphoonStatus;
+      }
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic> && decoded['success'] == true) {
@@ -856,6 +1089,21 @@ class FloodApiService {
   /// 📅 Fetch authoritative daily forecasts from GET /api/forecasts/daily
   static Future<Map<String, dynamic>?> fetchDailyForecasts(
       {bool forceRefresh = false}) async {
+    if (_inFlightDailyForecastFetch != null) {
+      return _inFlightDailyForecastFetch!;
+    }
+
+    final future = _fetchDailyForecastsInternal(forceRefresh: forceRefresh);
+    _inFlightDailyForecastFetch = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightDailyForecastFetch = null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _fetchDailyForecastsInternal(
+      {bool forceRefresh = false}) async {
     try {
       if (!forceRefresh &&
           _cachedDailyForecastResponse != null &&
@@ -868,9 +1116,16 @@ class FloodApiService {
 
       debugPrint(
           '📅 Fetching authoritative daily forecast from $baseUrl/forecasts/daily');
-      final response = await http
-          .get(Uri.parse('$baseUrl/forecasts/daily'))
-          .timeout(_timeout);
+      final response = await _httpGet(
+        Uri.parse('$baseUrl/forecasts/daily'),
+        timeout: _timeout,
+      );
+      if (response.statusCode == 429) {
+        lastRateLimitMessage = extract429Message(response);
+        lastRateLimitRetryAfterSeconds = extractRetryAfterSeconds(response);
+        debugPrint('⚠️ [Service] 429 Rate limited on /forecasts/daily');
+        return _cachedDailyForecastResponse;
+      }
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {

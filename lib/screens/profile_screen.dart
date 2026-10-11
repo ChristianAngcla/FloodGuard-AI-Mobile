@@ -165,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
-    if (_isLoading) return;
+    if (_isLoading || FloodApiService.isProfileSaveInFlight) return;
     if (!_formKey.currentState!.validate()) return;
 
     final phone = _phoneCtrl.text.trim();
@@ -250,7 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final safeEmail = (_userProfile?.email ?? '').trim().toLowerCase();
 
     // Call API service to persist to backend
-    await FloodApiService.saveUserProfile(
+    final saved = await FloodApiService.saveUserProfile(
       uid: uid,
       email: safeEmail,
       firstName: formattedFirstName,
@@ -266,6 +266,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (mounted) {
+      if (!saved && FloodApiService.lastProfileSaveRateLimited) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(FloodApiService.lastProfileSaveError ??
+                (widget.isTaglish
+                    ? "Masyadong maraming request. Maghintay sandali at subukang muli."
+                    : "Too many requests. Please wait a moment and try again.")),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
       // Instantly update the local cache so changes reflect everywhere across the app!
       final prefs = await SharedPreferences.getInstance();
       final userDataString = prefs.getString('user_data');

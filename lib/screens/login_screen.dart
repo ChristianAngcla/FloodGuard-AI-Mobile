@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (_isLoading) return;
+    if (_isLoading || AuthService.isLoginInFlight) return;
     if (_emailCtrl.text.isEmpty || _passwordCtrl.text.isEmpty) return;
     setState(() => _isLoading = true);
 
@@ -70,11 +70,13 @@ class _LoginScreenState extends State<LoginScreen> {
         (route) => false,
       );
     } else {
+      final errorMsg = authService.lastAuthError ??
+          (widget.isTaglish
+              ? "Maling email o password"
+              : "Invalid email or password");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.isTaglish
-              ? "Maling email o password"
-              : "Invalid email or password"),
+          content: Text(errorMsg),
           backgroundColor: Colors.redAccent,
         ),
       );

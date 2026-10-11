@@ -60,13 +60,17 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = e.toString().contains('not_authenticated')
-            ? (widget.isTaglish
-                ? 'Mag-sign in para makita ang iyong mga help request.'
-                : 'Sign in to see your help requests.')
-            : (widget.isTaglish
-                ? 'Hindi ma-load ang mga help request. Subukan muli.'
-                : 'Could not load your help requests. Please try again.');
+        if (e is RateLimitException) {
+          _error = e.message;
+        } else if (e.toString().contains('not_authenticated')) {
+          _error = widget.isTaglish
+              ? 'Mag-sign in para makita ang iyong mga help request.'
+              : 'Sign in to see your help requests.';
+        } else {
+          _error = widget.isTaglish
+              ? 'Hindi ma-load ang mga help request. Subukan muli.'
+              : 'Could not load your help requests. Please try again.';
+        }
       });
     }
   }

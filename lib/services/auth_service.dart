@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 import '../models/user_profile_model.dart';
+import 'flood_api_service.dart';
 
 /// Citizen auth against FloodGuard Express `/api/auth/*`.
 /// Stores JWT + `user_data` in SharedPreferences (existing app contract).
@@ -15,6 +16,26 @@ import '../models/user_profile_model.dart';
 /// creates the Mongo citizen account.
 class AuthService {
   static const String _baseUrl = ApiConfig.apiBase;
+
+  @visibleForTesting
+  static http.Client? client;
+
+  static bool _isLoginInFlight = false;
+  static bool get isLoginInFlight => _isLoginInFlight;
+
+  String? lastAuthError;
+  int? lastAuthRetryAfterSeconds;
+
+  static Future<http.Response> _httpPost(Uri uri,
+      {Map<String, String>? headers, Object? body, Duration? timeout}) async {
+    final reqTimeout = timeout ?? const Duration(seconds: 20);
+    if (client != null) {
+      return client!
+          .post(uri, headers: headers, body: body)
+          .timeout(reqTimeout);
+    }
+    return http.post(uri, headers: headers, body: body).timeout(reqTimeout);
+  }
 
   UserProfile? _cachedUser;
 
@@ -53,20 +74,36 @@ class AuthService {
   }
 
   Future<bool> login(String email, String password) async {
+    if (_isLoginInFlight) return false;
+    _isLoginInFlight = true;
+    lastAuthError = null;
+    lastAuthRetryAfterSeconds = null;
+
     try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/login'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'email': email.trim().toLowerCase(),
-              'password': password,
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
+      final response = await _httpPost(
+        Uri.parse('$_baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim().toLowerCase(),
+          'password': password,
+        }),
+        timeout: const Duration(seconds: 20),
+      );
+
+      if (response.statusCode == 429) {
+        lastAuthError = FloodApiService.extract429Message(
+          response,
+          defaultMessage: 'Too many login attempts. Please try again later.',
+        );
+        lastAuthRetryAfterSeconds =
+            FloodApiService.extractRetryAfterSeconds(response);
+        return false;
+      }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode != 200 || data['success'] != true) {
+        lastAuthError =
+            data['message']?.toString() ?? 'Invalid email or password';
         return false;
       }
 
@@ -85,7 +122,10 @@ class AuthService {
       return true;
     } catch (e) {
       debugPrint('AuthService.login error: $e');
+      lastAuthError = 'Connection failed. Check server status.';
       return false;
+    } finally {
+      _isLoginInFlight = false;
     }
   }
 
@@ -113,32 +153,44 @@ class AuthService {
     try {
       // Render cold starts can exceed 25s; keep generous so UI doesn't false-fail
       // after Mongo already created the user.
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/signup'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'firstName': formattedFirstName,
-              'lastName': formattedLastName,
-              'email': safeEmail,
-              'password': password,
-              'barangay': barangay.trim(),
-              'phone': phone.trim(),
-              'houseNo': houseNo.trim(),
-              'house_no': houseNo.trim(),
-              'streetName': streetName.trim(),
-              'street_name': streetName.trim(),
-              'city': city.trim(),
-              'province': province.trim(),
-              'zipCode': zipCode.trim(),
-              'zip_code': zipCode.trim(),
-              'country': country.trim(),
-              'first_name': formattedFirstName,
-              'last_name': formattedLastName,
-              if (firebaseIdToken != null) 'firebaseIdToken': firebaseIdToken,
-            }),
-          )
-          .timeout(const Duration(seconds: 60));
+      final response = await _httpPost(
+        Uri.parse('$_baseUrl/auth/signup'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'firstName': formattedFirstName,
+          'lastName': formattedLastName,
+          'email': safeEmail,
+          'password': password,
+          'barangay': barangay.trim(),
+          'phone': phone.trim(),
+          'houseNo': houseNo.trim(),
+          'house_no': houseNo.trim(),
+          'streetName': streetName.trim(),
+          'street_name': streetName.trim(),
+          'city': city.trim(),
+          'province': province.trim(),
+          'zipCode': zipCode.trim(),
+          'zip_code': zipCode.trim(),
+          'country': country.trim(),
+          'first_name': formattedFirstName,
+          'last_name': formattedLastName,
+          if (firebaseIdToken != null) 'firebaseIdToken': firebaseIdToken,
+        }),
+        timeout: const Duration(seconds: 60),
+      );
+
+      if (response.statusCode == 429) {
+        final retrySeconds = FloodApiService.extractRetryAfterSeconds(response);
+        final message = FloodApiService.extract429Message(
+          response,
+          defaultMessage: 'Too many signup attempts. Please try again later.',
+        );
+        return {
+          'success': false,
+          'message': message,
+          if (retrySeconds != null) 'retryAfterSeconds': retrySeconds,
+        };
+      }
 
       Map<String, dynamic> data = {};
       try {
@@ -213,13 +265,19 @@ class AuthService {
   Future<Map<String, dynamic>> lookupPhoneByEmail(String email) async {
     final cleanEmail = email.trim().toLowerCase();
     try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/lookup-phone'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': cleanEmail}),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await _httpPost(
+        Uri.parse('$_baseUrl/auth/lookup-phone'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': cleanEmail}),
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (response.statusCode == 429) {
+        return {
+          'success': false,
+          'message': FloodApiService.extract429Message(response),
+        };
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -280,17 +338,27 @@ class AuthService {
   }) async {
     final cleanEmail = email.trim().toLowerCase();
     try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/auth/update-password'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'email': cleanEmail,
-              'newPassword': newPassword,
-              if (firebaseIdToken != null) 'firebaseIdToken': firebaseIdToken,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await _httpPost(
+        Uri.parse('$_baseUrl/auth/update-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': cleanEmail,
+          'newPassword': newPassword,
+          if (firebaseIdToken != null) 'firebaseIdToken': firebaseIdToken,
+        }),
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (response.statusCode == 429) {
+        return {
+          'success': false,
+          'message': FloodApiService.extract429Message(
+            response,
+            defaultMessage:
+                'Too many password reset attempts. Please try again later.',
+          ),
+        };
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;

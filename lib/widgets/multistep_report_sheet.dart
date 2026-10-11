@@ -731,7 +731,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   }
 
   Future<void> _submitReport() async {
-    if (_isSubmitting) return;
+    if (_isSubmitting || FloodApiService.isHelpReportInFlight) return;
 
     if (!_agreedToLegal) {
       _showError(widget.isTaglish
@@ -767,10 +767,12 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
 
     await showDialog<bool>(
       context: context,
-      barrierDismissible: !_isSubmitting,
+      barrierDismissible: !_isSubmitting && !FloodApiService.isHelpReportInFlight,
       builder: (dialogCtx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final bool inFlight =
+                _isSubmitting || FloodApiService.isHelpReportInFlight;
             return FloodGuardModalDialog(
               title: widget.isTaglish
                   ? "Ipadala ang Saklolo?"
@@ -785,17 +787,22 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
                   ? "Kumpirmahin at Ipadala"
                   : "Confirm & Send",
               isDarkMode: widget.isDarkMode,
-              isLoading: _isSubmitting,
-              onCancel: _isSubmitting
+              isLoading: inFlight,
+              onCancel: inFlight
                   ? null
                   : () => Navigator.of(dialogCtx).pop(false),
-              onConfirm: _isSubmitting
+              onConfirm: inFlight
                   ? null
                   : () async {
+                      if (_isSubmitting ||
+                          FloodApiService.isHelpReportInFlight) {
+                        return;
+                      }
+                      setDialogState(() => _isSubmitting = true);
+                      setState(() => _isSubmitting = true);
                       if (dialogCtx.mounted) {
                         Navigator.of(dialogCtx).pop(false);
                       }
-                      setState(() => _isSubmitting = true);
 
                       final success = await _executeReportSubmission();
 

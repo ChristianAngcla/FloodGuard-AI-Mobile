@@ -74,6 +74,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
   bool _hasShownEarlyWarning = false;
   bool _isInitialLoading = true;
   Timer? _autoRefreshTimer;
+  DateTime? _lastRefreshAttempt;
 
   int _currentTabIndex = 1; // Default to Map View
   UserProfile? _userProfile;
@@ -497,11 +498,16 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         ]);
         apiData = results[0] as Map<String, FloodData>;
         if (apiData.isEmpty && mounted) {
+          final isRateLimited = FloodApiService.lastStatusRateLimited;
+          final msg = isRateLimited
+              ? (FloodApiService.lastRateLimitMessage ??
+                  "Too many requests. Please wait a moment and try again.")
+              : "Connection failed. Check server status.";
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Connection failed. Check server status."),
+            SnackBar(
+              content: Text(msg),
               backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -1438,7 +1444,16 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
   Future<void> _refreshData({bool silent = false}) async {
     if (_isLoading) return;
-    if (!silent) setState(() => _isLoading = true);
+    if (!silent) {
+      final now = DateTime.now();
+      if (_lastRefreshAttempt != null &&
+          now.difference(_lastRefreshAttempt!) <
+              const Duration(milliseconds: 1500)) {
+        return;
+      }
+      _lastRefreshAttempt = now;
+      setState(() => _isLoading = true);
+    }
 
     await loadMarikinaBarangays(forceRefresh: true);
     await _fetchUserProfile();
@@ -1448,13 +1463,24 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         if (!silent) _isLoading = false;
       });
       if (!silent) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(t("refreshSuccess")),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        if (FloodApiService.lastStatusRateLimited) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(FloodApiService.lastRateLimitMessage ??
+                  "Too many requests. Please wait a moment and try again."),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t("refreshSuccess")),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
     }
   }
