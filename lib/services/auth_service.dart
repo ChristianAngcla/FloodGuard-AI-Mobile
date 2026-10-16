@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/user_profile_model.dart';
 import 'flood_api_service.dart';
+import 'notification_service.dart';
 
 /// Citizen auth against FloodGuard Express `/api/auth/*`.
 /// Stores JWT + `user_data` in SharedPreferences (existing app contract).
@@ -114,11 +115,13 @@ class AuthService {
       if (token != null) await prefs.setString('auth_token', token);
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('user_data', jsonEncode(userMap));
-      if (userMap['uid'] != null) {
-        await prefs.setString('uid', userMap['uid'].toString());
+      final resolvedUid = userMap['uid'] ?? userMap['_id'] ?? userMap['id'];
+      if (resolvedUid != null && resolvedUid.toString().trim().isNotEmpty) {
+        await prefs.setString('uid', resolvedUid.toString().trim());
       }
 
       _cachedUser = UserProfile.fromJson(userMap);
+      NotificationService.onAlertsUpdated.add(null);
       return true;
     } catch (e) {
       debugPrint('AuthService.login error: $e');
@@ -397,6 +400,11 @@ class AuthService {
     await prefs.remove('user_data');
     await prefs.remove('uid');
     _cachedUser = null;
+    try {
+      await NotificationService.cleanupOnLogout();
+    } catch (e) {
+      debugPrint('[AUTH] Notification cleanup on logout exception: $e');
+    }
     try {
       if (Firebase.apps.isNotEmpty) {
         await FirebaseAuth.instance.signOut();

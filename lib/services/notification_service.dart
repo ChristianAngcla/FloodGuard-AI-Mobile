@@ -132,6 +132,9 @@ class NotificationService {
   @visibleForTesting
   static bool? testUnsubscribeSuccess;
 
+  @visibleForTesting
+  static Future<void> Function()? testCancelAllLocalNotifications;
+
   /// Canonical barangay topic dictionary for all 16 Marikina barangays.
   static const Map<String, String> barangayTopicMap = {
     'Barangka': 'barangay_barangka',
@@ -619,9 +622,59 @@ class NotificationService {
     );
   }
 
-  /// Cleans up the active barangay topic subscription on user logout.
-  static Future<void> cleanupOnLogout() async {
+  /// Formats the user-scoped storage key for persisted alerts.
+  static String keyForUid(String uid) => 'app_alerts_$uid';
+
+  /// Resolves the user-scoped storage key for the currently authenticated user,
+  /// e.g. `app_alerts_<uid>`. Returns null when logged out or in guest mode.
+  static Future<String?> getActiveAlertsStorageKey() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    if (!isLoggedIn) return null;
+
+    final uid = prefs.getString('uid');
+    if (uid != null && uid.trim().isNotEmpty) {
+      return keyForUid(uid.trim());
+    }
+
+    final rawUserData = prefs.getString('user_data');
+    if (rawUserData != null && rawUserData.trim().isNotEmpty) {
+      try {
+        final map = jsonDecode(rawUserData) as Map<String, dynamic>;
+        final profileUid = map['uid'] ?? map['_id'] ?? map['id'];
+        if (profileUid != null && profileUid.toString().trim().isNotEmpty) {
+          return keyForUid(profileUid.toString().trim());
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  /// Cleans up active barangay topic subscription, local notification tray,
+  /// and user routing state on user logout.
+  /// Preserves the user's scoped alert history (`app_alerts_<uid>`) for future logins.
+  static Future<void> cleanupOnLogout() async {
+    // 1. Cancel active local notifications from the OS notification tray
+    if (testCancelAllLocalNotifications != null) {
+      try {
+        await testCancelAllLocalNotifications!();
+      } catch (e) {
+        debugPrint('[FCM MOBILE] Test cancelAllLocalNotifications exception: $e');
+      }
+    } else {
+      try {
+        await _localNotifications.cancelAll();
+        debugPrint('[FCM MOBILE] Cancelled all active local notifications on logout');
+      } catch (e) {
+        debugPrint('[FCM MOBILE] Error cancelling local notifications on logout: $e');
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+
+    // 2. Unsubscribe from active authenticated barangay topic
     final confirmed = prefs.getString(keyConfirmedTopic) ??
         prefs.getString(keyActiveTopic) ??
         prefs.getString(keySubscribedBarangay);
@@ -644,6 +697,7 @@ class NotificationService {
       }
     }
 
+    // 3. Remove all user-specific notification routing state keys
     await prefs.remove(keyConfirmedTopic);
     await prefs.remove(keyDesiredTopic);
     await prefs.remove(keyActiveBarangay);
@@ -654,6 +708,10 @@ class NotificationService {
 
     final remainingCleanup = prefs.getString(keyPendingCleanupTopic);
     await prefs.setString(keySyncStatus, (remainingCleanup != null && remainingCleanup.isNotEmpty) ? 'pending' : 'synced');
+
+    // 4. Broadcast alert update to UI so open screens refresh to empty/logged-out state
+    onAlertsUpdated.add(null);
+    debugPrint('[FCM MOBILE] Completed logout notification cleanup (preserved user-scoped alert history)');
   }
 
   static Future<void> subscribeToBarangay(String barangay) async {
@@ -676,7 +734,14 @@ class NotificationService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
-      final list = prefs.getStringList('app_alerts') ?? [];
+
+      final storageKey = await getActiveAlertsStorageKey();
+      if (storageKey == null) {
+        debugPrint('[FCM MOBILE] No authenticated user session; skipping alert persistence for id=$id');
+        return;
+      }
+
+      final list = prefs.getStringList(storageKey) ?? [];
       final alreadyStored = list.any((entry) {
         try {
           final decoded = jsonDecode(entry) as Map<String, dynamic>;
@@ -686,7 +751,7 @@ class NotificationService {
         }
       });
       if (alreadyStored) {
-        debugPrint('[FCM MOBILE] Alert with id=$id already persisted, skipping duplicate');
+        debugPrint('[FCM MOBILE] Alert with id=$id already persisted in $storageKey, skipping duplicate');
         return;
       }
 
@@ -707,8 +772,8 @@ class NotificationService {
       if (list.length > 50) {
         list.removeRange(50, list.length);
       }
-      await prefs.setStringList('app_alerts', list);
-      debugPrint('[FCM MOBILE] Persisted alert id=$id. Total alerts count=${list.length}');
+      await prefs.setStringList(storageKey, list);
+      debugPrint('[FCM MOBILE] Persisted alert id=$id to $storageKey. Total alerts count=${list.length}');
       onAlertsUpdated.add(null);
     } catch (e) {
       debugPrint('[FCM MOBILE] Failed to persist alert messageId=$id: $e');

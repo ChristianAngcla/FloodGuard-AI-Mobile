@@ -120,8 +120,15 @@ class FloodWarningScale extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
-        // Clamp marker offset so the 130px badge never extends beyond layout bounds
-        final markerOffset = (totalWidth * _fraction).clamp(65.0, math.max(65.0, totalWidth - 65.0));
+        final textScaler = MediaQuery.textScalerOf(context);
+
+        // Responsive badge width proportional to screen width, accommodating text scaling
+        final badgeWidth = math.min(130.0, math.max(104.0, totalWidth * 0.44)).toDouble();
+        final halfBadge = badgeWidth / 2;
+        final targetX = totalWidth * _fraction;
+        final badgeLeft = (targetX - halfBadge).clamp(0.0, math.max(0.0, totalWidth - badgeWidth)).toDouble();
+        // Pointer offset within badge so arrow tip points towards targetX even when badge is edge-clamped
+        final arrowOffset = (targetX - badgeLeft).clamp(12.0, badgeWidth - 12.0).toDouble();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -192,7 +199,7 @@ class FloodWarningScale extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // ── 2. Zone Headers (12.5px bold, high contrast) ──
+            // ── 2. Zone Headers (12.5px bold, high contrast, responsive scaling) ──
             Row(
               children: [
                 _buildZoneLabel('SAFE', colorSafe, 0),
@@ -227,9 +234,9 @@ class FloodWarningScale extends StatelessWidget {
             ),
             const SizedBox(height: 5),
 
-            // ── 4. Threshold Boundary Cutoffs under Dividers (12px bold) ──
+            // ── 4. Threshold Boundary Cutoffs under Dividers ──
             SizedBox(
-              height: 18,
+              height: (18.0 * textScaler.scale(1.0)).clamp(18.0, 32.0),
               child: Stack(
                 children: [
                   Positioned(
@@ -250,65 +257,73 @@ class FloodWarningScale extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
 
-            // ── 5. Dynamic Predicted Water Level Marker & Badge ──
-            SizedBox(
-              height: 68,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    left: markerOffset - 65.0,
-                    child: SizedBox(
-                      width: 130,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.arrow_drop_up_rounded,
-                            size: 26,
-                            color: _statusColor,
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _statusColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: _statusColor.withValues(alpha: 0.5), width: 1.5),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${predictedLevel.toStringAsFixed(2)} m',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    color: _statusColor,
-                                  ),
-                                ),
-                                Text(
-                                  isTaglish
-                                      ? 'Pagtatayang Lebel'
-                                      : 'Predicted Water Level',
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: textColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+            // ── 5. Dynamic Predicted Water Level Marker & Badge (Natural-height vertical flow) ──
+            Padding(
+              padding: EdgeInsets.only(left: badgeLeft),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: badgeWidth,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Arrow pointer aligned towards targetX
+                      Align(
+                        alignment: Alignment(
+                          halfBadge > 0 ? (arrowOffset / halfBadge) - 1.0 : 0.0,
+                          0.0,
+                        ),
+                        child: Icon(
+                          Icons.arrow_drop_up_rounded,
+                          size: 26,
+                          color: _statusColor,
+                        ),
                       ),
-                    ),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _statusColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _statusColor.withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${predictedLevel.toStringAsFixed(2)} m',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: _statusColor,
+                              ),
+                            ),
+                            Text(
+                              isTaglish
+                                  ? 'Pagtatayang Lebel'
+                                  : 'Predicted Water Level',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // ── 6. High-Contrast Direct English Explanation Card ──
             Container(
@@ -344,27 +359,33 @@ class FloodWarningScale extends StatelessWidget {
         (zoneIndex == 3 && cleanStatus == 'CRITICAL');
 
     return Expanded(
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12.5,
-          fontWeight: isActive ? FontWeight.w900 : FontWeight.w800,
-          color: isActive ? color : color.withValues(alpha: 0.75),
-          letterSpacing: 0.4,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: isActive ? FontWeight.w900 : FontWeight.w800,
+            color: isActive ? color : color.withValues(alpha: 0.75),
+            letterSpacing: 0.4,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildBoundaryTick(String value, Color color) {
-    return Text(
-      value,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        color: color,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        value,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
       ),
     );
   }

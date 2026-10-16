@@ -48,10 +48,31 @@ class _AlertsScreenState extends State<AlertsScreen> {
   Future<void> _loadAlerts() async {
     setState(() => _isLoading = true);
     try {
+      final storageKey = await NotificationService.getActiveAlertsStorageKey();
+      if (storageKey == null) {
+        if (mounted) {
+          setState(() {
+            _alerts = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload(); // CRITICAL: reload to get updates from background FCM isolate
 
-      final alertsString = prefs.getStringList('app_alerts') ?? [];
+      // Backward compatibility: migrate legacy un-scoped alerts to active user if present
+      final legacy = prefs.getStringList('app_alerts');
+      if (legacy != null && legacy.isNotEmpty) {
+        final existing = prefs.getStringList(storageKey);
+        if (existing == null || existing.isEmpty) {
+          await prefs.setStringList(storageKey, legacy);
+        }
+        await prefs.remove('app_alerts');
+      }
+
+      final alertsString = prefs.getStringList(storageKey) ?? [];
       final alerts = alertsString
           .map((e) => jsonDecode(e) as Map<String, dynamic>)
           .toList();
@@ -73,9 +94,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   Future<void> _deleteAlert(String id) async {
     try {
+      final storageKey = await NotificationService.getActiveAlertsStorageKey();
+      if (storageKey == null) return;
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
-      final alertsString = prefs.getStringList('app_alerts') ?? [];
+      final alertsString = prefs.getStringList(storageKey) ?? [];
       final updatedList = alertsString.where((e) {
         try {
           final decoded = jsonDecode(e) as Map<String, dynamic>;
@@ -84,7 +108,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
           return true;
         }
       }).toList();
-      await prefs.setStringList('app_alerts', updatedList);
+      await prefs.setStringList(storageKey, updatedList);
       if (mounted) {
         setState(() {
           _alerts.removeWhere((a) => a['id'] == id || a['messageId'] == id);
@@ -97,8 +121,18 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   Future<void> _clearAll() async {
     try {
+      final storageKey = await NotificationService.getActiveAlertsStorageKey();
+      if (storageKey == null) {
+        if (mounted) {
+          setState(() {
+            _alerts.clear();
+          });
+        }
+        return;
+      }
+
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('app_alerts');
+      await prefs.remove(storageKey);
       if (mounted) {
         setState(() {
           _alerts.clear();
@@ -111,9 +145,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   Future<void> _markAsRead(String id) async {
     try {
+      final storageKey = await NotificationService.getActiveAlertsStorageKey();
+      if (storageKey == null) return;
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
-      final alertsString = prefs.getStringList('app_alerts') ?? [];
+      final alertsString = prefs.getStringList(storageKey) ?? [];
       final updatedList = alertsString.map((e) {
         try {
           final decoded = jsonDecode(e) as Map<String, dynamic>;
@@ -124,7 +161,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         } catch (_) {}
         return e;
       }).toList();
-      await prefs.setStringList('app_alerts', updatedList);
+      await prefs.setStringList(storageKey, updatedList);
       if (mounted) {
         setState(() {
           final index = _alerts.indexWhere((a) => a['id'] == id || a['messageId'] == id);
