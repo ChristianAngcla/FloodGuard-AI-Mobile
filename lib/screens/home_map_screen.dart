@@ -988,20 +988,38 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         const SizedBox(height: 6),
 
                         // 2. Predicted Water Level (24px bold)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              _isTaglish ? "Tinatayang Lebel ng Tubig:" : "Predicted Water Level:",
-                              style: TextStyle(fontSize: 12.5, color: textMuted, fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              "${level.toStringAsFixed(2)} m",
-                              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: riskColor),
-                            ),
-                          ],
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _isTaglish ? "Tinatayang Lebel ng Tubig:" : "Predicted Water Level:",
+                                    style: TextStyle(fontSize: 12.5, color: textMuted, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: constraints.maxWidth * 0.45,
+                                  ),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      "${level.toStringAsFixed(2)} m",
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: riskColor),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 6),
 
@@ -3367,28 +3385,48 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _isTaglish
-                        ? 'Pagtatayang Lebel ng Tubig:'
-                        : 'Predicted Water Level:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: subColor,
-                    ),
-                  ),
-                  Text(
-                    '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: riskColor,
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _isTaglish
+                              ? 'Pagtatayang Lebel ng Tubig:'
+                              : 'Predicted Water Level:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: subColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth * 0.45,
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            '${daily.predictedWaterLevel!.toStringAsFixed(2)} m',
+                            maxLines: 1,
+                            softWrap: false,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: riskColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Row(

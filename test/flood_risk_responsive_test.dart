@@ -206,4 +206,162 @@ void main() {
       expect(markerRect.bottom, lessThan(explanationRect.top));
     });
   });
+
+  group('Forecast Card Water-Level Value Row Responsive QA (English & Tagalog)', () {
+    final narrowWidths = [320.0, 360.0, 375.0, 390.0, 412.0];
+    const waterLevelValue = 18.03;
+
+    Widget buildForecastWaterLevelCard({
+      required double screenWidth,
+      required bool isTaglish,
+      required String tagalogLabel,
+      double labelFontSize = 14.0,
+    }) {
+      return MediaQuery(
+        data: MediaQueryData(size: Size(screenWidth, 800.0)),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Material(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: screenWidth,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    key: const Key('forecast_details_card'),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                isTaglish ? tagalogLabel : 'Predicted Water Level:',
+                                style: TextStyle(
+                                  fontSize: labelFontSize,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: constraints.maxWidth * 0.45,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  '${waterLevelValue.toStringAsFixed(2)} m',
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  textAlign: TextAlign.right,
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFFDC2626),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (final width in narrowWidths) {
+      testWidgets(
+          'Water level row (18.03 m) renders without overlap/clipping in English & Tagalog at ${width.toInt()}px',
+          (tester) async {
+        tester.view.physicalSize = Size(width, 800.0);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // 1. Check English
+        await tester.pumpWidget(
+          buildForecastWaterLevelCard(
+            screenWidth: width,
+            isTaglish: false,
+            tagalogLabel: 'Pagtatayang Lebel ng Tubig:',
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final enLabelFinder = find.text('Predicted Water Level:');
+        final enValueFinder = find.text('18.03 m');
+        expect(enLabelFinder, findsOneWidget);
+        expect(enValueFinder, findsOneWidget);
+
+        final cardRectEn = tester.getRect(find.byKey(const Key('forecast_details_card')));
+        final enLabelRect = tester.getRect(enLabelFinder);
+        final enValueRect = tester.getRect(enValueFinder);
+
+        expect(enLabelRect.right, lessThanOrEqualTo(enValueRect.left),
+            reason: 'English label and 18.03 m must not overlap at width $width');
+        expect(enValueRect.right, lessThanOrEqualTo(cardRectEn.right),
+            reason: '18.03 m unit "m" must not clip outside card right edge at width $width');
+
+        // 2. Toggle to Tagalog (Home Dashboard copy: Pagtatayang Lebel ng Tubig:)
+        await tester.pumpWidget(
+          buildForecastWaterLevelCard(
+            screenWidth: width,
+            isTaglish: true,
+            tagalogLabel: 'Pagtatayang Lebel ng Tubig:',
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final tlLabelFinder = find.text('Pagtatayang Lebel ng Tubig:');
+        final tlValueFinder = find.text('18.03 m');
+        expect(tlLabelFinder, findsOneWidget);
+        expect(tlValueFinder, findsOneWidget);
+
+        final cardRectTl = tester.getRect(find.byKey(const Key('forecast_details_card')));
+        final tlLabelRect = tester.getRect(tlLabelFinder);
+        final tlValueRect = tester.getRect(tlValueFinder);
+
+        expect(tlLabelRect.right, lessThanOrEqualTo(tlValueRect.left),
+            reason: 'Tagalog label and 18.03 m must not overlap at width $width');
+        expect(tlValueRect.right, lessThanOrEqualTo(cardRectTl.right),
+            reason: '18.03 m unit "m" must not clip outside card right edge in Tagalog at width $width');
+
+        // 3. Check Tagalog (Barangay Sheet / Map Popup copy: Tinatayang Lebel ng Tubig:)
+        await tester.pumpWidget(
+          buildForecastWaterLevelCard(
+            screenWidth: width,
+            isTaglish: true,
+            tagalogLabel: 'Tinatayang Lebel ng Tubig:',
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final tlSheetLabelFinder = find.text('Tinatayang Lebel ng Tubig:');
+        final tlSheetValueFinder = find.text('18.03 m');
+        expect(tlSheetLabelFinder, findsOneWidget);
+        expect(tlSheetValueFinder, findsOneWidget);
+
+        final tlSheetLabelRect = tester.getRect(tlSheetLabelFinder);
+        final tlSheetValueRect = tester.getRect(tlSheetValueFinder);
+
+        expect(tlSheetLabelRect.right, lessThanOrEqualTo(tlSheetValueRect.left),
+            reason: 'Tinatayang Lebel ng Tubig: and 18.03 m must not overlap at width $width');
+        expect(tlSheetValueRect.right, lessThanOrEqualTo(cardRectTl.right),
+            reason: '18.03 m unit "m" must not clip outside card right edge at width $width');
+      });
+    }
+  });
 }
