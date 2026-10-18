@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile_model.dart';
 import '../data/translations.dart';
+import '../services/location_service.dart';
 import 'wave_background.dart';
 import '../screens/profile_screen.dart';
 import '../screens/login_screen.dart';
@@ -418,8 +419,12 @@ class _AppDrawerState extends State<AppDrawer> {
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            _userProfile?.barangay ?? "Loading...",
-                            style: TextStyle(
+                            (_userProfile?.barangay.isNotEmpty == true)
+                                ? LocationService.displayBarangay(
+                                    _userProfile!.barangay,
+                                    isTagalog: widget.isTaglish)
+                                : "Loading...",
+                            style: const TextStyle(
                               color: Color(0xFF3784DF),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,

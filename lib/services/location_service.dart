@@ -10,8 +10,8 @@ class LocationService {
     'Concepcion Dos',
     'Concepcion Uno',
     'Fortune',
-    'Industrial Valley (IVC)',
-    'Jesus Dela Peña',
+    'Industrial Valley Complex (IVC)',
+    'Jesus dela Peña',
     'Malanday',
     'Marikina Heights',
     'Nangka',
@@ -23,17 +23,17 @@ class LocationService {
     'Tumana',
   ];
 
-  /// Canonicalizes any legacy or ASCII spelling into the official 16 Marikina barangay names.
+  /// Canonicalizes any legacy, localized, or ASCII spelling into the official 16 Marikina barangay names.
   static String canonicalizeBarangay(String? raw) {
     if (raw == null) return '';
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
 
     const aliases = {
-      'jesus de la pena': 'Jesus Dela Peña',
-      'jesus dela pena': 'Jesus Dela Peña',
-      'jesus de la peña': 'Jesus Dela Peña',
-      'jesus dela peña': 'Jesus Dela Peña',
+      'jesus de la pena': 'Jesus dela Peña',
+      'jesus dela pena': 'Jesus dela Peña',
+      'jesus de la peña': 'Jesus dela Peña',
+      'jesus dela peña': 'Jesus dela Peña',
       'santo nino': 'Santo Niño',
       'sto nino': 'Santo Niño',
       'sto. nino': 'Santo Niño',
@@ -43,13 +43,16 @@ class LocationService {
       'concepcion 2': 'Concepcion Dos',
       'sta. elena': 'Santa Elena',
       'sta elena': 'Santa Elena',
-      'ivc': 'Industrial Valley (IVC)',
-      'industrial valley': 'Industrial Valley (IVC)',
-      'industrial valley complex': 'Industrial Valley (IVC)',
-      'industrial valley (ivc)': 'Industrial Valley (IVC)',
+      'ivc': 'Industrial Valley Complex (IVC)',
+      'industrial valley': 'Industrial Valley Complex (IVC)',
+      'industrial valley complex': 'Industrial Valley Complex (IVC)',
+      'industrial valley (ivc)': 'Industrial Valley Complex (IVC)',
+      'industrial valley complex (ivc)': 'Industrial Valley Complex (IVC)',
+      'calumpang': 'Calumpang',
+      'kalumpang': 'Calumpang',
     };
 
-    final lower = trimmed.toLowerCase();
+    final lower = trimmed.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
     if (aliases.containsKey(lower)) {
       return aliases[lower]!;
     }
@@ -61,6 +64,19 @@ class LocationService {
     }
 
     return trimmed;
+  }
+
+  /// Returns the localized user-facing display name for a barangay.
+  /// In English (`isTagalog == false`): returns `'Calumpang'`.
+  /// In Tagalog (`isTagalog == true`): returns `'Kalumpang'`.
+  /// All other barangays return their canonical name (e.g., `'Industrial Valley Complex (IVC)'`, `'Jesus dela Peña'`).
+  static String displayBarangay(String? raw, {bool isTagalog = false}) {
+    final canonical = canonicalizeBarangay(raw);
+    if (canonical.isEmpty) return '';
+    if (isTagalog && canonical == 'Calumpang') {
+      return 'Kalumpang';
+    }
+    return canonical;
   }
 
   /// Returns true if the name matches one of the 16 canonical Marikina barangays.

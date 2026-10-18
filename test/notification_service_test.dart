@@ -11,6 +11,8 @@ void main() {
       expect(NotificationService.topicForBarangay('Santo Niño'),
           'barangay_santo_nino');
       expect(NotificationService.topicForBarangay('Tañong'), 'barangay_tanong');
+      expect(NotificationService.topicForBarangay('Jesus dela Peña'),
+          'barangay_jesus_dela_pena');
       expect(NotificationService.topicForBarangay('Jesus Dela Peña'),
           'barangay_jesus_dela_pena');
       expect(NotificationService.topicForBarangay('Concepcion Uno'),
@@ -37,6 +39,10 @@ void main() {
           'barangay_barangka');
       expect(NotificationService.topicForBarangay('Calumpang'),
           'barangay_calumpang');
+      expect(NotificationService.topicForBarangay('Kalumpang'),
+          'barangay_calumpang');
+      expect(NotificationService.topicForBarangay('Industrial Valley Complex (IVC)'),
+          'barangay_industrial_valley');
       expect(NotificationService.topicForBarangay('Industrial Valley Complex'),
           'barangay_industrial_valley');
       expect(NotificationService.topicForBarangay('Industrial Valley (IVC)'),
@@ -460,13 +466,30 @@ void main() {
       expect(LocationService.canonicalizeBarangay('Sto. Nino'), 'Santo Niño');
       expect(LocationService.canonicalizeBarangay('tanong'), 'Tañong');
       expect(LocationService.canonicalizeBarangay('Tañong'), 'Tañong');
-      expect(LocationService.canonicalizeBarangay('jesus dela pena'), 'Jesus Dela Peña');
-      expect(LocationService.canonicalizeBarangay('Jesus Dela Peña'), 'Jesus Dela Peña');
-      expect(LocationService.canonicalizeBarangay('IVC'), 'Industrial Valley (IVC)');
-      expect(LocationService.canonicalizeBarangay('Industrial Valley Complex'), 'Industrial Valley (IVC)');
-      expect(LocationService.canonicalizeBarangay('Industrial Valley'), 'Industrial Valley (IVC)');
+      expect(LocationService.canonicalizeBarangay('jesus dela pena'), 'Jesus dela Peña');
+      expect(LocationService.canonicalizeBarangay('Jesus de la Peña'), 'Jesus dela Peña');
+      expect(LocationService.canonicalizeBarangay('Jesus Dela Peña'), 'Jesus dela Peña');
+      expect(LocationService.canonicalizeBarangay('Jesus dela Peña'), 'Jesus dela Peña');
+      expect(LocationService.canonicalizeBarangay('IVC'), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.canonicalizeBarangay('Industrial Valley Complex'), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.canonicalizeBarangay('Industrial Valley (IVC)'), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.canonicalizeBarangay('Industrial Valley Complex (IVC)'), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.canonicalizeBarangay('Industrial Valley'), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.canonicalizeBarangay('Calumpang'), 'Calumpang');
+      expect(LocationService.canonicalizeBarangay('Kalumpang'), 'Calumpang');
       expect(LocationService.canonicalizeBarangay('Concepcion 1'), 'Concepcion Uno');
       expect(LocationService.canonicalizeBarangay('Concepcion 2'), 'Concepcion Dos');
+    });
+
+    test('displayBarangay returns Calumpang in English and Kalumpang in Tagalog', () {
+      expect(LocationService.displayBarangay('Calumpang', isTagalog: false), 'Calumpang');
+      expect(LocationService.displayBarangay('Calumpang', isTagalog: true), 'Kalumpang');
+      expect(LocationService.displayBarangay('Kalumpang', isTagalog: false), 'Calumpang');
+      expect(LocationService.displayBarangay('Kalumpang', isTagalog: true), 'Kalumpang');
+      expect(LocationService.displayBarangay('Industrial Valley (IVC)', isTagalog: false), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.displayBarangay('Industrial Valley (IVC)', isTagalog: true), 'Industrial Valley Complex (IVC)');
+      expect(LocationService.displayBarangay('Jesus de la Peña', isTagalog: false), 'Jesus dela Peña');
+      expect(LocationService.displayBarangay('Jesus de la Peña', isTagalog: true), 'Jesus dela Peña');
     });
 
     test('point in polygon algorithm correctly identifies points inside and outside polygon', () {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/flood_api_service.dart';
+import '../services/location_service.dart';
 import '../utils/help_request_status.dart';
 import '../widgets/floodguard_modal_dialog.dart';
 import '../widgets/wave_background.dart';
@@ -165,6 +166,13 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
 
   String _locationLabel(Map<String, dynamic> request) {
     final rawBarangay = (request['barangay'] ?? '').toString().trim();
+    final canonicalBarangay = rawBarangay.isNotEmpty
+        ? LocationService.canonicalizeBarangay(rawBarangay)
+        : '';
+    final displayBarangay = canonicalBarangay.isNotEmpty
+        ? LocationService.displayBarangay(canonicalBarangay,
+            isTagalog: widget.isTaglish)
+        : '';
     var rawStreet = (request['street'] ?? request['street_name'] ?? '').toString().trim();
     final rawLocation = (request['location'] ?? '').toString().trim();
 
@@ -176,7 +184,10 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
     if (rawStreet.isNotEmpty) {
       final segments = rawStreet.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
       for (final seg in segments) {
-        if (rawBarangay.isNotEmpty && seg.toLowerCase() == rawBarangay.toLowerCase()) {
+        if (canonicalBarangay.isNotEmpty &&
+            (seg.toLowerCase() == rawBarangay.toLowerCase() ||
+             seg.toLowerCase() == canonicalBarangay.toLowerCase() ||
+             LocationService.canonicalizeBarangay(seg).toLowerCase() == canonicalBarangay.toLowerCase())) {
           continue;
         }
         if (!parts.any((p) => p.toLowerCase() == seg.toLowerCase())) {
@@ -185,9 +196,9 @@ class _HelpRequestsScreenState extends State<HelpRequestsScreen> {
       }
     }
 
-    if (rawBarangay.isNotEmpty) {
-      if (!parts.any((p) => p.toLowerCase() == rawBarangay.toLowerCase())) {
-        parts.add(rawBarangay);
+    if (displayBarangay.isNotEmpty) {
+      if (!parts.any((p) => p.toLowerCase() == displayBarangay.toLowerCase())) {
+        parts.add(displayBarangay);
       }
     }
 

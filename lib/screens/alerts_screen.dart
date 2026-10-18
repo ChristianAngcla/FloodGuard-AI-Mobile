@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../utils/station_thresholds.dart';
 import '../widgets/flood_warning_scale.dart';
@@ -400,14 +401,32 @@ class _AlertsScreenState extends State<AlertsScreen> {
     final data = alert['data'] as Map<String, dynamic>? ?? {};
     final b = data['barangay'];
     if (b != null && b.toString().trim().isNotEmpty) {
-      return b.toString().trim();
+      return LocationService.displayBarangay(
+          LocationService.canonicalizeBarangay(b.toString().trim()),
+          isTagalog: widget.isTaglish);
     }
     final combined = '${alert['title']} ${alert['body']}';
-    if (combined.contains('Nangka')) return 'Nangka';
-    if (combined.contains('Tumana')) return 'Tumana';
-    if (combined.contains('Malanday')) return 'Malanday';
-    if (combined.contains('Concepcion')) return 'Concepcion';
-    return 'Nangka';
+    for (final candidate in LocationService.marikinaBarangays) {
+      if (combined.toLowerCase().contains(candidate.toLowerCase())) {
+        return LocationService.displayBarangay(candidate,
+            isTagalog: widget.isTaglish);
+      }
+    }
+    if (combined.toLowerCase().contains('kalumpang')) {
+      return LocationService.displayBarangay('Calumpang',
+          isTagalog: widget.isTaglish);
+    }
+    if (combined.toLowerCase().contains('industrial valley')) {
+      return LocationService.displayBarangay('Industrial Valley Complex (IVC)',
+          isTagalog: widget.isTaglish);
+    }
+    if (combined.toLowerCase().contains('jesus de la pena') ||
+        combined.toLowerCase().contains('jesus dela pena')) {
+      return LocationService.displayBarangay('Jesus dela Peña',
+          isTagalog: widget.isTaglish);
+    }
+    return LocationService.displayBarangay('Nangka',
+        isTagalog: widget.isTaglish);
   }
 
   double? _extractPredictedWaterLevel(Map<String, dynamic> alert) {

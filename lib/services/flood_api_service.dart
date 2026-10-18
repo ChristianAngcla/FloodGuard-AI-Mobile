@@ -303,7 +303,7 @@ class FloodApiService {
   /// left unchanged. Uses the existing barangayToSensor mapping only.
   static ColorStatus? simulatedMapStatusForBarangay(String barangayName) {
     if (!isSimulationActive) return null;
-    final sensorKey = barangayToSensor[barangayName] ?? 'sto_nino';
+    final sensorKey = sensorForBarangay(barangayName);
     final daily = getDailyForecastForSensor(sensorKey);
     final fromDaily = mapColorStatusFromSimulatedStation(
       simulationActive: true,
@@ -344,7 +344,7 @@ class FloodApiService {
     if (isSimulationActive) {
       return simulatedMapStatusForBarangay(barangayName);
     }
-    final sensorKey = barangayToSensor[barangayName] ?? 'sto_nino';
+    final sensorKey = sensorForBarangay(barangayName);
     final daily = getDailyForecastForSensor(sensorKey);
     return mapColorStatusFromForecastStation(
       predictedWaterLevel: daily?.predictedWaterLevel,
@@ -385,13 +385,13 @@ class FloodApiService {
     'Malanday': 'tumana',
     'Marikina Heights': 'tumana',
     'Concepcion Dos': 'tumana',
-    'Industrial Valley':
+    'Industrial Valley Complex (IVC)':
         'sto_nino', // Southern Marikina — Sto. Niño, not Tumana
     'Santo Niño': 'sto_nino',
     'Concepcion Uno': 'tumana',
     'San Roque': 'sto_nino',
     'Barangka': 'sto_nino',
-    'Jesus Dela Peña': 'sto_nino',
+    'Jesus dela Peña': 'sto_nino',
     'Santa Elena': 'sto_nino',
     'Tañong': 'sto_nino',
     'Calumpang': 'sto_nino', // Southern Marikina — nearer Sto. Niño, not Nangka
@@ -399,6 +399,17 @@ class FloodApiService {
     'Fortune': 'nangka',
     'Parang': 'nangka',
   };
+
+  /// Alias-safe lookup of sensor key for any barangay name or legacy/localized variant.
+  static String sensorForBarangay(String barangayName) {
+    final direct = barangayToSensor[barangayName];
+    if (direct != null) return direct;
+    final target = normalizeName(barangayName);
+    for (final entry in barangayToSensor.entries) {
+      if (normalizeName(entry.key) == target) return entry.value;
+    }
+    return 'sto_nino';
+  }
 
   /// Human-readable sensor names
   static const Map<String, String> sensorDisplayNames = {
@@ -423,6 +434,17 @@ class FloodApiService {
     s = s.replaceAll('ñ', 'n');
     // Handle "Sto." or "Sto " -> "santo" for robust matching
     s = s.replaceAll(RegExp(r'\bsto\.?\b'), 'santo');
+    if (s == 'kalumpang') s = 'calumpang';
+    if (s == 'industrial valley' ||
+        s == 'industrial valley (ivc)' ||
+        s == 'industrial valley complex' ||
+        s == 'industrial valley complex (ivc)' ||
+        s == 'ivc') {
+      return 'industrialvalleycomplexivc';
+    }
+    if (s == 'jesus de la pena' || s == 'jesus dela pena') {
+      return 'jesusdelapena';
+    }
     return s.replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
@@ -577,8 +599,8 @@ class FloodApiService {
             "Concepcion Dos",
             "Concepcion Uno",
             "Fortune",
-            "Industrial Valley",
-            "Jesus Dela Peña",
+            "Industrial Valley Complex (IVC)",
+            "Jesus dela Peña",
             "Malanday",
             "Marikina Heights",
             "Nangka",
@@ -1151,7 +1173,7 @@ class FloodApiService {
   }
 
   static DailyForecastItem? getDailyForecastForBarangay(String barangay) {
-    final sensorKey = barangayToSensor[barangay] ?? 'sto_nino';
+    final sensorKey = sensorForBarangay(barangay);
     return getDailyForecastForSensor(sensorKey);
   }
 

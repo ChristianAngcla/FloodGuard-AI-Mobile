@@ -8,6 +8,7 @@ import '../services/notification_service.dart';
 import '../data/translations.dart';
 import '../services/auth_service.dart';
 import '../services/flood_api_service.dart';
+import '../services/location_service.dart';
 import '../models/user_profile_model.dart';
 import '../theme/app_spacing.dart';
 import '../utils/name_validator.dart';
@@ -55,34 +56,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _avatarSeed = 'Felix'; // Default avatar seed
   String _originalPhone = '';
 
-  final List<String> _marikinaBarangays = [
-    "Barangka",
-    "Calumpang",
-    "Concepcion Dos",
-    "Concepcion Uno",
-    "Fortune",
-    "Industrial Valley",
-    "Jesus Dela Peña",
-    "Malanday",
-    "Marikina Heights",
-    "Nangka",
-    "Parang",
-    "San Roque",
-    "Santa Elena",
-    "Santo Niño",
-    "Tañong",
-    "Tumana"
-  ];
+  final List<String> _marikinaBarangays = LocationService.marikinaBarangays;
 
   /// Map legacy ASCII spellings from older accounts onto canonical names.
   String _canonicalBarangay(String raw) {
-    const aliases = {
-      'Jesus De La Pena': 'Jesus Dela Peña',
-      'Jesus Dela Pena': 'Jesus Dela Peña',
-      'Santo Nino': 'Santo Niño',
-      'Tanong': 'Tañong',
-    };
-    return aliases[raw] ?? raw;
+    return LocationService.canonicalizeBarangay(raw);
   }
 
   @override
@@ -1162,7 +1140,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                value ?? '',
+                LocationService.displayBarangay(value,
+                    isTagalog: widget.isTaglish),
                 style: TextStyle(
                   color: isDark ? Colors.white : const Color(0xFF0F172A),
                   fontSize: 15,
@@ -1175,6 +1154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: value,
       isDense: true,
       icon: readOnly
@@ -1208,8 +1188,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(20),
             borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2)),
       ),
-      items:
-          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      items: items
+          .map((e) => DropdownMenuItem(
+              value: e,
+              child: Text(LocationService.displayBarangay(e,
+                  isTagalog: widget.isTaglish))))
+          .toList(),
       onChanged: onChanged,
     );
   }

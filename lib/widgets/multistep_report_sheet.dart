@@ -104,24 +104,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   Color get accentColor => const Color(0xFF3784DF);
   Color get emergencyColor => const Color(0xFFE53935);
 
-  final List<String> _marikinaBarangays = [
-    "Barangka",
-    "Calumpang",
-    "Concepcion Dos",
-    "Concepcion Uno",
-    "Fortune",
-    "Industrial Valley",
-    "Jesus De La Pena",
-    "Malanday",
-    "Marikina Heights",
-    "Nangka",
-    "Parang",
-    "San Roque",
-    "Santa Elena",
-    "Santo Nino",
-    "Tanong",
-    "Tumana"
-  ];
+  final List<String> _marikinaBarangays = LocationService.marikinaBarangays;
 
   @override
   void initState() {
@@ -437,9 +420,13 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   Widget _buildConfirmationModalSummary(bool isDark) {
     final detailsText = _getActiveDetailsText();
     final streetText = _streetCtrl.text.trim();
-    final locationText = streetText.isNotEmpty && (_selectedBarangay != null)
-        ? "$streetText, $_selectedBarangay"
-        : (_selectedBarangay ?? "Marikina City");
+    final displayBarangay = _selectedBarangay != null
+        ? LocationService.displayBarangay(_selectedBarangay,
+            isTagalog: widget.isTaglish)
+        : null;
+    final locationText = streetText.isNotEmpty && (displayBarangay != null)
+        ? "$streetText, $displayBarangay"
+        : (displayBarangay ?? "Marikina City");
 
     final summaryBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final borderColor = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
@@ -1695,6 +1682,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           ),
           const SizedBox(height: 28),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _selectedBarangay,
             dropdownColor: bgColor,
             style: TextStyle(color: textColor, fontSize: 15),
@@ -1703,10 +1691,15 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
               Icons.map_outlined,
             ),
             items: _marikinaBarangays
-                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .map((e) => DropdownMenuItem(
+                    value: e,
+                    child: Text(LocationService.displayBarangay(e,
+                        isTagalog: widget.isTaglish))))
                 .toList(),
             onChanged: (val) => setState(() {
-              _selectedBarangay = val;
+              _selectedBarangay = val != null
+                  ? LocationService.canonicalizeBarangay(val)
+                  : null;
               _validationMessage = null;
             }),
           ),
@@ -1758,9 +1751,13 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
   Widget _buildStep3Confirmation() {
     final detailsText = _getActiveDetailsText();
     final streetText = _streetCtrl.text.trim();
-    final locationText = streetText.isNotEmpty && (_selectedBarangay != null)
-        ? "$streetText, $_selectedBarangay"
-        : (_selectedBarangay ?? "Marikina City");
+    final displayBarangay = _selectedBarangay != null
+        ? LocationService.displayBarangay(_selectedBarangay,
+            isTagalog: widget.isTaglish)
+        : null;
+    final locationText = streetText.isNotEmpty && (displayBarangay != null)
+        ? "$streetText, $displayBarangay"
+        : (displayBarangay ?? "Marikina City");
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),

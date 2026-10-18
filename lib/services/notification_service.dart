@@ -142,8 +142,8 @@ class NotificationService {
     'Concepcion Dos': 'barangay_concepcion_dos',
     'Concepcion Uno': 'barangay_concepcion_uno',
     'Fortune': 'barangay_fortune',
-    'Industrial Valley (IVC)': 'barangay_industrial_valley',
-    'Jesus Dela Peña': 'barangay_jesus_dela_pena',
+    'Industrial Valley Complex (IVC)': 'barangay_industrial_valley',
+    'Jesus dela Peña': 'barangay_jesus_dela_pena',
     'Malanday': 'barangay_malanday',
     'Marikina Heights': 'barangay_marikina_heights',
     'Nangka': 'barangay_nangka',
@@ -176,9 +176,16 @@ class NotificationService {
 
     if (normalized == 'industrial_valley_ivc' ||
         normalized == 'industrial_valley_complex' ||
+        normalized == 'industrial_valley_complex_ivc' ||
         normalized == 'industrial_valley' ||
         normalized == 'ivc') {
       return 'barangay_industrial_valley';
+    }
+    if (normalized == 'kalumpang' || normalized == 'calumpang') {
+      return 'barangay_calumpang';
+    }
+    if (normalized == 'jesus_de_la_pena' || normalized == 'jesus_dela_pena') {
+      return 'barangay_jesus_dela_pena';
     }
     return 'barangay_$normalized';
   }

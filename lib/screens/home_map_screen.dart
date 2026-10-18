@@ -108,6 +108,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         // Restore the label to the centre of Barangka's actual polygon.
         // (The source centre has an older crowding adjustment applied.)
         return LatLng(center.latitude + 0.0045, center.longitude + 0.0010);
+      case 'Industrial Valley Complex (IVC)':
       case 'Industrial Valley':
         return center;
       case 'Fortune':
@@ -133,7 +134,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
     _isTaglish = widget.initialTaglish;
     _currentTabIndex = widget.initialTabIndex;
     if (widget.initialSelectedBarangay != null) {
-      _dashboardSelectedBarangay = widget.initialSelectedBarangay;
+      _dashboardSelectedBarangay =
+          LocationService.canonicalizeBarangay(widget.initialSelectedBarangay);
     }
     if (widget.testUserProfile != null) {
       _isLoggedIn = true;
@@ -518,11 +520,12 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       for (int i = 0; i < features.length; i++) {
         final feature = features[i];
         final props = feature['properties'] ?? {};
-        final name = props['NAME_3'] ??
+        final rawName = props['NAME_3'] ??
             props['name'] ??
             props['NAME'] ??
             props['barangay'] ??
             'Unknown Barangay';
+        final name = LocationService.canonicalizeBarangay(rawName.toString());
 
         final geometry = feature['geometry'];
         List coords;
@@ -554,7 +557,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           center = LatLng(center.latitude + 0.003, center.longitude - 0.002);
         } else if (name == "Barangka") {
           center = LatLng(center.latitude - 0.0045, center.longitude - 0.001);
-        } else if (name == "Jesus Dela Peña" ||
+        } else if (name == "Jesus dela Peña" ||
+            name == "Jesus Dela Peña" ||
             name == "Jesus de la Peña" ||
             name == "Jesus De La Pena") {
           center = LatLng(center.latitude - 0.003, center.longitude + 0.002);
@@ -562,7 +566,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
 
         centers[name] = center;
 
-        final sensorKey = FloodApiService.barangayToSensor[name] ?? 'sto_nino';
+        final sensorKey = FloodApiService.sensorForBarangay(name);
         ColorStatus? colorStatus =
             FloodApiService.operationalMapStatusForBarangay(name);
 
@@ -835,7 +839,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    location,
+                    LocationService.displayBarangay(location,
+                        isTagalog: _isTaglish),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -2157,6 +2162,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                           // to drastically reduce overcrowding while keeping info visible.
                                           final bool isZoomedOut =
                                               _currentZoom < 14.2;
+                                          final String displayName =
+                                              LocationService.displayBarangay(
+                                                  name,
+                                                  isTagalog: _isTaglish);
 
                                           return Marker(
                                             point: labelPoint,
@@ -2164,7 +2173,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                             height: isZoomedOut ? 60.0 : 110.0,
                                             child: Semantics(
                                               container: true,
-                                              label: '$name: $statusText',
+                                              label: '$displayName: $statusText',
                                               child: isZoomedOut
                                                   ? Column(
                                                       mainAxisAlignment:
@@ -2215,7 +2224,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                                   width: 4),
                                                               Flexible(
                                                                 child: Text(
-                                                                  name,
+                                                                  displayName,
                                                                   style:
                                                                       TextStyle(
                                                                     color:
@@ -2280,7 +2289,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                                                                 width: 1),
                                                           ),
                                                           child: Text(
-                                                            name,
+                                                            displayName,
                                                             textAlign: TextAlign
                                                                 .center,
                                                             style: TextStyle(
@@ -2868,8 +2877,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
       );
     }
 
-    _dashboardSelectedBarangay ??= _userProfile!.barangay;
+    _dashboardSelectedBarangay = LocationService.canonicalizeBarangay(
+        _dashboardSelectedBarangay ?? _userProfile!.barangay);
     final allBarangays = FloodApiService.barangayToSensor.keys.toList()..sort();
+    if (!allBarangays.contains(_dashboardSelectedBarangay) &&
+        allBarangays.isNotEmpty) {
+      _dashboardSelectedBarangay = allBarangays.first;
+    }
 
     final textColor = _isDarkMode ? Colors.white : const Color(0xFF1A1A1A);
     final subColor = _isDarkMode ? Colors.white : Colors.black;
@@ -2980,8 +2994,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                           color: textColor,
                         ),
                         items: allBarangays
-                            .map((b) =>
-                                DropdownMenuItem(value: b, child: Text(b)))
+                            .map((b) => DropdownMenuItem(
+                                value: b,
+                                child: Text(LocationService.displayBarangay(b,
+                                    isTagalog: _isTaglish))))
                             .toList(),
                         onChanged: (val) {
                           if (val != null) {
@@ -3014,7 +3030,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            '$_dashboardSelectedBarangay',
+                            LocationService.displayBarangay(
+                                _dashboardSelectedBarangay,
+                                isTagalog: _isTaglish),
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,

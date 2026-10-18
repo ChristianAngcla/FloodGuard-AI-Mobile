@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/flood_api_service.dart';
+import '../services/location_service.dart';
 import '../utils/station_thresholds.dart';
 import '../widgets/flood_warning_scale.dart';
 import '../widgets/typhoon_update_card.dart';
@@ -34,7 +35,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   late String _selectedBarangay;
 
   String get _sensorKey =>
-      FloodApiService.barangayToSensor[_selectedBarangay] ?? 'sto_nino';
+      FloodApiService.sensorForBarangay(_selectedBarangay);
 
   String get _sensorDisplayName =>
       FloodApiService.sensorDisplayNames[_sensorKey] ?? 'Unknown River';
@@ -42,7 +43,8 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   @override
   void initState() {
     super.initState();
-    _selectedBarangay = widget.barangayName;
+    _selectedBarangay =
+        LocationService.canonicalizeBarangay(widget.barangayName);
     Future.wait([
       FloodApiService.fetchDailyForecasts(),
       FloodApiService.fetchTyphoonStatus(),
@@ -137,7 +139,10 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                           ),
                           items: barangays
                               .map((name) => DropdownMenuItem(
-                                  value: name, child: Text(name)))
+                                  value: name,
+                                  child: Text(LocationService.displayBarangay(
+                                      name,
+                                      isTagalog: widget.isTaglish))))
                               .toList(),
                           onChanged: (value) {
                             if (value != null) {

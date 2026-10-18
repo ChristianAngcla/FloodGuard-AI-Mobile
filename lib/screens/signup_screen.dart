@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../data/translations.dart';
 import '../services/auth_service.dart';
+import '../services/location_service.dart';
 import '../utils/name_validator.dart';
 import '../widgets/wave_background.dart';
 import 'home_map_screen.dart';
@@ -870,26 +871,10 @@ class _SignupScreenState extends State<SignupScreen> {
           label: "Barangay",
           icon: Icons.map_rounded,
           value: _selectedBarangay,
-          items: [
-            "Barangka",
-            "Calumpang",
-            "Concepcion Dos",
-            "Concepcion Uno",
-            "Fortune",
-            "Industrial Valley",
-            "Jesus Dela Peña",
-            "Malanday",
-            "Marikina Heights",
-            "Nangka",
-            "Parang",
-            "San Roque",
-            "Santa Elena",
-            "Santo Niño",
-            "Tañong",
-            "Tumana"
-          ],
+          items: LocationService.marikinaBarangays,
           isDark: isDark,
-          onChanged: (val) => setState(() => _selectedBarangay = val),
+          onChanged: (val) => setState(() => _selectedBarangay =
+              val != null ? LocationService.canonicalizeBarangay(val) : null),
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -1278,6 +1263,7 @@ class _SignupScreenState extends State<SignupScreen> {
         isDark ? Colors.white.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2);
 
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: value,
       isDense: true,
       dropdownColor: isDark ? const Color(0xFF1A2B3C) : Colors.white,
@@ -1318,8 +1304,12 @@ class _SignupScreenState extends State<SignupScreen> {
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
       ),
-      items:
-          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      items: items
+          .map((e) => DropdownMenuItem(
+              value: e,
+              child: Text(LocationService.displayBarangay(e,
+                  isTagalog: widget.isTaglish))))
+          .toList(),
       onChanged: onChanged,
     );
   }
