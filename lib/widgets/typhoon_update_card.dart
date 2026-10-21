@@ -71,7 +71,7 @@ class TyphoonUpdateCard extends StatelessWidget {
     final titleColor =
         isDarkMode ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1);
     final subColor =
-        isDarkMode ? Colors.white70 : const Color(0xFF64748B);
+        isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
     final textColor =
         isDarkMode ? Colors.white : const Color(0xFF0F172A);
 
@@ -94,7 +94,7 @@ class TyphoonUpdateCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(16),
@@ -250,7 +250,7 @@ class TyphoonUpdateCard extends StatelessWidget {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                        horizontal: 10, vertical: 10),
                     decoration: BoxDecoration(
                       color: subCardBg,
                       borderRadius: BorderRadius.circular(12),
@@ -265,10 +265,13 @@ class TyphoonUpdateCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                storm.internationalName != null &&
-                                        storm.internationalName!.isNotEmpty
-                                    ? '$displayName (${storm.internationalName})'
-                                    : displayName,
+                                () {
+                                  final intl = storm.internationalName;
+                                  final hasIntl = intl != null &&
+                                      intl.isNotEmpty &&
+                                      !displayName.toLowerCase().contains(intl.toLowerCase());
+                                  return hasIntl ? '$displayName ($intl)' : displayName;
+                                }(),
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -349,7 +352,9 @@ class TyphoonUpdateCard extends StatelessWidget {
                           const SizedBox(height: 6),
                         ],
                         if (storm.heavyRainInfo != null &&
-                            storm.heavyRainInfo!.isNotEmpty)
+                            storm.heavyRainInfo!.trim().isNotEmpty &&
+                            !RegExp(r'^heavy\s+rainfall\s+outlook:?$', caseSensitive: false)
+                                .hasMatch(storm.heavyRainInfo!.trim()))
                           _detailRow(
                             label: isTaglish
                                 ? 'Ulat sa Ulan:'
@@ -371,8 +376,8 @@ class TyphoonUpdateCard extends StatelessWidget {
               Text(
                 '${isTaglish ? 'Na-update' : 'Updated'}: ${status.updatedAt}',
                 style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
                   color: subColor,
                 ),
               ),
@@ -473,7 +478,7 @@ class TyphoonUpdateCard extends StatelessWidget {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(10),
@@ -493,7 +498,7 @@ class TyphoonUpdateCard extends StatelessWidget {
               Text(
                 isTaglish ? 'BAKIT ITO MAHALAGA' : 'WHY THIS MATTERS',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.05,
                   color: accent,
@@ -505,8 +510,8 @@ class TyphoonUpdateCard extends StatelessWidget {
           Text(
             content,
             style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
               color: textColor,
               height: 1.45,
             ),
@@ -517,9 +522,10 @@ class TyphoonUpdateCard extends StatelessWidget {
                 ? 'Paunawa: Ang ulat na ito ay pangkalahatang kamalayan at hindi pamalit sa MLR water-level forecasting.'
                 : 'Note: Regional cyclone awareness does not replace FloodGuard\'s local water-level forecasting models.',
             style: TextStyle(
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontStyle: FontStyle.italic,
-              color: subColor,
+              fontWeight: FontWeight.w600,
+              color: isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
               height: 1.35,
             ),
           ),
@@ -542,7 +548,7 @@ class TyphoonUpdateCard extends StatelessWidget {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(10),
@@ -557,7 +563,9 @@ class TyphoonUpdateCard extends StatelessWidget {
               fontSize: 10.5,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.05,
-              color: subColor,
+              color: isDarkMode
+                  ? const Color(0xFF7DD3FC)
+                  : const Color(0xFF0369A1),
             ),
           ),
           const SizedBox(height: 8),
@@ -610,14 +618,15 @@ class TyphoonUpdateCard extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 11.5,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: subColor,
           ),
         ),
         const SizedBox(width: 8),
-        Flexible(
+        Expanded(
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
               if (dotColor != null) ...[
                 Container(
@@ -636,7 +645,7 @@ class TyphoonUpdateCard extends StatelessWidget {
                   textAlign: TextAlign.end,
                   style: TextStyle(
                     fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: textColor,
                   ),
                 ),
@@ -656,22 +665,24 @@ class TyphoonUpdateCard extends StatelessWidget {
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: subColor,
           ),
         ),
-        Flexible(
+        const SizedBox(width: 8),
+        Expanded(
           child: Text(
             value,
             textAlign: TextAlign.end,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: textColor,
             ),
           ),
@@ -745,7 +756,7 @@ class StayUpdatedReminderCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(12),
@@ -779,7 +790,7 @@ class StayUpdatedReminderCard extends StatelessWidget {
             message,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: bodyColor,
               height: 1.45,
             ),

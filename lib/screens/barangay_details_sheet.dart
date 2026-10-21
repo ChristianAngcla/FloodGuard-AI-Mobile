@@ -299,7 +299,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
         // 1. PREDICTED BARANGAY FLOOD RISK BANNER
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color:
                 riskInfo.color.withValues(alpha: widget.isDarkMode ? 0.2 : 0.1),
@@ -656,7 +656,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   Widget _buildScopeDisclaimer() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: widget.isDarkMode
             ? Colors.white.withValues(alpha: 0.05)
@@ -682,7 +682,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
                   : 'FloodGuard shows the predicted flood risk for the barangay. It does not show exactly which streets or houses will flood or how deep the floodwater will be.',
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 height: 1.45,
                 color: widget.isDarkMode ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
               ),
@@ -701,7 +701,7 @@ class _BarangayDetailsSheetState extends State<BarangayDetailsSheet> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: widget.isDarkMode
             ? const Color(0xFF253B50)

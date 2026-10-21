@@ -3174,14 +3174,15 @@ class _HomeMapScreenState extends State<HomeMapScreen>
           forecastHeading,
           style: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: subColor,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.05,
+            color: _isDarkMode ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1),
           ),
         ),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           decoration: BoxDecoration(
             color: _isDarkMode ? cardColor : const Color(0xFFF0F9FF),
             borderRadius: BorderRadius.circular(14),
@@ -3348,7 +3349,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         // 1. PREDICTED BARANGAY FLOOD RISK BANNER
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: badgeBg,
             borderRadius: BorderRadius.circular(14),
@@ -3367,7 +3368,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       _isTaglish ? 'ANTAS NG PANGANIB' : 'PREDICTED FLOOD RISK',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: 0.05,
                         color: riskColor,
                       ),
@@ -3394,7 +3395,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         // 2. FLOOD PREDICTION DETAILS
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: sectionBg,
             borderRadius: BorderRadius.circular(14),
@@ -3415,13 +3416,13 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                               ? 'Pagtatayang Lebel ng Tubig:'
                               : 'Predicted Water Level:',
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: subColor,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: _isDarkMode ? Colors.white : const Color(0xFF0F172A),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: constraints.maxWidth * 0.45,
@@ -3456,8 +3457,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                         : 'Monitoring Station:',
                     style: TextStyle(
                       fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: subColor,
+                      fontWeight: FontWeight.w700,
+                      color: _isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
                     ),
                   ),
                   Text(
@@ -3465,7 +3466,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: textColor,
+                      color: _isDarkMode ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
                 ],
@@ -3477,9 +3478,10 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                   Text(
                     _isTaglish ? 'Paraan ng Pagkalkula:' : 'Calculation Mode:',
                     style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: subColor),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: _isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -3514,9 +3516,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       ? 'Para sa: ${daily.forecastTargetDate}'
                       : 'Forecast target: ${daily.forecastTargetDate}',
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: subColor),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: _isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
                 ),
               ],
               if (daily.sourceDataDate != null &&
@@ -3527,9 +3529,9 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       ? 'Batay sa datos ng: ${daily.sourceDataDate}'
                       : 'Based on observations from: ${daily.sourceDataDate}',
                   style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: subColor),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _isDarkMode ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
                 ),
               ],
             ],
@@ -3540,7 +3542,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         // 3. WHAT THIS MEANS CARD
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: sectionBg,
             borderRadius: BorderRadius.circular(14),
@@ -3562,7 +3564,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.04,
-                      color: subColor,
+                      color: _isDarkMode ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1),
                     ),
                   ),
                 ],
@@ -3572,7 +3574,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                 meaning,
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: textColor,
                   height: 1.45,
                 ),
@@ -3603,7 +3605,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         // 6. WHY IS THIS THE FLOOD RISK? (FLOOD WARNING SCALE)
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: sectionBg,
             borderRadius: BorderRadius.circular(14),
@@ -3625,7 +3627,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.04,
-                      color: subColor,
+                      color: _isDarkMode ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1),
                     ),
                   ),
                 ],
@@ -3647,11 +3649,11 @@ class _HomeMapScreenState extends State<HomeMapScreen>
         // 7. WHAT YOU SHOULD DO
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: sectionBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: sectionBorder),
+            border: Border.all(color: riskColor.withValues(alpha: 0.35), width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3668,7 +3670,7 @@ class _HomeMapScreenState extends State<HomeMapScreen>
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.04,
-                      color: subColor,
+                      color: riskColor,
                     ),
                   ),
                 ],
@@ -3695,8 +3697,8 @@ class _HomeMapScreenState extends State<HomeMapScreen>
               : 'FloodGuard shows the predicted flood risk for the barangay. It does not show exactly which streets or houses will flood or how deep the floodwater will be.',
           style: TextStyle(
             fontSize: 12.5,
-            fontWeight: FontWeight.w500,
-            color: subColor,
+            fontWeight: FontWeight.w600,
+            color: _isDarkMode ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
             height: 1.4,
           ),
         ),
