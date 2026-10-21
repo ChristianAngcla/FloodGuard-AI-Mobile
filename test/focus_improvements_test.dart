@@ -7,6 +7,8 @@ import 'package:floodguard_ai/widgets/floodguard_modal_dialog.dart';
 void main() {
   group('TyphoonUpdateCard Tests', () {
     testWidgets('renders No Active Typhoon state correctly', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final status = TyphoonStatus(
         hasActiveTyphoon: false,
         isUnavailable: false,
@@ -40,6 +42,8 @@ void main() {
 
     testWidgets('renders Single Active Typhoon state (1 storm)',
         (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final status = TyphoonStatus(
         hasActiveTyphoon: true,
         activeCount: 1,
@@ -92,6 +96,8 @@ void main() {
     testWidgets(
         'renders Multiple Active Typhoons (2 storms matching mockup media_1790578433213.png)',
         (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final maria = TyphoonItem(
         name: 'Maria',
         displayName: 'Typhoon Maria',
@@ -162,6 +168,8 @@ void main() {
     });
 
     testWidgets('renders 3 Active Typhoons inside PAR', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final t1 = TyphoonItem(
         name: 'Ambo',
         displayName: 'Tropical Depression Ambo',
@@ -282,6 +290,8 @@ void main() {
     });
 
     testWidgets('renders Taglish copy accurately', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final status = TyphoonStatus(
         hasActiveTyphoon: false,
         isUnavailable: false,

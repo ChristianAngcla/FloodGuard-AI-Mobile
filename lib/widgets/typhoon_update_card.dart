@@ -47,7 +47,8 @@ _BadgeColor _classificationColors(String? classification, bool isDarkMode) {
 }
 
 /// 🌀 Official DOST-PAGASA Tropical Cyclone Status Card
-/// Read-only display of official severe weather bulletin data matching visual mockup.
+/// Operational situational awareness component answering what is happening,
+/// severity, movement, operational meaning, and authoritative provenance.
 class TyphoonUpdateCard extends StatelessWidget {
   final TyphoonStatus? typhoonStatus;
   final bool isDarkMode;
@@ -78,6 +79,18 @@ class TyphoonUpdateCard extends StatelessWidget {
         isDarkMode ? const Color(0xFF253B50) : Colors.white;
     final subCardBorder =
         isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0);
+
+    final whyMattersBg =
+        isDarkMode ? const Color(0xFF0C243B) : const Color(0xFFF0F9FF);
+    final whyMattersBorder =
+        isDarkMode ? const Color(0xFF0369A1) : const Color(0xFFBAE6FD);
+    final whyMattersAccent =
+        isDarkMode ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
+
+    final operationalBg =
+        isDarkMode ? const Color(0xFF182234) : Colors.white;
+    final operationalBorder =
+        isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
 
     return Container(
       width: double.infinity,
@@ -150,6 +163,34 @@ class TyphoonUpdateCard extends StatelessWidget {
                 fontStyle: FontStyle.italic,
                 height: 1.45,
               ),
+            ),
+            const SizedBox(height: 14),
+
+            // Why this matters - Unavailable
+            _buildWhyThisMatters(
+              bg: whyMattersBg,
+              border: whyMattersBorder,
+              accent: whyMattersAccent,
+              textColor: textColor,
+              subColor: subColor,
+              content: isTaglish
+                  ? 'Pansamantalang hindi maabot ang PAGASA bulletin. Sumangguni sa opisyal na anunsyo ng PAGASA habang patuloy na binabantayan ang lokal na water-level sensors ng FloodGuard.'
+                  : 'PAGASA cyclone data is currently unreachable. Regional cyclone status cannot be confirmed automatically. Consult official PAGASA channels while relying on FloodGuard\'s local water-level telemetry.',
+            ),
+            const SizedBox(height: 12),
+
+            // Operational awareness - Unavailable
+            _buildOperationalAwareness(
+              bg: operationalBg,
+              border: operationalBorder,
+              textColor: textColor,
+              subColor: subColor,
+              cycloneStatus: isTaglish ? 'Hindi Maabot' : 'Feed Unreachable',
+              statusDotColor: const Color(0xFFD97706),
+              systemCondition: isTaglish ? 'Hindi Na-verify' : 'Unverified',
+              conditionDotColor: const Color(0xFFD97706),
+              lastUpdated: isTaglish ? 'Naghihintay ng Koneksyon' : 'Pending Reconnection',
+              source: 'DOST-PAGASA Tropical Cyclone Bulletin',
             ),
           ] else if (status.hasActiveTyphoon) ...[
             // Active storms summary count
@@ -263,9 +304,29 @@ class TyphoonUpdateCard extends StatelessWidget {
                               : const Color(0xFFF1F5F9),
                         ),
 
-                        // Key-Value rows (hidden if null/unavailable)
+                        // Key-Value rows in prioritized mobile hierarchy
+                        if (storm.movement != null &&
+                            storm.movement!.isNotEmpty) ...[
+                          _detailRow(
+                            label: isTaglish ? 'Pagkilos:' : 'Moving:',
+                            value: storm.movement!,
+                            textColor: textColor,
+                            subColor: subColor,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        if (storm.location != null &&
+                            storm.location!.isNotEmpty) ...[
+                          _detailRow(
+                            label: isTaglish ? 'Lokasyon:' : 'Location:',
+                            value: storm.location!,
+                            textColor: textColor,
+                            subColor: subColor,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
                         if (storm.maximumWinds != null &&
-                            storm.maximumWinds!.isNotEmpty)
+                            storm.maximumWinds!.isNotEmpty) ...[
                           _detailRow(
                             label: isTaglish
                                 ? 'Lakas ng Hangin:'
@@ -274,9 +335,10 @@ class TyphoonUpdateCard extends StatelessWidget {
                             textColor: textColor,
                             subColor: subColor,
                           ),
+                          const SizedBox(height: 6),
+                        ],
                         if (storm.gustiness != null &&
                             storm.gustiness!.isNotEmpty) ...[
-                          const SizedBox(height: 6),
                           _detailRow(
                             label:
                                 isTaglish ? 'Bugso:' : 'Gustiness:',
@@ -284,20 +346,10 @@ class TyphoonUpdateCard extends StatelessWidget {
                             textColor: textColor,
                             subColor: subColor,
                           ),
-                        ],
-                        if (storm.movement != null &&
-                            storm.movement!.isNotEmpty) ...[
                           const SizedBox(height: 6),
-                          _detailRow(
-                            label: isTaglish ? 'Pagkilos:' : 'Moving:',
-                            value: storm.movement!,
-                            textColor: textColor,
-                            subColor: subColor,
-                          ),
                         ],
                         if (storm.heavyRainInfo != null &&
-                            storm.heavyRainInfo!.isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                            storm.heavyRainInfo!.isNotEmpty)
                           _detailRow(
                             label: isTaglish
                                 ? 'Ulat sa Ulan:'
@@ -306,17 +358,6 @@ class TyphoonUpdateCard extends StatelessWidget {
                             textColor: textColor,
                             subColor: subColor,
                           ),
-                        ],
-                        if (storm.location != null &&
-                            storm.location!.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          _detailRow(
-                            label: isTaglish ? 'Lokasyon:' : 'Location:',
-                            value: storm.location!,
-                            textColor: textColor,
-                            subColor: subColor,
-                          ),
-                        ],
                       ],
                     ),
                   );
@@ -324,7 +365,7 @@ class TyphoonUpdateCard extends StatelessWidget {
               );
             }),
 
-            // Bottom timestamp
+            // Bottom timestamp for backward compatibility
             if (status.updatedAt != null && status.updatedAt!.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
@@ -335,7 +376,35 @@ class TyphoonUpdateCard extends StatelessWidget {
                   color: subColor,
                 ),
               ),
+              const SizedBox(height: 12),
             ],
+
+            // Why This Matters - Active Cyclone
+            _buildWhyThisMatters(
+              bg: whyMattersBg,
+              border: whyMattersBorder,
+              accent: whyMattersAccent,
+              textColor: textColor,
+              subColor: subColor,
+              content: isTaglish
+                  ? 'Ang bagyo sa loob ng PAR ay maaaring magdulot ng ulan, hangin, at pagtaas ng tubig depende sa layo at lakas nito. Ito ay dagdag-kamalayan sa panahon at hindi pamalit sa lokal na forecast. Patuloy na subaybayan ang galaw ng bagyo kasama ang antas ng ilog at Help Requests.'
+                  : 'A tropical cyclone inside PAR may affect rainfall, wind, and river runoff depending on its track and distance. This provides regional storm awareness and does not replace local water-level forecasts. Continue monitoring storm movement alongside river gauges and Help Requests.',
+            ),
+            const SizedBox(height: 12),
+
+            // Operational Awareness - Active Cyclone
+            _buildOperationalAwareness(
+              bg: operationalBg,
+              border: operationalBorder,
+              textColor: textColor,
+              subColor: subColor,
+              cycloneStatus: isTaglish ? 'Aktibo sa Loob ng PAR' : 'Active inside PAR',
+              statusDotColor: const Color(0xFFDC2626),
+              systemCondition: isTaglish ? 'Na-verify sa PAGASA' : 'PAGASA feed verified',
+              conditionDotColor: const Color(0xFF16A34A),
+              lastUpdated: status.updatedAt ?? 'Current',
+              source: 'DOST-PAGASA Tropical Cyclone Bulletin',
+            ),
           ] else ...[
             // No active typhoon
             Text(
@@ -360,9 +429,222 @@ class TyphoonUpdateCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 14),
+
+            // Why This Matters - No Active Cyclone
+            _buildWhyThisMatters(
+              bg: whyMattersBg,
+              border: whyMattersBorder,
+              accent: whyMattersAccent,
+              textColor: textColor,
+              subColor: subColor,
+              content: isTaglish
+                  ? 'Kahit walang aktibong bagyo ngayon, ang mga localized thunderstorm at habagat ay maaari pa ring magdulot ng baha. Patuloy na subaybayan ang pang-araw-araw na forecast at sensors ng FloodGuard.'
+                  : 'While no active cyclone is inside PAR, localized thunderstorms and monsoon flows (Habagat) can still alter river elevations. Continue monitoring FloodGuard\'s local water-level forecasts and station sensors.',
+            ),
+            const SizedBox(height: 12),
+
+            // Operational Awareness - No Active Cyclone
+            _buildOperationalAwareness(
+              bg: operationalBg,
+              border: operationalBorder,
+              textColor: textColor,
+              subColor: subColor,
+              cycloneStatus: isTaglish ? 'Walang Aktibong Bagyo' : 'No Active Cyclones',
+              statusDotColor: const Color(0xFF16A34A),
+              systemCondition: isTaglish ? 'Na-verify sa PAGASA' : 'PAGASA feed verified',
+              conditionDotColor: const Color(0xFF16A34A),
+              lastUpdated: status.updatedAt ?? 'Current',
+              source: 'DOST-PAGASA Tropical Cyclone Bulletin',
+            ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildWhyThisMatters({
+    required Color bg,
+    required Color border,
+    required Color accent,
+    required Color textColor,
+    required Color subColor,
+    required String content,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border, width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 15,
+                color: accent,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isTaglish ? 'BAKIT ITO MAHALAGA' : 'WHY THIS MATTERS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.05,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            content,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isTaglish
+                ? 'Paunawa: Ang ulat na ito ay pangkalahatang kamalayan at hindi pamalit sa MLR water-level forecasting.'
+                : 'Note: Regional cyclone awareness does not replace FloodGuard\'s local water-level forecasting models.',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontStyle: FontStyle.italic,
+              color: subColor,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOperationalAwareness({
+    required Color bg,
+    required Color border,
+    required Color textColor,
+    required Color subColor,
+    required String cycloneStatus,
+    required Color statusDotColor,
+    required String systemCondition,
+    required Color conditionDotColor,
+    required String lastUpdated,
+    required String source,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border, width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isTaglish ? 'OPERATIONAL AWARENESS' : 'OPERATIONAL AWARENESS',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.05,
+              color: subColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _operationalRow(
+            label: isTaglish ? 'Katayuan ng Bagyo:' : 'Cyclone Status:',
+            value: cycloneStatus,
+            dotColor: statusDotColor,
+            textColor: textColor,
+            subColor: subColor,
+          ),
+          const SizedBox(height: 5),
+          _operationalRow(
+            label: isTaglish ? 'Kondisyon ng Sistema:' : 'System Condition:',
+            value: systemCondition,
+            dotColor: conditionDotColor,
+            textColor: textColor,
+            subColor: subColor,
+          ),
+          const SizedBox(height: 5),
+          _operationalRow(
+            label: isTaglish ? 'Huling Na-update:' : 'Last Updated:',
+            value: lastUpdated,
+            textColor: textColor,
+            subColor: subColor,
+          ),
+          const SizedBox(height: 5),
+          _operationalRow(
+            label: isTaglish ? 'Pinagmulan:' : 'Source:',
+            value: source,
+            textColor: textColor,
+            subColor: subColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _operationalRow({
+    required String label,
+    required String value,
+    Color? dotColor,
+    required Color textColor,
+    required Color subColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: subColor,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (dotColor != null) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
