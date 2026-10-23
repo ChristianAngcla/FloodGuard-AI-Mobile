@@ -83,20 +83,45 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  bool _isStrongPassword(String password) {
+    final regex = RegExp(
+      r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,128}$',
+    );
+    return regex.hasMatch(password);
+  }
+
+  String _normalizePhone(String raw) {
+    final clean = raw.trim().replaceAll(RegExp(r'\D'), '');
+    if (clean.startsWith('63') && clean.length == 12) {
+      return '+$clean';
+    }
+    if (clean.startsWith('09') && clean.length == 11) {
+      return '+63${clean.substring(1)}';
+    }
+    if (clean.startsWith('9') && clean.length == 10) {
+      return '+63$clean';
+    }
+    return '+$clean';
+  }
+
   Future<void> _showForgotPasswordDialog() async {
     final emailCtrl = TextEditingController(text: _emailCtrl.text.trim());
+    final phoneCtrl = TextEditingController();
     final otpCtrl = TextEditingController();
     final newPassCtrl = TextEditingController();
+    final confirmPassCtrl = TextEditingController();
 
-    String? foundPhone;
-    String? maskedPhone;
+        String? maskedPhone;
     String? verificationId;
     String? infoMessage;
-    int currentStep = 0; // 0 = Enter Email, 1 = Send OTP & Verify SMS
+    int currentStep = 0; // 0 = Enter Email & Registered Phone, 1 = Enter OTP & New Password
     bool busy = false;
+    bool obscureNewPass = true;
+    bool obscureConfirmPass = true;
 
     await showDialog(
       context: context,
+      barrierDismissible: !busy,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
@@ -113,12 +138,13 @@ class _LoginScreenState extends State<LoginScreen> {
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (currentStep == 0) ...[
                       Text(
                         widget.isTaglish
-                            ? 'Ilagay ang iyong rehistradong email address upang mahanap ang iyong account.'
-                            : 'Enter your registered email address to locate your account.',
+                            ? 'Ilagay ang iyong rehistradong email at mobile number upang matanggap ang SMS verification code.'
+                            : 'Enter your registered email and mobile number to receive an SMS verification code.',
                         style: TextStyle(
                           fontSize: 14,
                           color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
@@ -160,6 +186,42 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 15,
+                        ),
+                        decoration: InputDecoration(
+                          constraints: const BoxConstraints(minHeight: 56),
+                          labelText: widget.isTaglish ? 'Rehistradong Mobile Number' : 'Registered Mobile Number',
+                          labelStyle: TextStyle(
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          hintText: '09XXXXXXXXX',
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(Icons.phone_android_rounded, color: Color(0xFF3784DF)),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
+                          ),
+                        ),
+                      ),
                     ] else if (currentStep == 1) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -177,8 +239,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             Expanded(
                               child: Text(
                                 widget.isTaglish
-                                    ? 'Magpapadala kami ng OTP code sa iyong rehistradong numero: $maskedPhone'
-                                    : 'We will send a 6-digit OTP code to your registered mobile number: $maskedPhone',
+                                    ? 'Naipadala ang OTP sa: ${maskedPhone ?? ""}'
+                                    : 'OTP code sent to: ${maskedPhone ?? ""}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -202,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
                           constraints: const BoxConstraints(minHeight: 56),
-                          labelText: widget.isTaglish ? '6-Digit SMS OTP' : '6-Digit SMS OTP',
+                          labelText: '6-Digit SMS OTP',
                           labelStyle: TextStyle(
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                             fontSize: 14,
@@ -233,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: newPassCtrl,
-                        obscureText: true,
+                        obscureText: obscureNewPass,
                         style: TextStyle(
                           color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 15,
@@ -247,6 +309,51 @@ class _LoginScreenState extends State<LoginScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                           prefixIcon: const Icon(Icons.lock_reset_rounded, color: Color(0xFF3784DF)),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureNewPass ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: isDark ? Colors.white70 : const Color(0xFF475569),
+                            ),
+                            onPressed: () => setDialogState(() => obscureNewPass = !obscureNewPass),
+                          ),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: isDark ? Colors.white24 : Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF3784DF), width: 2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: confirmPassCtrl,
+                        obscureText: obscureConfirmPass,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 15,
+                        ),
+                        decoration: InputDecoration(
+                          constraints: const BoxConstraints(minHeight: 56),
+                          labelText: widget.isTaglish ? 'Kumpirmahin ang Password' : 'Confirm Password',
+                          labelStyle: TextStyle(
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF3784DF)),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscureConfirmPass ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: isDark ? Colors.white70 : const Color(0xFF475569),
+                            ),
+                            onPressed: () => setDialogState(() => obscureConfirmPass = !obscureConfirmPass),
+                          ),
                           filled: true,
                           fillColor: isDark ? const Color(0xFF253B50) : const Color(0xFFF1F5F9),
                           enabledBorder: OutlineInputBorder(
@@ -266,9 +373,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 12),
                       Text(
                         infoMessage!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF3784DF),
+                          color: infoMessage!.contains('error') ||
+                                  infoMessage!.contains('Failed') ||
+                                  infoMessage!.contains('Invalid') ||
+                                  infoMessage!.contains('Nabigo') ||
+                                  infoMessage!.contains('Maling') ||
+                                  infoMessage!.contains('Kailangan') ||
+                                  infoMessage!.contains('Please')
+                              ? Colors.redAccent
+                              : const Color(0xFF3784DF),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -277,6 +392,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               actions: [
+                if (currentStep == 1)
+                  TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => setDialogState(() {
+                              currentStep = 0;
+                              verificationId = null;
+                              otpCtrl.clear();
+                              newPassCtrl.clear();
+                              confirmPassCtrl.clear();
+                              infoMessage = null;
+                            }),
+                    child: Text(widget.isTaglish ? 'Bumalik' : 'Back'),
+                  ),
                 TextButton(
                   onPressed: busy ? null : () => Navigator.pop(ctx),
                   child: Text(widget.isTaglish ? 'Isara' : 'Close'),
@@ -286,8 +415,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF3784DF),
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          const Color(0xFF3784DF).withValues(alpha: 0.45),
+                      disabledBackgroundColor: const Color(0xFF3784DF).withValues(alpha: 0.45),
                       disabledForegroundColor: Colors.white70,
                       minimumSize: const Size(48, 48),
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -298,76 +426,41 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: busy
                         ? null
                         : () async {
-                            if (busy) return;
-                            final targetEmail = emailCtrl.text.trim();
-                            if (targetEmail.isEmpty) return;
-                            setDialogState(() => busy = true);
-
-                            final res = await AuthService().lookupPhoneByEmail(targetEmail);
-                            setDialogState(() => busy = false);
-
-                            if (res['success'] == true && res['phone'] != null) {
+                            final email = emailCtrl.text.trim();
+                            final rawPhone = phoneCtrl.text.trim();
+                            if (email.isEmpty || !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
                               setDialogState(() {
-                                foundPhone = res['phone'].toString();
-                                maskedPhone = res['maskedPhone']?.toString() ?? foundPhone;
-                                currentStep = 1;
                                 infoMessage = widget.isTaglish
-                                    ? 'Pindutin ang "Ipadala ang OTP" upang matanggap ang SMS.'
-                                    : 'Press "Send OTP" to receive the SMS code.';
+                                    ? 'Maglagay ng wastong email address.'
+                                    : 'Please enter a valid email address.';
                               });
-                            } else {
-                              setDialogState(() {
-                                infoMessage = res['message']?.toString() ??
-                                    (widget.isTaglish
-                                        ? 'Walang nakitang account sa email na ito.'
-                                        : 'No registered account found with that email.');
-                              });
+                              return;
                             }
-                          },
-                    child: busy
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(widget.isTaglish
-                                  ? 'Naghahanap...'
-                                  : 'Searching...'),
-                            ],
-                          )
-                        : Text(widget.isTaglish ? 'Hanapin ang Account' : 'Find Account'),
-                  )
-                else if (currentStep == 1 && verificationId == null)
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3784DF),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          const Color(0xFF3784DF).withValues(alpha: 0.45),
-                      disabledForegroundColor: Colors.white70,
-                      minimumSize: const Size(48, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            if (busy) return;
-                            if (foundPhone == null) return;
-                            setDialogState(() => busy = true);
+                            final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+                            final isValidPhPhone = (digits.startsWith('09') && digits.length == 11) ||
+                                (digits.startsWith('639') && digits.length == 12) ||
+                                (digits.startsWith('9') && digits.length == 10);
+                            if (!isValidPhPhone) {
+                              setDialogState(() {
+                                infoMessage = widget.isTaglish
+                                    ? 'Kailangan ng wastong mobile number (hal. 09123456789).'
+                                    : 'Please enter a valid mobile number (e.g. 09123456789).';
+                              });
+                              return;
+                            }
+
+                            final normPhone = _normalizePhone(rawPhone);
+                                                        final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '****';
+                            maskedPhone = '********$last4';
+
+                            setDialogState(() {
+                              busy = true;
+                              infoMessage = null;
+                            });
 
                             try {
                               await FirebaseAuth.instance.verifyPhoneNumber(
-                                phoneNumber: foundPhone!,
+                                phoneNumber: normPhone,
                                 timeout: const Duration(seconds: 60),
                                 verificationCompleted: (PhoneAuthCredential cred) async {
                                   if (cred.smsCode != null) {
@@ -390,9 +483,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   setDialogState(() {
                                     busy = false;
                                     verificationId = vId;
+                                    currentStep = 1;
                                     infoMessage = widget.isTaglish
                                         ? 'Naipadala na ang SMS OTP sa iyong telepono.'
-                                        : 'SMS OTP sent to your registered phone.';
+                                        : 'SMS OTP sent to your registered mobile number.';
                                   });
                                 },
                                 codeAutoRetrievalTimeout: (String vId) {
@@ -421,20 +515,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(widget.isTaglish
-                                  ? 'Ipinapadala...'
-                                  : 'Sending...'),
+                              Text(widget.isTaglish ? 'Ipinapadala...' : 'Sending...'),
                             ],
                           )
                         : Text(widget.isTaglish ? 'Ipadala ang OTP' : 'Send OTP'),
                   )
-                else if (currentStep == 1 && verificationId != null)
+                else if (currentStep == 1)
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF3784DF),
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          const Color(0xFF3784DF).withValues(alpha: 0.45),
+                      disabledBackgroundColor: const Color(0xFF3784DF).withValues(alpha: 0.45),
                       disabledForegroundColor: Colors.white70,
                       minimumSize: const Size(48, 48),
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -445,18 +536,50 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: busy
                         ? null
                         : () async {
-                            if (busy) return;
                             final code = otpCtrl.text.trim();
                             final newPass = newPassCtrl.text;
-                            if (code.length < 6 || newPass.length < 6) {
+                            final confirmPass = confirmPassCtrl.text;
+
+                            if (code.length != 6) {
                               setDialogState(() {
                                 infoMessage = widget.isTaglish
-                                    ? 'Kailangan ng 6-digit OTP at bagong password (min 6 chars).'
-                                    : 'Requires 6-digit OTP and new password (min 6 chars).';
+                                    ? 'Kailangan ng 6-digit SMS OTP code.'
+                                    : 'Please enter the 6-digit SMS OTP code.';
                               });
                               return;
                             }
-                            setDialogState(() => busy = true);
+
+                            if (!_isStrongPassword(newPass)) {
+                              setDialogState(() {
+                                infoMessage = widget.isTaglish
+                                    ? 'Kailangan ng min 8 characters na may uppercase, lowercase, numero, at special character (@\$!%*?&).'
+                                    : 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character (@\$!%*?&).';
+                              });
+                              return;
+                            }
+
+                            if (newPass != confirmPass) {
+                              setDialogState(() {
+                                infoMessage = widget.isTaglish
+                                    ? 'Hindi nagtutugma ang mga password.'
+                                    : 'Passwords do not match.';
+                              });
+                              return;
+                            }
+
+                            if (verificationId == null) {
+                              setDialogState(() {
+                                infoMessage = widget.isTaglish
+                                    ? 'Kailangan munang humiling ng bagong SMS OTP code.'
+                                    : 'Please request a new SMS OTP code first.';
+                              });
+                              return;
+                            }
+
+                            setDialogState(() {
+                              busy = true;
+                              infoMessage = null;
+                            });
 
                             try {
                               // 1. Verify SMS Credential via Firebase Phone Auth
@@ -495,7 +618,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 }
                               } else {
                                 setDialogState(() {
-                                  infoMessage = res['message']?.toString() ?? 'Failed to update password.';
+                                  infoMessage = res['message']?.toString() ??
+                                      (widget.isTaglish
+                                          ? 'Hindi ma-update ang password.'
+                                          : 'Failed to update password.');
                                 });
                               }
                             } catch (e) {
@@ -520,9 +646,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(widget.isTaglish
-                                  ? 'Sine-save...'
-                                  : 'Saving...'),
+                              Text(widget.isTaglish ? 'Sine-save...' : 'Saving...'),
                             ],
                           )
                         : Text(widget.isTaglish ? 'I-save ang Password' : 'Save New Password'),
@@ -536,8 +660,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       emailCtrl.dispose();
+      phoneCtrl.dispose();
       otpCtrl.dispose();
       newPassCtrl.dispose();
+      confirmPassCtrl.dispose();
     });
   }
 

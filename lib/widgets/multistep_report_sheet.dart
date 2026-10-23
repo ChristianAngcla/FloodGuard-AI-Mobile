@@ -572,6 +572,35 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
         context,
         title: title,
         message: message,
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12.0),
+          child: Container(
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.phone_in_talk, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.isTaglish
+                        ? "Agarang Saklolo? Tumawag sa Marikina Rescue: 161 / 911"
+                        : "Immediate Rescue? Call Marikina Rescue: 161 / 911",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDarkMode ? Colors.red[300] : Colors.red[800],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         variant: FloodGuardModalVariant.warning,
         confirmLabel: locationOutcome.needsOpenSettings
             ? (widget.isTaglish ? "Buksan ang Settings" : "Open Settings")
@@ -591,6 +620,12 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     final uid = await AuthService().getEffectiveUid();
     final userUid = uid ?? "anonymous";
     final streetText = _streetCtrl.text.trim();
+    if (streetText.length > 150) {
+      _showError(widget.isTaglish
+          ? "Ang kalye o landmark ay hindi maaaring lumampas sa 150 titik."
+          : "Street/Landmark cannot exceed 150 characters.");
+      return false;
+    }
     final barangayText = (_selectedBarangay ?? "").trim();
     final location = streetText.isNotEmpty && barangayText.isNotEmpty
         ? "$streetText, $barangayText"
@@ -624,6 +659,12 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
     }
 
     final detailsText = _getActiveDetailsText();
+    if (detailsText.length > 1000) {
+      _showError(widget.isTaglish
+          ? "Ang detalye ay hindi maaaring lumampas sa 1,000 titik."
+          : "Details cannot exceed 1,000 characters.");
+      return false;
+    }
     final compositeHelp = _buildCompositeHelpNeeded();
 
     final bool isMedical = _helpType == 'Medical';
@@ -1373,6 +1414,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           TextField(
             key: ValueKey('medical_details_$_medicalType'),
             controller: _getActiveDetailsCtrl(),
+            maxLength: 1000,
             maxLines: 2,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: _inputDecoration(
@@ -1602,6 +1644,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           TextField(
             key: ValueKey('evac_details_$_evacuationReason'),
             controller: _evacuationDetailsCtrl,
+            maxLength: 1000,
             maxLines: 2,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: _inputDecoration(
@@ -1645,6 +1688,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           TextField(
             key: const ValueKey('other_emergency_details'),
             controller: _otherEmergencyDetailsCtrl,
+            maxLength: 1000,
             maxLines: 4,
             style: TextStyle(color: textColor, fontSize: 14),
             decoration: _inputDecoration(
@@ -1706,6 +1750,7 @@ class _MultistepReportSheetState extends State<MultistepReportSheet> {
           const SizedBox(height: 20),
           TextField(
             controller: _streetCtrl,
+            maxLength: 150,
             style: TextStyle(color: textColor, fontSize: 15),
             decoration: _inputDecoration(
               widget.isTaglish

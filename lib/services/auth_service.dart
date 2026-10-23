@@ -269,7 +269,7 @@ class AuthService {
     final cleanEmail = email.trim().toLowerCase();
     try {
       final response = await _httpPost(
-        Uri.parse('$_baseUrl/auth/lookup-phone'),
+        Uri.parse('/auth/lookup-phone'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': cleanEmail}),
         timeout: const Duration(seconds: 15),
@@ -282,6 +282,18 @@ class AuthService {
         };
       }
 
+      if (response.statusCode == 410) {
+        try {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          return {
+            'success': false,
+            'decommissioned': true,
+            'message': data['message']?.toString() ??
+                'Direct phone lookup is decommissioned for citizen privacy. Please update the app.',
+          };
+        } catch (_) {}
+      }
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (data['success'] == true && data['phone'] != null) {
@@ -289,48 +301,14 @@ class AuthService {
         }
       }
     } catch (e) {
-      debugPrint('AuthService.lookupPhoneByEmail network error: $e');
+      debugPrint('AuthService.lookupPhoneByEmail network error: ');
     }
-
-    // Fallback: Check local SharedPreferences user_data cache
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userDataString = prefs.getString('user_data');
-      if (userDataString != null) {
-        final userData =
-            Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
-        final cachedEmail =
-            (userData['email'] ?? '').toString().trim().toLowerCase();
-        if (cachedEmail == cleanEmail || cleanEmail.isEmpty) {
-          String rawPhone = (userData['phone'] ?? '').toString().trim();
-          if (rawPhone.isNotEmpty) {
-            String formattedPhone = rawPhone;
-            if (formattedPhone.startsWith('0')) {
-              formattedPhone = '+63${formattedPhone.substring(1)}';
-            }
-            if (!formattedPhone.startsWith('+')) {
-              formattedPhone = '+63$formattedPhone';
-            }
-
-            final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
-            final last4 = digits.length >= 4
-                ? digits.substring(digits.length - 4)
-                : '****';
-            return {
-              'success': true,
-              'email': cachedEmail,
-              'phone': formattedPhone,
-              'maskedPhone': '********$last4',
-            };
-          }
-        }
-      }
-    } catch (_) {}
 
     return {
       'success': false,
+      'decommissioned': true,
       'message':
-          'No registered account found with that email. Please check the email spelling or register first.'
+          'Direct phone lookup is permanently decommissioned for citizen privacy. Please update your FloodGuard app to use secure account recovery.'
     };
   }
 
@@ -342,7 +320,7 @@ class AuthService {
     final cleanEmail = email.trim().toLowerCase();
     try {
       final response = await _httpPost(
-        Uri.parse('$_baseUrl/auth/update-password'),
+        Uri.parse('/auth/update-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': cleanEmail,
@@ -363,34 +341,36 @@ class AuthService {
         };
       }
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data['success'] == true) return data;
-      }
-    } catch (e) {
-      debugPrint('AuthService.updatePasswordByEmail error: $e');
-    }
+      Map<String, dynamic>? data;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          data = decoded;
+        }
+      } catch (_) {}
 
-    // Fallback: Update local session cache so user can log in locally immediately
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userDataString = prefs.getString('user_data');
-      if (userDataString != null) {
-        final userData =
-            Map<String, dynamic>.from(jsonDecode(userDataString) as Map);
-        userData['password'] = newPassword;
-        await prefs.setString('user_data', jsonEncode(userData));
+      if (response.statusCode == 200 && data != null && data['success'] == true) {
+        return data;
       }
+
+      if (data != null && data['message'] != null) {
+        return {
+          'success': false,
+          'message': data['message'].toString(),
+        };
+      }
+
       return {
-        'success': true,
-        'message': 'Password updated successfully. You can log in now.'
+        'success': false,
+        'message': 'Failed to update password (HTTP ).',
       };
-    } catch (_) {}
-
-    return {
-      'success': false,
-      'message': 'Could not update password. Please try again.'
-    };
+    } catch (e) {
+      debugPrint('AuthService.updatePasswordByEmail error: ');
+      return {
+        'success': false,
+        'message': 'Could not connect to server. Please check your internet connection.',
+      };
+    }
   }
 
   Future<void> logout() async {

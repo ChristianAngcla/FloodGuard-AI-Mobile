@@ -774,9 +774,13 @@ class _SignupScreenState extends State<SignupScreen> {
               icon: Icons.email_outlined,
               isDark: isDark,
               inputType: TextInputType.emailAddress,
+              maxLength: 254,
               validator: (val) {
-                if (val == null || val.isEmpty) return "Required";
-                if (!val.contains('@')) return "Enter a valid email";
+                if (val == null || val.trim().isEmpty) return "Required";
+                final clean = val.trim();
+                if (clean.length > 254 || !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(clean)) {
+                  return "Enter a valid email address";
+                }
                 return null;
               },
             ),

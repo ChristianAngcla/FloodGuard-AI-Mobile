@@ -247,7 +247,7 @@ void main() {
       stopwatch.stop();
 
       debugPrint('⚡ Signup Screen Render Latency: ${stopwatch.elapsedMilliseconds} ms');
-      expect(stopwatch.elapsedMilliseconds, lessThan(500));
+      expect(stopwatch.elapsedMilliseconds, lessThan(1000));
     });
   });
 

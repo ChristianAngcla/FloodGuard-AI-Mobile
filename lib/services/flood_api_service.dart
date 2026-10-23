@@ -870,6 +870,7 @@ class FloodApiService {
     String? vulnerablePerson,
     String? urgency,
     String? details,
+    int? peopleCount,
   }) async {
     if (_isHelpReportInFlight) {
       lastHelpRequestError =
@@ -917,6 +918,8 @@ class FloodApiService {
           'vulnerablePerson': vulnerablePerson,
           'urgency': urgency,
           'details': details,
+          'people_count': peopleCount,
+          'peopleCount': peopleCount,
         }),
         timeout: _timeout,
       );
